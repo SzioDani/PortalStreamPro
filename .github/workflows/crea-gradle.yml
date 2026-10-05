@@ -1,0 +1,36 @@
+name: ЁЯЫая╕П Crea File di Sistema
+
+on:
+  workflow_dispatch:
+
+jobs:
+  crea-wrapper:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'corretto'
+    
+    - name: Scarica Gradle Ufficiale e Genera Wrapper
+      run: |
+        wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
+        unzip gradle-8.2-bin.zip
+        ./gradle-8.2/bin/gradle wrapper --gradle-version 8.2
+        rm -rf gradle-8.2-bin.zip gradle-8.2/          
+    
+    - name: Salva nel Repository
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add gradlew gradlew.bat
+        git add -f gradle/wrapper/gradle-wrapper.jar
+        git add -f gradle/wrapper/gradle-wrapper.properties
+        git commit -m "Aggiunto file JAR del wrapper forzatamente"
+        git push
+
+        
