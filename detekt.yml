@@ -1,0 +1,35 @@
+global:
+  excludes:
+    - '**/test/**'
+    - '**/androidTest/**'
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+comments:
+  active: true
+
+complexity:
+  active: true
+  CyclomaticComplexity:
+    threshold: 15
+
+coroutines:
+  active: true
+
+empty-blocks:
+  active: true
+
+exceptions:
+  active: true
+
+formatting:
+  active: true
+  indentation:
+    indentSize: 4
+
+naming:
+  active: true
