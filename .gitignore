@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+build/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+local.properties
+
+# Test
+test-results/
+androidTest-results/
+
+# Logs
+*.log
+logs/
+
+# Secrets
+secrets.properties
+keystore.properties
+google-services.json
+
+# IDE
+.vscode/
+.sublime-project
+.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
