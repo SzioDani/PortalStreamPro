@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PRIMARY PALETTE - Indigo (Professional) -->
+    <color name="primary">#6366F1</color>
+    <color name="primary_light">#818CF8</color>
+    <color name="primary_dark">#4F46E5</color>
+
+    <!-- SECONDARY PALETTE - Pink (Energy) -->
+    <color name="secondary">#EC4899</color>
+    <color name="secondary_light">#F472B6</color>
+    <color name="secondary_dark">#DB2777</color>
+
+    <!-- TERTIARY PALETTE - Emerald (Action) -->
+    <color name="tertiary">#10B981</color>
+    <color name="tertiary_light">#34D399</color>
+    <color name="tertiary_dark">#059669</color>
+
+    <!-- SURFACE & BACKGROUND -->
+    <color name="surface_dark">#0F172A</color>      <!-- Slate 900 - AMOLED -->
+    <color name="surface_dark_variant">#1E293B</color> <!-- Slate 800 -->
+    <color name="surface_light">#F8FAFC</color>     <!-- Slate 50 -->
+    <color name="surface_light_variant">#F1F5F9</color> <!-- Slate 100 -->
+
+    <!-- SEMANTIC COLORS -->
+    <color name="error">#EF4444</color>             <!-- Red for errors -->
+    <color name="error_light">#FCA5A5</color>
+    <color name="error_dark">#DC2626</color>
+
+    <color name="success">#10B981</color>           <!-- Green for success/recording -->
+    <color name="success_light">#6EE7B7</color>
+    <color name="success_dark">#047857</color>
+
+    <color name="warning">#F59E0B</color>           <!-- Amber for buffering -->
+    <color name="warning_light">#FCD34D</color>
+    <color name="warning_dark">#D97706</color>
+
+    <color name="info">#3B82F6</color>              <!-- Blue for info/network -->
+    <color name="info_light">#93C5FD</color>
+    <color name="info_dark">#1D4ED8</color>
+
+    <!-- TEXT COLORS -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#CBD5E1</color>    <!-- Slate 400 -->
+    <color name="text_tertiary">#94A3B8</color>     <!-- Slate 500 -->
+    <color name="text_disabled">#64748B</color>     <!-- Slate 600 -->
+
+    <!-- NEUTRAL PALETTE -->
+    <color name="neutral_50">#F8FAFC</color>
+    <color name="neutral_100">#F1F5F9</color>
+    <color name="neutral_200">#E2E8F0</color>
+    <color name="neutral_300">#CBD5E1</color>
+    <color name="neutral_400">#94A3B8</color>
+    <color name="neutral_500">#64748B</color>
+    <color name="neutral_600">#475569</color>
+    <color name="neutral_700">#334155</color>
+    <color name="neutral_800">#1E293B</color>
+    <color name="neutral_900">#0F172A</color>
+
+    <!-- SPECIAL COLORS FOR IPTV -->
+    <color name="recording_indicator">#EF4444</color>  <!-- Red blinking REC -->
+    <color name="live_badge">#10B981</color>           <!-- Green LIVE badge -->
+    <color name="buffer_spinner">#F59E0B</color>       <!-- Amber loading -->
+    <color name="network_good">#10B981</color>         <!-- Green WiFi -->
+    <color name="network_warning">#F59E0B</color>      <!-- Amber WiFi -->
+    <color name="network_bad">#EF4444</color>          <!-- Red WiFi -->
+
+    <!-- OVERLAY & TRANSPARENCY -->
+    <color name="overlay_dark">#000000</color>
+    <color name="overlay_light">#FFFFFF</color>
+    <color name="overlay_semi">#80000000</color>
+
+    <!-- LEGACY SUPPORT (if needed) -->
+    <color name="colorPrimary">@color/primary</color>
+    <color name="colorPrimaryVariant">@color/primary_dark</color>
+    <color name="colorSecondary">@color/secondary</color>
+    <color name="colorSecondaryVariant">@color/secondary_dark</color>
+    <color name="colorError">@color/error</color>
+    <color name="colorBackground">@color/surface_dark</color>
+    <color name="colorSurface">@color/surface_dark_variant</color>
+</resources>
