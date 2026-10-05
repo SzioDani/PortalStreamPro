@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Triangolo verde #00E676, ridimensionato nella safe-zone centrale -->
+    <path android:fillColor="#00E676" android:pathData="M54,32L30,76h48z"/>
+</vector>
