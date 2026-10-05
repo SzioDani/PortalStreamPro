@@ -1,144 +1,87 @@
 package com.portalstream.app.ui.player
 
-import android.content.Context
+import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
-import androidx.media3.common.MediaItem
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.ExoPlayer.Builder
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import com.portalstream.app.network.NetworkSniffer
-import com.portalstream.app.streaming.AdaptiveBitrateManager
-import com.portalstream.app.utils.DeviceDetector
-import com.portalstream.app.utils.DeviceType
-import timber.log.Timber
+import android.view.KeyEvent
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import com.portalstream.app.R
 
-private const val DEFAULT_UA =
-    "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG200 stbapp ver: 4.3.1939"
+class PlayerActivity : AppCompatActivity() {
 
-class PlayerActivity : ComponentActivity() {
-
-    private lateinit var exoPlayer: ExoPlayer
     private lateinit var pipManager: PipManager
-    private lateinit var adaptiveBitrate: AdaptiveBitrateManager
-    private lateinit var deviceDetector: DeviceDetector
-    private lateinit var networkSniffer: NetworkSniffer
+    private var areControlsVisible = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_player)
 
-        try {
-            initApp()
-        } catch (e: Exception) {
-            Timber.e(e, "Crash in onCreate")
-            showCrashScreen(e)
-        }
+        pipManager = PipManager(this)
     }
 
-    private fun initApp() {
-        deviceDetector = DeviceDetector(this)
-        networkSniffer = NetworkSniffer(this)
-
-        Timber.d("Device: ${deviceDetector.getDeviceInfo()}")
-
-        // User-Agent: quello del portale se impostato, altrimenti default MAG
-        val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_UA
-
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setDefaultRequestProperties(mapOf("User-Agent" to userAgent))
-
-        exoPlayer = Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
-            .build()
-
-        pipManager = PipManager(this, exoPlayer)
-
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-        adaptiveBitrate = AdaptiveBitrateManager(exoPlayer, connectivityManager)
-        adaptiveBitrate.autoSelectQuality()
-
-        loadStreamFromIntent()
-
-        setupUI()
-    }
-
-    private fun loadStreamFromIntent() {
-        val streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: TEST_STREAM_URL
-        val channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Test Stream"
-        Timber.d("Riproduco: $channelName -> $streamUrl")
-
-        val mediaItem = MediaItem.fromUri(streamUrl)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
-    }
-
-    private fun showCrashScreen(e: Exception) {
-        setContentView(ComposeView(this).apply {
-            setContent {
-                MaterialTheme {
-                    CrashScreen(e)
-                }
+    /**
+     * Intercetta direttamente i comandi del D-Pad / Telecomando Firestick / Android TV
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                toggleControls()
+                true
             }
-        })
-    }
-
-    private fun setupUI() {
-        val device = deviceDetector.detectDevice()
-
-        setContentView(ComposeView(this).apply {
-            setContent {
-                MaterialTheme {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                    ) {
-                        when (device) {
-                            DeviceType.PHONE -> PhonePlayerUI(exoPlayer, pipManager)
-                            DeviceType.TABLET -> TabletPlayerUI(exoPlayer)
-                            DeviceType.TV, DeviceType.FIRESTICK, DeviceType.BOX_ANDROID -> TVPlayerUI(exoPlayer)
-                            else -> PhonePlayerUI(exoPlayer, pipManager)
-                        }
-                    }
-                }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                // Mostra la lista canali rapida (overlay zapping)
+                showQuickChannelOverlay()
+                true
             }
-        })
-    }
-
-    override fun onPause() {
-        super.onPause()
-        if (::exoPlayer.isInitialized && ::pipManager.isInitialized && !pipManager.isInPipMode()) {
-            exoPlayer.pause()
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                // Mostra EPG del canale corrente
+                showEpgOverlay()
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                // Rewind rapido o canale precedente
+                switchChannelDelta(-1)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                // Forward rapido o canale successivo
+                switchChannelDelta(1)
+                true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                togglePlayPause()
+                true
+            }
+            else -> super.onKeyDown(keyCode, event)
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (::exoPlayer.isInitialized) {
-            exoPlayer.play()
-        }
+    private fun toggleControls() {
+        areControlsVisible = !areControlsVisible
+        // Gestisci visibilità UI sovrapposta
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (::exoPlayer.isInitialized) {
-            exoPlayer.release()
-        }
+    private fun showQuickChannelOverlay() {
+        // Implementazione pannello zapping D-Pad
     }
 
-    companion object {
-        const val EXTRA_STREAM_URL = "com.portalstream.app.extra.STREAM_URL"
-        const val EXTRA_CHANNEL_NAME = "com.portalstream.app.extra.CHANNEL_NAME"
-        const val EXTRA_USER_AGENT = "com.portalstream.app.extra.USER_AGENT"
-        const val TEST_STREAM_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+    private fun showEpgOverlay() {
+        // Implementazione pannello info EPG
+    }
+
+    private fun switchChannelDelta(delta: Int) {
+        // Cambia canale (+1 / -1)
+    }
+
+    private fun togglePlayPause() {
+        // Play / Pause ExoPlayer
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Entra automaticamente in PiP quando si preme Home (Android 8.0+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipManager.enterPipMode()
+        }
     }
 }
