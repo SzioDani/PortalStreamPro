@@ -1,50 +1,68 @@
 package com.portalstream.app.streaming
 
 import com.portalstream.app.domain.model.Channel
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
 
 object M3UParser {
 
-    fun parse(content: String): List<Channel> {
-        val channels = mutableListOf<Channel>()
-        var pendingName: String? = null
-        var pendingLogo: String? = null
-        var pendingGroup: String? = null
-        var pendingTvgId: String? = null
+    /**
+     * Legge lo stream M3U riga per riga senza caricare l'intero file in memoria.
+     * Invoca [onChannelParsed] ad ogni canale individuato.
+     */
+    fun parseStreaming(
+        inputStream: InputStream,
+        onChannelParsed: (Channel) -> Unit
+    ) {
+        val reader = BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8))
+        var currentTitle: String? = null
+        var currentGroup: String? = null
+        var currentLogo: String? = null
+        var currentTvgId: String? = null
 
-        for (raw in content.lines()) {
-            val line = raw.trim()
-            when {
-                line.startsWith("#EXTINF") -> {
-                    pendingTvgId = extractAttr(line, "tvg-id")
-                    pendingLogo = extractAttr(line, "tvg-logo")
-                    pendingGroup = extractAttr(line, "group-title")
-                    pendingName = line.substringAfterLast(",").trim().ifEmpty { "Senza nome" }
-                }
-                line.isNotEmpty() && !line.startsWith("#") -> {
-                    pendingName?.let { name ->
-                        channels.add(
-                            Channel(
-                                name = name,
-                                url = line,
-                                logo = pendingLogo,
-                                group = pendingGroup,
-                                tvgId = pendingTvgId
+        reader.useLines { lines ->
+            for (line in lines) {
+                val trimmed = line.trim()
+                when {
+                    trimmed.startsWith("#EXTINF:", ignoreCase = true) -> {
+                        currentTitle = trimmed.substringAfterLast(",").trim()
+                        currentGroup = extractAttribute(trimmed, "group-title")
+                        currentLogo = extractAttribute(trimmed, "tvg-logo")
+                        currentTvgId = extractAttribute(trimmed, "tvg-id")
+                    }
+                    trimmed.startsWith("#EXTGRP:", ignoreCase = true) -> {
+                        if (currentGroup == null) {
+                            currentGroup = trimmed.substringAfter("#EXTGRP:").trim()
+                        }
+                    }
+                    trimmed.isNotEmpty() && !trimmed.startsWith("#") -> {
+                        if (!currentTitle.isNull_Empty()) {
+                            val channel = Channel(
+                                id = (trimmed.hashCode() xor System.currentTimeMillis().toInt()).toString(),
+                                name = currentTitle,
+                                url = trimmed,
+                                group = currentGroup ?: "Generale",
+                                logoUrl = currentLogo,
+                                epgId = currentTvgId
                             )
-                        )
-                        pendingName = null
+                            onChannelParsed(channel)
+                        }
+                        // Reset per il prossimo canale
+                        currentTitle = null
+                        currentGroup = null
+                        currentLogo = null
+                        currentTvgId = null
                     }
                 }
             }
         }
-        return channels
     }
 
-    private fun extractAttr(line: String, attr: String): String? {
-        val key = "$attr=\""
-        val start = line.indexOf(key)
-        if (start == -1) return null
-        val from = start + key.length
-        val end = line.indexOf("\"", from)
-        return if (end == -1) null else line.substring(from, end)
+    private fun extractAttribute(line: String, attribute: String): String? {
+        val pattern = """$attribute="([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
+        return pattern.find(line)?.groupValues?.get(1)
     }
+
+    private fun String?.isNull_Empty(): Boolean = this == null || this.trim().isEmpty()
 }
