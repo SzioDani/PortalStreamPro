@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- APP INFO -->
+    <string name="app_name">PortalStream Pro</string>
+    <string name="app_version">1.0.0-beta</string>
+    <string name="app_slogan">Player IPTV Professionale</string>
+
+    <!-- NAVIGATION -->
+    <string name="nav_home">Home</string>
+    <string name="nav_live">Live</string>
+    <string name="nav_search">Cerca</string>
+    <string name="nav_recordings">Registrazioni</string>
+    <string name="nav_settings">Impostazioni</string>
+
+    <!-- HOME SCREEN -->
+    <string name="home_continue_watching">Continua a guardare</string>
+    <string name="home_quick_access">Accesso rapido</string>
+    <string name="home_no_portals">Nessun portale configurato</string>
+    <string name="home_add_portal">Aggiungi portale</string>
+    <string name="home_recent_channels">Canali recenti</string>
+    <string name="home_favorite_channels">Canali preferiti</string>
+    <string name="home_welcome">Benvenuto in PortalStream Pro</string>
+    <string name="home_setup_required">Configurazione necessaria per iniziare</string>
+
+    <!-- PLAYER SCREEN -->
+    <string name="player_play">Riproduci</string>
+    <string name="player_pause">Pausa</string>
+    <string name="player_seek_forward">Avanti veloce</string>
+    <string name="player_seek_backward">Indietro veloce</string>
+    <string name="player_quality">Qualità</string>
+    <string name="player_audio">Traccia audio</string>
+    <string name="player_subtitles">Sottotitoli</string>
+    <string name="player_cast">Trasmetti</string>
+    <string name="player_pip">Picture in Picture</string>
+    <string name="player_info">Info canale</string>
+    <string name="player_record">Registra</string>
+    <string name="player_schedule_record">Programma registrazione</string>
+    <string name="player_buffering">Caricamento...</string>
+    <string name="player_loading">Caricamento...</string>
+    <string name="player_error">Errore di riproduzione</string>
+    <string name="player_no_stream">Nessuno stream disponibile</string>
+    <string name="player_quality_auto">Auto</string>
+    <string name="player_quality_480p">480p</string>
+    <string name="player_quality_720p">720p</string>
+    <string name="player_quality_1080p">1080p</string>
+    <string name="player_quality_4k">4K</string>
+    <string name="player_network_speed">Rete: %s Mbps</string>
+    <string name="player_rec_indicator">REC</string>
+    <string name="player_rec_time">Registrazione: %s</string>
+    <string name="player_live_badge">LIVE</string>
+
+    <!-- PLAYLIST SCREEN -->
+    <string name="playlist_all_channels">Tutti i canali</string>
+    <string name="playlist_categories">Categorie</string>
+    <string name="playlist_favorites">Preferiti</string>
+    <string name="playlist_recently_watched">Guardati di recente</string>
+    <string name="playlist_live">Live</string>
+    <string name="playlist_vod">Film</string>
+    <string name="playlist_series">Serie TV</string>
+    <string name="playlist_search_channels">Cerca canali...</string>
+    <string name="playlist_no_channels">Nessun canale trovato</string>
+    <string name="playlist_filter">Filtro</string>
+    <string name="playlist_sort">Ordina</string>
+    <string name="playlist_group">Gruppo</string>
+    <string name="playlist_channels_count">%d canali</string>
+    <string name="playlist_empty">Categoria vuota</string>
+
+    <!-- CONFIGURATION SCREEN -->
+    <string name="config_title">Aggiungi portale</string>
+    <string name="config_portal_type">Tipo di portale</string>
+    <string name="config_type_m3u">Playlist M3U</string>
+    <string name="config_type_xtream">Xtream Codes</string>
+    <string name="config_type_mag">MAG Stalker</string>
+    <string name="config_type_magnet">Magnet/Torrent</string>
+    <string name="config_url">URL del portale</string>
+    <string name="config_url_hint">https://esempio.com/playlist.m3u8</string>
+    <string name="config_username">Nome utente</string>
+    <string name="config_username_hint">Lascia vuoto se non richiesto</string>
+    <string name="config_password">Password</string>
+    <string name="config_password_hint">Lascia vuoto se non richiesta</string>
+    <string name="config_mac_address">Indirizzo MAC</string>
+    <string name="config_mac_hint">Esempio: 00:1A:2B:3C:4D:5E</string>
+    <string name="config_user_agent">User-Agent</string>
+    <string name="config_user_agent_hint">Auto-rilevamento (consigliato)</string>
+    <string name="config_test_connection">Test connessione</string>
+    <string name="config_test_success">Connessione riuscita!</string>
+    <string name="config_test_failed">Connessione fallita</string>
+    <string name="config_save">Salva portale</string>
+    <string name="config_cancel">Annulla</string>
+    <string name="config_optional">(Opzionale)</string>
+    <string name="config_required">(Obbligatorio)</string>
+    <string name="config_importing">Importazione playlist...</string>
+    <string name="config_import_success">Playlist importata con successo!</string>
+    <string name="config_import_failed">Impossibile importare la playlist</string>
+    <string name="config_channels_imported">%d canali importati</string>
+
+    <!-- QUICK SETTINGS -->
+    <string name="settings_quick_title">Impostazioni</string>
+    <string name="settings_quality_auto">Qualità automatica</string>
+    <string name="settings_buffer_size">Dimensione buffer</string>
+    <string name="settings_buffer_small">Piccolo (3 sec)</string>
+    <string name="settings_buffer_normal">Normale (5 sec)</string>
+    <string name="settings_buffer_large">Grande (10 sec)</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_dark">Scuro</string>
+    <string name="settings_theme_light">Chiaro</string>
+    <string name="settings_theme_auto">Auto (in base al tramonto)</string>
+    <string name="settings_subtitles">Sottotitoli</string>
+    <string name="settings_subtitles_auto_download">Download automatico sottotitoli</string>
+    <string name="settings_language">Lingua</string>
+    <string name="settings_more">Altre impostazioni</string>
+
+    <!-- FULL SETTINGS (Future) -->
+    <string name="settings_recording_folder">Cartella registrazioni</string>
+    <string name="settings_vvpn_enabled">VPN abilitata</string>
+    <string name="settings_pip_enabled">Picture in Picture</string>
+    <string name="settings_parental_control">Controllo parentale</string>
+    <string name="settings_about">Informazioni</string>
+    <string name="settings_about_version">Versione: %s</string>
+    <string name="settings_about_license">Licenza: GPL-3.0</string>
+    <string name="settings_device_info">Informazioni sul dispositivo</string>
+
+    <!-- RECORDING -->
+    <string name="recording_title">Registrazioni</string>
+    <string name="recording_start">Avvia registrazione</string>
+    <string name="recording_stop">Ferma registrazione</string>
+    <string name="recording_list_empty">Nessuna registrazione</string>
+    <string name="recording_schedule">Programma registrazione</string>
+    <string name="recording_scheduled_list">Registrazioni programmate</string>
+    <string name="recording_duration">Durata: %s</string>
+    <string name="recording_size">Dimensione: %s</string>
+    <string name="recording_delete">Elimina</string>
+    <string name="recording_play">Riproduci registrazione</string>
+    <string name="recording_share">Condividi</string>
+
+    <!-- SEARCH -->
+    <string name="search_hint">Cerca canali, film, serie...</string>
+    <string name="search_no_results">Nessun risultato trovato</string>
+    <string name="search_recent">Ricerche recenti</string>
+    <string name="search_clear_history">Cancella cronologia</string>
+
+    <!-- DIALOGS & MESSAGES -->
+    <string name="dialog_confirm">Conferma</string>
+    <string name="dialog_cancel">Annulla</string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_yes">Sì</string>
+    <string name="dialog_no">No</string>
+    <string name="dialog_delete">Elimina</string>
+    <string name="dialog_edit">Modifica</string>
+    <string name="dialog_retry">Riprova</string>
+    <string name="dialog_add">Aggiungi</string>
+    <string name="dialog_remove">Rimuovi</string>
+
+    <!-- ERRORS & WARNINGS -->
+    <string name="error_network">Errore di rete. Controlla la connessione.</string>
+    <string name="error_invalid_url">Formato URL non valido</string>
+    <string name="error_invalid_credentials">Nome utente o password non validi</string>
+    <string name="error_timeout">Timeout della connessione</string>
+    <string name="error_no_stream">Nessuno stream riproducibile disponibile</string>
+    <string name="error_playback_failed">Riproduzione fallita</string>
+    <string name="error_recording_failed">Registrazione fallita</string>
+    <string name="error_cast_failed">Trasmissione fallita</string>
+    <string name="error_storage_full">Memoria piena</string>
+    <string name="warning_low_bandwidth">Banda ridotta rilevata</string>
+    <string name="warning_vpn_disconnected">VPN disconnessa</string>
+
+    <!-- NETWORK STATUS -->
+    <string name="network_wifi">WiFi</string>
+    <string name="network_mobile">Dati mobili</string>
+    <string name="network_ethernet">Ethernet</string>
+    <string name="network_disconnected">Nessuna connessione</string>
+    <string name="network_connecting">Connessione in corso...</string>
+    <string name="network_speed_good">Buona</string>
+    <string name="network_speed_fair">Discreta</string>
+    <string name="network_speed_poor">Scarsa</string>
+
+    <!-- TIME & DURATION -->
+    <string name="time_format_hms">%02d:%02d:%02d</string>
+    <string name="time_live">LIVE</string>
+    <string name="duration_seconds">%d sec</string>
+    <string name="duration_minutes">%d min</string>
+    <string name="duration_hours">%d h %d min</string>
+
+    <!-- ACCESSIBILITY -->
+    <string name="accessibility_play_button">Pulsante riproduci</string>
+    <string name="accessibility_pause_button">Pulsante pausa</string>
+    <string name="accessibility_seek_backward">Indietro veloce</string>
+    <string name="accessibility_seek_forward">Avanti veloce</string>
+    <string name="accessibility_volume_up">Alza volume</string>
+    <string name="accessibility_volume_down">Abbassa volume</string>
+    <string name="accessibility_quality_selector">Selettore qualità</string>
+    <string name="accessibility_cast_button">Pulsante trasmissione</string>
+    <string name="accessibility_pip_button">Picture in Picture</string>
+    <string name="accessibility_record_button">Pulsante registrazione</string>
+
+    <!-- ACTIONS -->
+    <string name="action_open">Apri</string>
+    <string name="action_close">Chiudi</string>
+    <string name="action_save">Salva</string>
+    <string name="action_load">Carica</string>
+    <string name="action_update">Aggiorna</string>
+    <string name="action_refresh">Aggiorna</string>
+    <string name="action_export">Esporta</string>
+    <string name="action_import">Importa</string>
+    <string name="action_download">Scarica</string>
+    <string name="action_upload">Carica</string>
+
+    <!-- DEVICE SPECIFIC -->
+    <string name="device_phone">Smartphone</string>
+    <string name="device_tablet">Tablet</string>
+    <string name="device_tv">Android TV</string>
+    <string name="device_firestick">FireStick</string>
+    <string name="device_box">Android Box</string>
+</resources>
