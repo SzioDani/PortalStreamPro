@@ -1,37 +1,31 @@
 package com.portalstream.app.ui.player
 
+import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.ComponentActivity
-import androidx.media3.exoplayer.ExoPlayer
+import android.util.Rational
 
-class PipManager(
-    private val activity: ComponentActivity,
-    private val exoPlayer: ExoPlayer
-) {
-    
+class PipManager(private val activity: Activity) {
+
+    fun isPipSupported(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    }
+
     fun enterPipMode() {
+        if (!isPipSupported()) return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val pipParams = PictureInPictureParams.Builder()
-                .setAspectRatio(android.util.Rational(16, 9))
-                .setAutoEnterEnabled(true)
-                .build()
-            
-            activity.enterPictureInPictureMode(pipParams)
-        }
-    }
-    
-    fun exitPipMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            activity.moveTaskToBack(false)
-        }
-    }
-    
-    fun isInPipMode(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            activity.isInPictureInPictureMode
-        } else {
-            false
+            val aspectRatio = Rational(16, 9)
+            val builder = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(true)
+            }
+
+            activity.enterPictureInPictureMode(builder.build())
         }
     }
 }
