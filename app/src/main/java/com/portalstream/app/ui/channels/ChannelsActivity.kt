@@ -36,10 +36,10 @@ import androidx.compose.ui.unit.dp
 import com.portalstream.app.R
 import com.portalstream.app.domain.model.Channel
 import com.portalstream.app.network.PlaylistDownloader
-import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 class ChannelsActivity : ComponentActivity() {
@@ -69,13 +69,20 @@ class ChannelsActivity : ComponentActivity() {
         var channels by remember { mutableStateOf(initial) }
         var loading by remember { mutableStateOf(initial.isEmpty() && !url.isNullOrBlank()) }
         var error by remember { mutableStateOf<String?>(null) }
-        val scope = rememberCoroutineScope()
 
         LaunchedEffect(Unit) {
             if (channels.isEmpty() && !url.isNullOrBlank()) {
+                loading = true
                 try {
-                    val content = PlaylistDownloader().download(url, userAgent)
-                    channels = M3UParser.parse(content)
+                    // Usiamo la nuova architettura in un thread separato (IO)
+                    withContext(Dispatchers.IO) {
+                        val tempList = mutableListOf<Channel>()
+                        // Il nuovo downloader estrae i canali uno ad uno e li mettiamo nella lista
+                        PlaylistDownloader().downloadAndParse(url) { channel ->
+                            tempList.add(channel)
+                        }
+                        channels = tempList
+                    }
                     if (channels.isEmpty()) error = getString(R.string.playlist_no_channels)
                 } catch (e: Exception) {
                     Timber.e(e, "Download playlist fallito")
@@ -128,9 +135,10 @@ class ChannelsActivity : ComponentActivity() {
                             .clickable {
                                 startActivity(
                                     Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, channel.url)
-                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
+                                        // Le nuove costanti allineate con ExoPlayer!
+                                        putExtra("STREAM_URL", channel.url)
+                                        putExtra("CHANNEL_NAME", channel.name)
+                                        putExtra("USER_AGENT", userAgent)
                                     }
                                 )
                             },
@@ -140,9 +148,10 @@ class ChannelsActivity : ComponentActivity() {
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            channel.group?.let {
+                            // Aggiornato: group ora non è più nullable nel nuovo modello
+                            if (channel.group.isNotBlank()) {
                                 Text(
-                                    text = it,
+                                    text = channel.group,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
