@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Registrazioni PVR condivisibili (Fase 4) -->
+    <external-files-path name="recordings" path="Recordings/"/>
+    <!-- File temporanei per share -->
+    <cache-path name="cache_share" path="share/"/>
+    <!-- Playlist esportate -->
+    <external-files-path name="playlists" path="Playlists/"/>
+</paths>
