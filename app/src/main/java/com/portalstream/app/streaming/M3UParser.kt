@@ -40,7 +40,8 @@ object M3UParser {
                         if (!currentTitle.isNull_Empty()) {
                             val channel = Channel(
                                 id = (trimmed.hashCode() xor System.currentTimeMillis().toInt()).toString(),
-                                name = currentTitle,
+                                // FIX: Aggiunto l'operatore Elvis per garantire che non sia mai nullo
+                                name = currentTitle ?: "Senza Nome",
                                 url = trimmed,
                                 group = currentGroup ?: "Generale",
                                 logoUrl = currentLogo,
