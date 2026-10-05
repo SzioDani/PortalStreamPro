@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- parent nativo (niente AppCompat) - PlayerActivity usa ComponentActivity -->
+    <style name="Theme.PortalStreamPro" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/surface_dark</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/surface_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- L'app ha il proprio tema scuro: blocca l'inversione automatica di MIUI -->
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
