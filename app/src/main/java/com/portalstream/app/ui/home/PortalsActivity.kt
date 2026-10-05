@@ -210,7 +210,35 @@ class PortalsActivity : ComponentActivity() {
                 try {
                     val content = contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
                         ?: return@let
-                    val channels = M3UParser.parse(content)
+                    
+                    // Miniparser per file locali per compensare la rimozione del vecchio M3UParser
+                    val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
+                    var currentName = ""
+                    var currentGroup = ""
+                    var currentLogo = ""
+                    
+                    content.lines().forEach { line ->
+                        if (line.startsWith("#EXTINF:")) {
+                            currentName = line.substringAfterLast(",").trim()
+                            currentGroup = Regex("group-title=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
+                            currentLogo = Regex("tvg-logo=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
+                        } else if (line.isNotBlank() && !line.startsWith("#")) {
+                            channels.add(
+                                com.portalstream.app.domain.model.Channel(
+                                    id = line.hashCode().toString(),
+                                    name = currentName,
+                                    url = line.trim(),
+                                    group = currentGroup,
+                                    logoUrl = currentLogo,
+                                    epgId = null
+                                )
+                            )
+                            currentName = ""
+                            currentGroup = ""
+                            currentLogo = ""
+                        }
+                    }
+
                     if (channels.isNotEmpty()) {
                         ChannelCache.hold(channels)
                         startActivity(
