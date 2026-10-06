@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
@@ -30,11 +29,9 @@ import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
-@OptIn(ExperimentalMaterial3Api::class)
 class ChannelsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,79 +52,60 @@ class ChannelsActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                var localChannels by remember { mutableStateOf(ChannelCache.take()) }
-                val dbGroups by channelDao.getGroups().collectAsState(initial = emptyList())
+                val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
+                val localChannels = remember { ChannelCache.take() }
+                
+                val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
+
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
                 var favoriteIds by remember { mutableStateOf(setOf<String>()) }
-                var isLoading by remember { mutableStateOf(false) }
+                var isLoading by remember { mutableStateOf(true) }
 
-                val allGroups = remember(localChannels, dbGroups) {
-                    if (localChannels.isNotEmpty()) {
-                        localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
-                    } else {
-                        dbGroups.distinct().filter { it.isNotBlank() }
-                    }
-                }
-
-                val dbChannels by if (selectedGroup != null) {
-                    channelDao.getChannelsByGroup(selectedGroup!!).collectAsState(initial = emptyList())
-                } else {
-                    remember { mutableStateOf(emptyList()) }
+                val allGroups = remember(allChannels) {
+                    allChannels.map { it.group }.distinct().filter { it.isNotBlank() }
                 }
 
                 val currentChannels = remember(
-                    localChannels, dbChannels, selectedGroup,
-                    searchQuery, showOnlyFavorites, favoriteIds
+                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, favoriteIds
                 ) {
-                    val rawList = if (localChannels.isNotEmpty()) {
-                        if (selectedGroup != null) {
-                            localChannels.filter { it.group == selectedGroup }
-                        } else {
-                            localChannels
-                        }
-                    } else {
-                        dbChannels
-                    }
-
-                    rawList.distinctBy { it.name.trim() }.filter { channel ->
+                    allChannels.filter { channel ->
+                        val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
-                            channel.name.contains(searchQuery, ignoreCase = true)
-                        val matchesFavorites = !showOnlyFavorites ||
-                            favoriteIds.contains(channel.id)
-                        matchesSearch && matchesFavorites
+                                channel.name.contains(searchQuery, ignoreCase = true)
+                        val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
+                        matchesGroup && matchesSearch && matchesFavorites
                     }
                 }
 
-                // Caricamento sorgenti Stalker / Xtream / M3U
-                LaunchedEffect(portalUrl, server, username, macAddress) {
-                    isLoading = true
-                    lifecycleScope.launch(Dispatchers.IO) {
+                LaunchedEffect(Unit) {
+                    withContext(Dispatchers.IO) {
                         try {
-                            // Diagnosi dati Stalker
-                            if (portalType == "STALKER" || macAddress.isNotBlank()) {
+                            if (localChannels.isNotEmpty()) {
+                                isLoading = false
+                                return@withContext
+                            }
+
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || macAddress.isNotBlank()
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
+                                          portalType.equals("XSTREAM", ignoreCase = true) || 
+                                          (server.isNotBlank() && username.isNotBlank())
+
+                            if (isStalker) {
                                 if (server.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(
-                                            this@ChannelsActivity,
-                                            "⚠️ Errore Stalker: Server URL vuoto!",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore Stalker: Server URL vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 } else if (macAddress.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(
-                                            this@ChannelsActivity,
-                                            "⚠️ Errore Stalker: MAC Address vuoto!",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore Stalker: MAC Address vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
 
                             val channels = when {
-                                portalType == "STALKER" || macAddress.isNotBlank() -> {
+                                isStalker -> {
                                     val portalDraft = Portal(
                                         id = 0,
                                         server = server,
@@ -138,8 +116,7 @@ class ChannelsActivity : ComponentActivity() {
                                     StalkerClient.fetchChannels(portalDraft)
                                 }
 
-                                portalType == "XSTREAM" ||
-                                    (server.isNotBlank() && username.isNotBlank()) -> {
+                                isXtream -> {
                                     val portalDraft = Portal(
                                         id = 0,
                                         server = server,
@@ -171,46 +148,44 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             if (channels.isNotEmpty()) {
+                                channelDao.clearAll()
                                 channelDao.insertChannels(channels)
                             } else {
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(
                                         this@ChannelsActivity,
-                                        "Nessun canale caricato. Controlla MAC/Server.",
+                                        "Nessun canale caricato. Controlla MAC e Server.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
                             }
-
-                            withContext(Dispatchers.Main) {
-                                isLoading = false
-                            }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
-                                isLoading = false
                                 Toast.makeText(
                                     this@ChannelsActivity,
                                     "Errore rete: ${e.localizedMessage}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
+                        } finally {
+                            withContext(Dispatchers.Main) {
+                                isLoading = false
+                            }
                         }
                     }
                 }
 
-                LaunchedEffect(allGroups) {
-                    if (allGroups.isNotEmpty() && selectedGroup == null) {
-                        selectedGroup = allGroups.first()
-                    }
-                }
-
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    if (isLoading && allGroups.isEmpty() && localChannels.isEmpty()) {
+                    if (isLoading && allChannels.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator()
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Caricamento canali dal server...")
+                            }
                         }
                     } else {
                         Column(
@@ -232,18 +207,12 @@ class ChannelsActivity : ComponentActivity() {
                                     .padding(bottom = 8.dp),
                                 placeholder = { Text("Cerca canale...") },
                                 leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = "Cerca"
-                                    )
+                                    Icon(Icons.Default.Search, contentDescription = "Cerca")
                                 },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(
-                                                Icons.Default.Clear,
-                                                contentDescription = "Cancella"
-                                            )
+                                            Icon(Icons.Default.Clear, contentDescription = "Cancella")
                                         }
                                     }
                                 },
@@ -259,28 +228,30 @@ class ChannelsActivity : ComponentActivity() {
                                 item {
                                     FilterChip(
                                         selected = showOnlyFavorites,
+                                        onClick = { showOnlyFavorites = !showOnlyFavorites },
+                                        label = { Text("⭐ Preferiti") }
+                                    )
+                                }
+
+                                item {
+                                    FilterChip(
+                                        selected = selectedGroup == null && !showOnlyFavorites,
                                         onClick = {
-                                            showOnlyFavorites = !showOnlyFavorites
+                                            selectedGroup = null
+                                            showOnlyFavorites = false
                                         },
-                                        label = { Text("⭐ Preferiti") },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor =
-                                                MaterialTheme.colorScheme.primaryContainer
-                                        )
+                                        label = { Text("Tutti") }
                                     )
                                 }
 
                                 items(allGroups) { group ->
                                     FilterChip(
-                                        selected = selectedGroup == group &&
-                                            !showOnlyFavorites,
+                                        selected = selectedGroup == group && !showOnlyFavorites,
                                         onClick = {
                                             selectedGroup = group
                                             showOnlyFavorites = false
                                         },
-                                        label = {
-                                            Text(group.ifBlank { "Generale" })
-                                        }
+                                        label = { Text(group.ifBlank { "Generale" }) }
                                     )
                                 }
                             }
@@ -291,11 +262,7 @@ class ChannelsActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (showOnlyFavorites) {
-                                            "Nessun canale preferito salvato."
-                                        } else {
-                                            "Nessun canale trovato."
-                                        },
+                                        text = if (showOnlyFavorites) "Nessun canale preferito." else "Nessun canale trovato.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -304,7 +271,7 @@ class ChannelsActivity : ComponentActivity() {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(
                                         currentChannels,
-                                        key = { it.url + it.name }
+                                        key = { it.id.ifEmpty { it.url + it.name } }
                                     ) { channel ->
                                         val isFav = favoriteIds.contains(channel.id)
 
@@ -317,18 +284,9 @@ class ChannelsActivity : ComponentActivity() {
                                                         this@ChannelsActivity,
                                                         PlayerActivity::class.java
                                                     ).apply {
-                                                        putExtra(
-                                                            PlayerActivity.EXTRA_STREAM_URL,
-                                                            channel.url
-                                                        )
-                                                        putExtra(
-                                                            PlayerActivity.EXTRA_CHANNEL_NAME,
-                                                            channel.name
-                                                        )
-                                                        putExtra(
-                                                            PlayerActivity.EXTRA_USER_AGENT,
-                                                            userAgent
-                                                        )
+                                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, channel.url)
+                                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
                                                     }
                                                     startActivity(intent)
                                                 }
@@ -337,38 +295,32 @@ class ChannelsActivity : ComponentActivity() {
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(16.dp),
-                                                horizontalArrangement =
-                                                    Arrangement.SpaceBetween,
-                                                verticalAlignment =
-                                                    Alignment.CenterVertically
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = channel.name,
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    modifier = Modifier.weight(1f)
-                                                )
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = channel.name,
+                                                        style = MaterialTheme.typography.bodyLarge
+                                                    )
+                                                    if (channel.group.isNotBlank()) {
+                                                        Text(
+                                                            text = channel.group,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
 
                                                 IconButton(
                                                     onClick = {
-                                                        favoriteIds = if (isFav) {
-                                                            favoriteIds - channel.id
-                                                        } else {
-                                                            favoriteIds + channel.id
-                                                        }
+                                                        favoriteIds = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
                                                     }
                                                 ) {
                                                     Icon(
-                                                        imageVector = if (isFav) {
-                                                            Icons.Default.Favorite
-                                                        } else {
-                                                            Icons.Default.FavoriteBorder
-                                                        },
+                                                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                                         contentDescription = "Preferito",
-                                                        tint = if (isFav) {
-                                                            MaterialTheme.colorScheme.primary
-                                                        } else {
-                                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                                        }
+                                                        tint = if (isFav) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
