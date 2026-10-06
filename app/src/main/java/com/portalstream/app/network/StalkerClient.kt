@@ -1,18 +1,22 @@
 package com.portalstream.app.network
 
+import android.util.Log
 import com.portalstream.app.data.Portal
 import com.portalstream.app.domain.model.Channel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 object StalkerClient {
 
+    private const val TAG = "StalkerClient"
+
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
@@ -26,6 +30,7 @@ object StalkerClient {
 
         val mac = portal.macAddress.trim()
         if (baseUrl.isBlank() || mac.isBlank()) {
+            Log.e(TAG, "URL Server o MAC Address mancanti.")
             return@withContext emptyList()
         }
 
@@ -35,41 +40,73 @@ object StalkerClient {
             DEFAULT_USER_AGENT
         }
 
-        val cookieHeader = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
+        var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
             // 1. Handshake Stalker
-            val handshakeUrl = "$baseUrl?type=stb&action=handshake&JsHttpRequest=1-xml"
+            val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
+            Log.d(TAG, "Esecuzione Handshake: $handshakeUrl")
+
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Cookie", cookieHeader)
+                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Cookie", sessionCookie)
                 .build()
 
             val handshakeResponse = client.newCall(handshakeRequest).execute()
-            val handshakeBody = handshakeResponse.body?.string() ?: return@withContext emptyList()
-            val token = parseToken(handshakeBody)
 
-            val authHeader = if (token.isNotBlank()) "Bearer $token" else null
+            // Recupero eventuale sessione PHP (PHPSESSID) dal server
+            val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
+            if (setCookieHeaders.isNotEmpty()) {
+                val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
+                if (phpSessId != null) {
+                    val cookieValue = phpSessId.split(";").firstOrNull() ?: ""
+                    if (cookieValue.isNotBlank()) {
+                        sessionCookie += "; $cookieValue"
+                    }
+                }
+            }
+
+            val handshakeBody = handshakeResponse.body?.string() ?: ""
+            Log.d(TAG, "Risposta Handshake: $handshakeBody")
+
+            val token = parseToken(handshakeBody)
+            Log.d(TAG, "Token ottenuto: $token")
 
             // 2. Recupero Categorie (Genres)
-            val categoriesMap = fetchGenres(baseUrl, userAgent, cookieHeader, authHeader)
+            val categoriesMap = fetchGenres(baseUrl, userAgent, sessionCookie, token)
 
             // 3. Recupero Lista Canali (get_all_channels)
-            val channelsUrl = "$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml"
-            val channelsRequestBuilder = Request.Builder()
-                .url(channelsUrl)
+            val channelsUrlBuilder = StringBuilder("$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml")
+            if (token.isNotBlank()) {
+                channelsUrlBuilder.append("&token=$token")
+            }
+
+            val channelsRequest = Request.Builder()
+                .url(channelsUrlBuilder.toString())
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Cookie", cookieHeader)
+                .addHeader("Cookie", sessionCookie)
+                .apply {
+                    if (token.isNotBlank()) addHeader("Authorization", "Bearer $token")
+                }
+                .build()
 
-            authHeader?.let { channelsRequestBuilder.addHeader("Authorization", it) }
+            val response = client.newCall(channelsRequest).execute()
+            val responseBody = response.body?.string() ?: ""
+            Log.d(TAG, "Risposta Canali ricevuta. Lunghezza: ${responseBody.length}")
 
-            val response = client.newCall(channelsRequestBuilder.build()).execute()
-            val responseBody = response.body?.string() ?: return@withContext emptyList()
+            var channels = parseChannels(responseBody, categoriesMap)
 
-            return@withContext parseChannels(responseBody, categoriesMap)
+            // Fallback su get_ordered_channels se get_all_channels è vuoto
+            if (channels.isEmpty()) {
+                Log.d(TAG, "Tentativo di fallback con get_ordered_channels...")
+                channels = fetchOrderedChannels(baseUrl, userAgent, sessionCookie, token, categoriesMap)
+            }
+
+            return@withContext channels
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Errore durante la comunicazione Stalker", e)
         }
 
         return@withContext emptyList()
@@ -79,52 +116,83 @@ object StalkerClient {
         return try {
             val root = JSONObject(jsonStr)
             val jsObj = root.optJSONObject("js")
-            jsObj?.optString("token", "") ?: ""
+            jsObj?.optString("token", "") ?: root.optString("token", "")
         } catch (e: Exception) {
             ""
         }
     }
 
-    private fun fetchGenres(baseUrl: String, userAgent: String, cookie: String, auth: String?): Map<String, String> {
+    private fun fetchGenres(baseUrl: String, userAgent: String, cookie: String, token: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
-        val genresUrl = "$baseUrl?type=itv&action=get_genres&JsHttpRequest=1-xml"
+        val genresUrl = StringBuilder("$baseUrl?type=itv&action=get_genres&JsHttpRequest=1-xml")
+        if (token.isNotBlank()) genresUrl.append("&token=$token")
+
         try {
             val reqBuilder = Request.Builder()
-                .url(genresUrl)
+                .url(genresUrl.toString())
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Cookie", cookie)
 
-            auth?.let { reqBuilder.addHeader("Authorization", it) }
+            if (token.isNotBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
 
             val response = client.newCall(reqBuilder.build()).execute()
             val body = response.body?.string() ?: return map
-            val root = JSONObject(body)
-            val jsObj = root.optJSONObject("js")
-            val jsArray = jsObj?.optJSONArray("data") ?: root.optJSONArray("js")
 
-            if (jsArray != null) {
-                for (i in 0 until jsArray.length()) {
-                    val obj = jsArray.getJSONObject(i)
-                    val id = obj.optString("id", "")
-                    val title = obj.optString("title", "")
-                    if (id.isNotBlank() && title.isNotBlank()) {
-                        map[id] = title
-                    }
+            val dataArray = extractDataArray(body) ?: return map
+
+            for (i in 0 until dataArray.length()) {
+                val obj = dataArray.optJSONObject(i) ?: continue
+                val id = obj.optString("id", "")
+                val title = obj.optString("title", "")
+                if (id.isNotBlank() && title.isNotBlank()) {
+                    map[id] = title
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore recupero generi", e)
+        }
         return map
+    }
+
+    private fun fetchOrderedChannels(
+        baseUrl: String,
+        userAgent: String,
+        cookie: String,
+        token: String,
+        categoriesMap: Map<String, String>
+    ): List<Channel> {
+        val urlBuilder = StringBuilder("$baseUrl?type=itv&action=get_ordered_channels&genre=0&JsHttpRequest=1-xml")
+        if (token.isNotBlank()) urlBuilder.append("&token=$token")
+
+        try {
+            val reqBuilder = Request.Builder()
+                .url(urlBuilder.toString())
+                .addHeader("User-Agent", userAgent)
+                .addHeader("Cookie", cookie)
+
+            if (token.isNotBlank()) reqBuilder.addHeader("Authorization", "Bearer $token")
+
+            val response = client.newCall(reqBuilder.build()).execute()
+            val body = response.body?.string() ?: return emptyList()
+
+            return parseChannels(body, categoriesMap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore fallback get_ordered_channels", e)
+        }
+        return emptyList()
     }
 
     private fun parseChannels(jsonStr: String, categoriesMap: Map<String, String>): List<Channel> {
         val channels = mutableListOf<Channel>()
         try {
-            val root = JSONObject(jsonStr)
-            val jsObj = root.optJSONObject("js")
-            val dataArray = jsObj?.optJSONArray("data") ?: return emptyList()
+            val dataArray = extractDataArray(jsonStr)
+            if (dataArray == null) {
+                Log.e(TAG, "Impossibile trovare l'array dei canali nella risposta Stalker.")
+                return emptyList()
+            }
 
             for (i in 0 until dataArray.length()) {
-                val item = dataArray.getJSONObject(i)
+                val item = dataArray.optJSONObject(i) ?: continue
                 val id = item.optString("id", i.toString())
                 val name = item.optString("name", "Canale $id")
                 val genreId = item.optString("tv_genre_id", "")
@@ -149,8 +217,29 @@ object StalkerClient {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Errore durante il parsing dei canali", e)
         }
+        Log.d(TAG, "Canali Stalker estratti con successo: ${channels.size}")
         return channels
+    }
+
+    private fun extractDataArray(jsonStr: String): JSONArray? {
+        return try {
+            val root = JSONObject(jsonStr)
+            when {
+                root.has("js") -> {
+                    val js = root.get("js")
+                    when (js) {
+                        is JSONArray -> js
+                        is JSONObject -> js.optJSONArray("data")
+                        else -> null
+                    }
+                }
+                root.has("data") -> root.optJSONArray("data")
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
