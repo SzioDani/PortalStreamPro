@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
+@OptIn(ExperimentalMaterial3Api::class)
 class ChannelsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,28 +48,24 @@ class ChannelsActivity : ComponentActivity() {
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var isLoading by remember { mutableStateOf(false) }
 
-                // Determina le categorie disponibili (file locale o DB)
                 val allGroups = if (localChannels.isNotEmpty()) {
                     localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
                 } else {
                     dbGroups
                 }
 
-                // Canali scaricati da Room per il gruppo attivo
                 val dbChannels by if (selectedGroup != null) {
                     channelDao.getChannelsByGroup(selectedGroup!!).collectAsState(initial = emptyList())
                 } else {
                     remember { mutableStateOf(emptyList()) }
                 }
 
-                // Canali correnti da mostrare
                 val currentChannels = if (localChannels.isNotEmpty()) {
                     if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
                 } else {
                     dbChannels
                 }
 
-                // Parsing streaming via rete se non sono presenti canali in locale o DB
                 LaunchedEffect(portalUrl) {
                     if (localChannels.isEmpty() && dbGroups.isEmpty() && portalUrl.isNotEmpty()) {
                         isLoading = true
@@ -110,7 +107,6 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // Selezione automatica prima categoria disponibile
                 LaunchedEffect(allGroups) {
                     if (allGroups.isNotEmpty() && selectedGroup == null) {
                         selectedGroup = allGroups.first()
