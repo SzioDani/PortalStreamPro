@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
+import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
@@ -47,6 +48,7 @@ class ChannelsActivity : ComponentActivity() {
         val username = intent.getStringExtra(EXTRA_USERNAME) ?: ""
         val password = intent.getStringExtra(EXTRA_PASSWORD) ?: ""
         val format = intent.getStringExtra(EXTRA_FORMAT) ?: "m3u8"
+        val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
@@ -62,7 +64,7 @@ class ChannelsActivity : ComponentActivity() {
                 var favoriteIds by remember { mutableStateOf(setOf<String>()) }
                 var isLoading by remember { mutableStateOf(false) }
 
-                // Lista delle categorie disponibili
+                // Categorie disponibili (da RAM o DB)
                 val allGroups = remember(localChannels, dbGroups) {
                     if (localChannels.isNotEmpty()) {
                         localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
@@ -77,7 +79,7 @@ class ChannelsActivity : ComponentActivity() {
                     remember { mutableStateOf(emptyList()) }
                 }
 
-                // Filtraggio canali (Gruppo, Preferiti, Ricerca testuale e Deduplicazione)
+                // Filtraggio dinamico: deduplicazione, ricerca e preferiti
                 val currentChannels = remember(localChannels, dbChannels, selectedGroup, searchQuery, showOnlyFavorites, favoriteIds) {
                     val rawList = if (localChannels.isNotEmpty()) {
                         if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
@@ -94,37 +96,52 @@ class ChannelsActivity : ComponentActivity() {
                         }
                 }
 
-                // Caricamento canali da Xtream Codes o M3U se DB e Cache sono vuoti
-                LaunchedEffect(portalUrl, server, username) {
+                // Caricamento sorgenti (Stalker / Xtream / M3U)
+                LaunchedEffect(portalUrl, server, username, macAddress) {
                     if (localChannels.isEmpty() && dbGroups.isEmpty()) {
                         isLoading = true
                         lifecycleScope.launch(Dispatchers.IO) {
                             try {
-                                val channels = if (portalType == "XSTREAM" || (server.isNotBlank() && username.isNotBlank())) {
-                                    val portalDraft = Portal(
-                                        id = 0,
-                                        server = server,
-                                        username = username,
-                                        password = password,
-                                        streamFormat = format,
-                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                        userAgent = userAgent ?: ""
-                                    )
-                                    XtreamClient.fetchLiveChannels(portalDraft)
-                                } else if (portalUrl.isNotEmpty()) {
-                                    val connection = URL(portalUrl).openConnection()
-                                    if (!userAgent.isNullOrBlank()) {
-                                        connection.setRequestProperty("User-Agent", userAgent)
+                                val channels = when {
+                                    // Stalker / MAC Address Middleware
+                                    portalType == "STALKER" || macAddress.isNotBlank() -> {
+                                        val portalDraft = Portal(
+                                            id = 0,
+                                            server = server,
+                                            macAddress = macAddress,
+                                            useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                            userAgent = userAgent ?: ""
+                                        )
+                                        StalkerClient.fetchChannels(portalDraft)
                                     }
-                                    val inputStream = connection.getInputStream()
-                                    val tempBuffer = mutableListOf<Channel>()
+                                    // API Xtream Codes
+                                    portalType == "XSTREAM" || (server.isNotBlank() && username.isNotBlank()) -> {
+                                        val portalDraft = Portal(
+                                            id = 0,
+                                            server = server,
+                                            username = username,
+                                            password = password,
+                                            streamFormat = format,
+                                            useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                            userAgent = userAgent ?: ""
+                                        )
+                                        XtreamClient.fetchLiveChannels(portalDraft)
+                                    }
+                                    // Lista M3U / M3U8
+                                    portalUrl.isNotEmpty() -> {
+                                        val connection = URL(portalUrl).openConnection()
+                                        if (!userAgent.isNullOrBlank()) {
+                                            connection.setRequestProperty("User-Agent", userAgent)
+                                        }
+                                        val inputStream = connection.getInputStream()
+                                        val tempBuffer = mutableListOf<Channel>()
 
-                                    M3UParser.parseStreaming(inputStream) { channel ->
-                                        tempBuffer.add(channel)
+                                        M3UParser.parseStreaming(inputStream) { channel ->
+                                            tempBuffer.add(channel)
+                                        }
+                                        tempBuffer
                                     }
-                                    tempBuffer
-                                } else {
-                                    emptyList()
+                                    else -> emptyList()
                                 }
 
                                 if (channels.isNotEmpty()) {
@@ -137,14 +154,14 @@ class ChannelsActivity : ComponentActivity() {
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
                                     isLoading = false
-                                    Toast.makeText(this@ChannelsActivity, "Errore caricamento canali", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@ChannelsActivity, "Errore durante il caricamento dei canali", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
                     }
                 }
 
-                // Imposta la prima categoria come selezionata di default
+                // Selezione automatica del primo gruppo attivo
                 LaunchedEffect(allGroups) {
                     if (allGroups.isNotEmpty() && selectedGroup == null) {
                         selectedGroup = allGroups.first()
@@ -171,7 +188,7 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            // Campo di ricerca
+                            // Ricerca in tempo reale
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -190,7 +207,7 @@ class ChannelsActivity : ComponentActivity() {
                                 singleLine = true
                             )
 
-                            // Barra Categorie + Chip Preferiti
+                            // Filtri Gruppi e Preferiti
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
@@ -220,14 +237,14 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // Lista Canali
+                            // Rendering Lista
                             if (currentChannels.isEmpty()) {
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (showOnlyFavorites) "Nessun canale preferito." else "Nessun canale trovato.",
+                                        text = if (showOnlyFavorites) "Nessun canale preferito salvato." else "Nessun canale trovato.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -299,5 +316,6 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_USERNAME = "extra_username"
         const val EXTRA_PASSWORD = "extra_password"
         const val EXTRA_FORMAT = "extra_format"
+        const val EXTRA_MAC = "extra_mac"
     }
 }
