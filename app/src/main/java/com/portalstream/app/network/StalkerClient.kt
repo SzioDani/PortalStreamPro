@@ -131,6 +131,7 @@ object StalkerClient {
                 val categoryName = categoriesMap[genreId] ?: "Generale"
                 val cmd = item.optString("cmd", "")
                 val logo = item.optString("logo", "")
+                val epgId = if (item.has("custom_sid") && !item.isNull("custom_sid")) item.optString("custom_sid") else null
 
                 val cleanUrl = cmd.replace("ffrt ", "").replace("ffmpeg ", "").trim()
 
@@ -141,7 +142,8 @@ object StalkerClient {
                             name = name,
                             url = cleanUrl,
                             group = categoryName,
-                            logoUrl = logo
+                            logoUrl = logo,
+                            epgId = epgId
                         )
                     )
                 }
