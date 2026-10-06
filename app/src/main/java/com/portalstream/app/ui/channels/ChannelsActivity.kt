@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
 
+@OptIn(ExperimentalMaterial3Api::class)
 class ChannelsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
