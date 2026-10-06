@@ -4,14 +4,16 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -20,7 +22,6 @@ import com.portalstream.app.data.PortalType
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Playlist
 import com.portalstream.app.ui.channels.ChannelsActivity
-import com.portalstream.app.ui.theme.PortalStreamTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,90 +36,87 @@ class PortalsActivity : ComponentActivity() {
         val playlistDao = db.playlistDao()
         val channelDao = db.channelDao()
 
-        setContentView(ComposeView(this).apply {
-            setContent {
-                PortalStreamTheme {
-                    val playlists by playlistDao.getAllPlaylists().collectAsState(initial = emptyList())
-                    var showTypeChooser by remember { mutableStateOf(false) }
-                    var formType by remember { mutableStateOf<PortalType?>(null) }
-                    var editing by remember { mutableStateOf<Portal?>(null) }
-                    var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
+        setContent {
+            MaterialTheme {
+                val playlists by playlistDao.getAllPlaylists().collectAsState(initial = emptyList())
+                var showTypeChooser by remember { mutableStateOf(false) }
+                var formType by remember { mutableStateOf<PortalType?>(null) }
+                var editing by remember { mutableStateOf<Portal?>(null) }
+                var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text("PortalStream Pro", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        text = "${playlists.size} portali salvati",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showTypeChooser = true },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("PortalStream Pro", style = MaterialTheme.typography.headlineSmall)
-                        Text(
-                            text = "${playlists.size} portali salvati",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(12.dp))
+                        Text("AGGIUNGI PLAYLIST")
+                    }
+                    Spacer(Modifier.height(12.dp))
 
-                        Button(
-                            onClick = { showTypeChooser = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("AGGIUNGI PLAYLIST")
+                    if (playlists.isEmpty()) {
+                        Column {
+                            Text(
+                                text = "Nessun portale salvato.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Premi AGGIUNGI PLAYLIST per iniziare.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Spacer(Modifier.height(12.dp))
-
-                        if (playlists.isEmpty()) {
-                            Column {
-                                Text(
-                                    text = "Nessun portale salvato.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Premi AGGIUNGI PLAYLIST per iniziare.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            LazyColumn {
-                                items(playlists, key = { it.id }) { playlist ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
-                                            .clickable { openChannels(playlist) }
-                                    ) {
-                                        Column(Modifier.padding(12.dp)) {
-                                            Text(
-                                                text = "[${playlist.id}] " + playlist.name.ifBlank { "Portale ${playlist.id}" },
-                                                style = MaterialTheme.typography.titleMedium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = playlist.url,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Row {
-                                                TextButton(onClick = {
-                                                    // Converte la Playlist in Portal per la modifica nel form
-                                                    editing = Portal(
-                                                        id = playlist.id,
-                                                        name = playlist.name,
-                                                        url = playlist.url,
-                                                        type = PortalType.detect(playlist.url)
-                                                    )
-                                                }) {
-                                                    Text("Modifica")
-                                                }
-                                                Spacer(Modifier.width(4.dp))
-                                                TextButton(onClick = { playlistToDelete = playlist }) {
-                                                    Text(
-                                                        text = "Elimina",
-                                                        color = MaterialTheme.colorScheme.error
-                                                    )
-                                                }
+                    } else {
+                        LazyColumn {
+                            items(playlists, key = { it.id }) { playlist ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable { openChannels(playlist) }
+                                ) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "[${playlist.id}] " + playlist.name.ifBlank { "Portale ${playlist.id}" },
+                                            style = MaterialTheme.typography.titleMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = playlist.url,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Row {
+                                            TextButton(onClick = {
+                                                editing = Portal(
+                                                    id = playlist.id,
+                                                    name = playlist.name,
+                                                    url = playlist.url,
+                                                    type = PortalType.detect(playlist.url)
+                                                )
+                                            }) {
+                                                Text("Modifica")
+                                            }
+                                            Spacer(Modifier.width(4.dp))
+                                            TextButton(onClick = { playlistToDelete = playlist }) {
+                                                Text(
+                                                    text = "Elimina",
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
                                             }
                                         }
                                     }
@@ -127,7 +125,6 @@ class PortalsActivity : ComponentActivity() {
                         }
                     }
 
-                    // Dialog di selezione tipo portale
                     if (showTypeChooser) {
                         AddPortalTypeDialog(
                             onSelect = { type ->
@@ -138,7 +135,6 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
 
-                    // Dialog creazione nuova playlist
                     formType?.let { type ->
                         PortalFormDialog(
                             existing = null,
@@ -161,7 +157,6 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
 
-                    // Dialog modifica playlist
                     editing?.let { portal ->
                         PortalFormDialog(
                             existing = portal,
@@ -185,7 +180,6 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
 
-                    // Dialog conferma eliminazione
                     playlistToDelete?.let { playlist ->
                         AlertDialog(
                             onDismissRequest = { playlistToDelete = null },
@@ -194,7 +188,6 @@ class PortalsActivity : ComponentActivity() {
                             confirmButton = {
                                 TextButton(onClick = {
                                     lifecycleScope.launch(Dispatchers.IO) {
-                                        // Rimuove sia la playlist sia i relativi canali memorizzati nel DB
                                         channelDao.deleteChannelsByPlaylist(playlist.id)
                                         playlistDao.deletePlaylist(playlist)
                                         withContext(Dispatchers.Main) {
@@ -215,16 +208,15 @@ class PortalsActivity : ComponentActivity() {
                     }
                 }
             }
-        })
+        }
     }
 
     private fun openChannels(playlist: Playlist) {
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
-                putExtra("PORTAL_URL", playlist.url)
-                putExtra("PLAYLIST_ID", playlist.id)
                 putExtra(ChannelsActivity.EXTRA_TITLE, playlist.name.ifBlank { "Portale ${playlist.id}" })
                 putExtra(ChannelsActivity.EXTRA_URL, playlist.url)
+                putExtra("PLAYLIST_ID", playlist.id)
             }
         )
     }
@@ -293,20 +285,5 @@ class PortalsActivity : ComponentActivity() {
 
     companion object {
         private const val REQ_PICK_FILE = 1001
-    }
-}
-
-// Cache per passare la lista canali dei file locali
-object ChannelCache {
-    private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
-
-    fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
-        channels = list
-    }
-
-    fun take(): List<com.portalstream.app.domain.model.Channel> {
-        val result = channels
-        channels = emptyList()
-        return result
     }
 }
