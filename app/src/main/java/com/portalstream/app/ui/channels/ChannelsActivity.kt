@@ -17,14 +17,14 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
+import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
@@ -39,9 +39,14 @@ class ChannelsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
+        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
+        val portalType = intent.getStringExtra(EXTRA_PORTAL_TYPE) ?: ""
+        val server = intent.getStringExtra(EXTRA_SERVER) ?: ""
+        val username = intent.getStringExtra(EXTRA_USERNAME) ?: ""
+        val password = intent.getStringExtra(EXTRA_PASSWORD) ?: ""
+        val format = intent.getStringExtra(EXTRA_FORMAT) ?: "m3u8"
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
@@ -50,7 +55,7 @@ class ChannelsActivity : ComponentActivity() {
             MaterialTheme {
                 var localChannels by remember { mutableStateOf(ChannelCache.take()) }
                 val dbGroups by channelDao.getGroups().collectAsState(initial = emptyList())
-                
+
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
@@ -72,7 +77,7 @@ class ChannelsActivity : ComponentActivity() {
                     remember { mutableStateOf(emptyList()) }
                 }
 
-                // Filtraggio dei canali per Gruppo, Preferiti, Ricerca testuale e Deduplicazione
+                // Filtraggio canali (Gruppo, Preferiti, Ricerca testuale e Deduplicazione)
                 val currentChannels = remember(localChannels, dbChannels, selectedGroup, searchQuery, showOnlyFavorites, favoriteIds) {
                     val rawList = if (localChannels.isNotEmpty()) {
                         if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
@@ -89,33 +94,41 @@ class ChannelsActivity : ComponentActivity() {
                         }
                 }
 
-                // Download da rete se lista vuota
-                LaunchedEffect(portalUrl) {
-                    if (localChannels.isEmpty() && dbGroups.isEmpty() && portalUrl.isNotEmpty()) {
+                // Caricamento canali da Xtream Codes o M3U se DB e Cache sono vuoti
+                LaunchedEffect(portalUrl, server, username) {
+                    if (localChannels.isEmpty() && dbGroups.isEmpty()) {
                         isLoading = true
                         lifecycleScope.launch(Dispatchers.IO) {
                             try {
-                                val connection = URL(portalUrl).openConnection()
-                                if (!userAgent.isNullOrBlank()) {
-                                    connection.setRequestProperty("User-Agent", userAgent)
-                                }
-                                val inputStream = connection.getInputStream()
-                                val tempBuffer = mutableListOf<Channel>()
-
-                                M3UParser.parseStreaming(inputStream) { channel ->
-                                    tempBuffer.add(channel)
-
-                                    if (tempBuffer.size >= 100) {
-                                        val batch = tempBuffer.toList()
-                                        tempBuffer.clear()
-                                        lifecycleScope.launch(Dispatchers.IO) {
-                                            channelDao.insertChannels(batch)
-                                        }
+                                val channels = if (portalType == "XSTREAM" || (server.isNotBlank() && username.isNotBlank())) {
+                                    val portalDraft = Portal(
+                                        id = 0,
+                                        server = server,
+                                        username = username,
+                                        password = password,
+                                        streamFormat = format,
+                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                        userAgent = userAgent ?: ""
+                                    )
+                                    XtreamClient.fetchLiveChannels(portalDraft)
+                                } else if (portalUrl.isNotEmpty()) {
+                                    val connection = URL(portalUrl).openConnection()
+                                    if (!userAgent.isNullOrBlank()) {
+                                        connection.setRequestProperty("User-Agent", userAgent)
                                     }
+                                    val inputStream = connection.getInputStream()
+                                    val tempBuffer = mutableListOf<Channel>()
+
+                                    M3UParser.parseStreaming(inputStream) { channel ->
+                                        tempBuffer.add(channel)
+                                    }
+                                    tempBuffer
+                                } else {
+                                    emptyList()
                                 }
 
-                                if (tempBuffer.isNotEmpty()) {
-                                    channelDao.insertChannels(tempBuffer)
+                                if (channels.isNotEmpty()) {
+                                    channelDao.insertChannels(channels)
                                 }
 
                                 withContext(Dispatchers.Main) {
@@ -124,13 +137,14 @@ class ChannelsActivity : ComponentActivity() {
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
                                     isLoading = false
-                                    Toast.makeText(this@ChannelsActivity, "Errore caricamento lista", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(this@ChannelsActivity, "Errore caricamento canali", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
                     }
                 }
 
+                // Imposta la prima categoria come selezionata di default
                 LaunchedEffect(allGroups) {
                     if (allGroups.isNotEmpty() && selectedGroup == null) {
                         selectedGroup = allGroups.first()
@@ -157,7 +171,7 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            // Campo di Ricerca
+                            // Campo di ricerca
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -232,11 +246,6 @@ class ChannelsActivity : ComponentActivity() {
                                                         putExtra(PlayerActivity.EXTRA_STREAM_URL, channel.url)
                                                         putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
                                                         putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
-                                                        putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
-                                                        putExtra(ChannelsActivity.EXTRA_SERVER, portal.server)
-                                                        putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
-                                                        putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
-                                                        putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
                                                     }
                                                     startActivity(intent)
                                                 }
@@ -285,5 +294,10 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
         const val EXTRA_USER_AGENT = "extra_user_agent"
+        const val EXTRA_PORTAL_TYPE = "extra_portal_type"
+        const val EXTRA_SERVER = "extra_server"
+        const val EXTRA_USERNAME = "extra_username"
+        const val EXTRA_PASSWORD = "extra_password"
+        const val EXTRA_FORMAT = "extra_format"
     }
 }
