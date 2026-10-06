@@ -89,20 +89,14 @@ class PortalsActivity : ComponentActivity() {
                         ) {
                             Column(Modifier.padding(12.dp)) {
                                 Text(
-                                    text = "[${portal.id}] " +
-                                        portal.name.ifBlank { "Portale ${portal.id}" },
+                                    text = "[${portal.id}] " + portal.name.ifBlank { "Portale ${portal.id}" },
                                     style = MaterialTheme.typography.titleMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
 
                                 Text(
-                                    text = portal.type.label + " - " +
-                                        if (portal.url.isBlank()) {
-                                            portal.server
-                                        } else {
-                                            portal.url
-                                        },
+                                    text = portal.type.label + " - " + if (portal.url.isBlank()) portal.server else portal.url,
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -110,9 +104,7 @@ class PortalsActivity : ComponentActivity() {
                                 )
 
                                 Row {
-                                    TextButton(
-                                        onClick = { editing = portal }
-                                    ) {
+                                    TextButton(onClick = { editing = portal }) {
                                         Text("Modifica")
                                     }
 
@@ -154,8 +146,7 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { formType = null },
                 onSave = { draft ->
                     val detected = PortalType.detect(draft.url)
-                    val finalType =
-                        if (detected != PortalType.UNKNOWN) detected else type
+                    val finalType = if (detected != PortalType.UNKNOWN) detected else type
 
                     store.add(draft.copy(type = finalType))
                     portals = store.load()
@@ -172,8 +163,7 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { editing = null },
                 onSave = { updated ->
                     val detected = PortalType.detect(updated.url)
-                    val finalType =
-                        if (detected != PortalType.UNKNOWN) detected else updated.type
+                    val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
 
                     store.update(updated.copy(type = finalType))
                     portals = store.load()
@@ -189,45 +179,15 @@ class PortalsActivity : ComponentActivity() {
 
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
-                putExtra(
-                    ChannelsActivity.EXTRA_TITLE,
-                    portal.name.ifBlank { "Portale ${portal.id}" }
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_PORTAL_TYPE,
-                    portal.type.name
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_SERVER,
-                    portal.server
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_MAC,
-                    portal.macAddress
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_USERNAME,
-                    portal.username
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_PASSWORD,
-                    portal.password
-                )
-                putExtra(
-                    ChannelsActivity.EXTRA_FORMAT,
-                    portal.streamFormat
-                )
-
-                // Corretto: EXTRA_URL esiste in ChannelsActivity
-                putExtra(
-                    ChannelsActivity.EXTRA_URL,
-                    portal.url
-                )
-
-                putExtra(
-                    ChannelsActivity.EXTRA_USER_AGENT,
-                    ua
-                )
+                putExtra(ChannelsActivity.EXTRA_TITLE, portal.name.ifBlank { "Portale ${portal.id}" })
+                putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
+                putExtra(ChannelsActivity.EXTRA_SERVER, portal.server)
+                putExtra(ChannelsActivity.EXTRA_MAC, portal.macAddress)
+                putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
+                putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
+                putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
+                putExtra(ChannelsActivity.EXTRA_URL, portal.url)
+                putExtra(ChannelsActivity.EXTRA_USER_AGENT, ua)
             }
         )
     }
@@ -251,14 +211,12 @@ class PortalsActivity : ComponentActivity() {
         if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 try {
-                    val content =
-                        contentResolver.openInputStream(uri)
-                            ?.bufferedReader()
-                            ?.readText()
-                            ?: return@let
+                    val content = contentResolver.openInputStream(uri)
+                        ?.bufferedReader()
+                        ?.readText()
+                        ?: return@let
 
-                    val channels =
-                        mutableListOf<com.portalstream.app.domain.model.Channel>()
+                    val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
 
                     var currentName = ""
                     var currentGroup = ""
@@ -266,27 +224,10 @@ class PortalsActivity : ComponentActivity() {
 
                     content.lines().forEach { line ->
                         if (line.startsWith("#EXTINF:")) {
-                            currentName =
-                                line.substringAfterLast(",").trim()
-
-                            currentGroup =
-                                Regex("group-title=\"([^\"]+)\"")
-                                    .find(line)
-                                    ?.groupValues
-                                    ?.get(1)
-                                    ?: ""
-
-                            currentLogo =
-                                Regex("tvg-logo=\"([^\"]+)\"")
-                                    .find(line)
-                                    ?.groupValues
-                                    ?.get(1)
-                                    ?: ""
-
-                        } else if (
-                            line.isNotBlank() &&
-                            !line.startsWith("#")
-                        ) {
+                            currentName = line.substringAfterLast(",").trim()
+                            currentGroup = Regex("group-title=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
+                            currentLogo = Regex("tvg-logo=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
+                        } else if (line.isNotBlank() && !line.startsWith("#")) {
                             channels.add(
                                 com.portalstream.app.domain.model.Channel(
                                     id = line.hashCode().toString(),
@@ -308,14 +249,10 @@ class PortalsActivity : ComponentActivity() {
                         ChannelCache.hold(channels)
 
                         startActivity(
-                            Intent(
-                                this,
-                                ChannelsActivity::class.java
-                            ).apply {
+                            Intent(this, ChannelsActivity::class.java).apply {
                                 putExtra(
                                     ChannelsActivity.EXTRA_TITLE,
-                                    uri.lastPathSegment
-                                        ?: "Playlist locale"
+                                    uri.lastPathSegment ?: "Playlist locale"
                                 )
                             }
                         )
@@ -333,12 +270,9 @@ class PortalsActivity : ComponentActivity() {
 }
 
 object ChannelCache {
-    private var channels:
-        List<com.portalstream.app.domain.model.Channel> = emptyList()
+    private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
 
-    fun hold(
-        list: List<com.portalstream.app.domain.model.Channel>
-    ) {
+    fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
         channels = list
     }
 
