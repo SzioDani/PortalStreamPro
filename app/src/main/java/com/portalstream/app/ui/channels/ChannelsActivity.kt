@@ -232,6 +232,11 @@ class ChannelsActivity : ComponentActivity() {
                                                         putExtra(PlayerActivity.EXTRA_STREAM_URL, channel.url)
                                                         putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
                                                         putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
+                                                        putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
+                                                        putExtra(ChannelsActivity.EXTRA_SERVER, portal.server)
+                                                        putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
+                                                        putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
+                                                        putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
                                                     }
                                                     startActivity(intent)
                                                 }
