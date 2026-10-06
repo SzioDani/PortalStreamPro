@@ -15,10 +15,11 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
 import com.portalstream.app.data.AppDatabase
 import com.portalstream.app.data.ChannelDao
 import com.portalstream.app.data.Portal
@@ -27,7 +28,6 @@ import com.portalstream.app.network.M3UParser
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.ui.player.PlayerActivity
-import com.portalstream.app.ui.theme.PortalStreamTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,27 +52,25 @@ class ChannelsActivity : ComponentActivity() {
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
         setContent {
-            PortalStreamTheme {
+            MaterialTheme {
                 var isLoading by remember { mutableStateOf(true) }
 
                 LaunchedEffect(Unit) {
-                    lifecycleScope.launch(Dispatchers.IO) {
+                    withContext(Dispatchers.IO) {
                         try {
-                            // Controllo parametri Stalker
                             if (portalType.equals("STALKER", ignoreCase = true) || macAddress.isNotBlank()) {
                                 if (server.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore: Server URL vuoto!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ Server URL vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 } else if (macAddress.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore: MAC Address vuoto!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ MAC Address vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
 
                             val channels = when {
-                                // Stalker / MAC Address
                                 portalType.equals("STALKER", ignoreCase = true) || macAddress.isNotBlank() -> {
                                     val portalDraft = Portal(
                                         id = 0,
@@ -83,7 +81,6 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                     StalkerClient.fetchChannels(portalDraft)
                                 }
-                                // Xtream Codes API
                                 portalType.equals("XSTREAM", ignoreCase = true) || (server.isNotBlank() && username.isNotBlank()) -> {
                                     val portalDraft = Portal(
                                         id = 0,
@@ -96,7 +93,6 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                     XtreamClient.fetchLiveChannels(portalDraft)
                                 }
-                                // Liste M3U
                                 portalUrl.isNotEmpty() -> {
                                     val connection = URL(portalUrl).openConnection()
                                     if (!userAgent.isNullOrBlank()) {
@@ -120,23 +116,22 @@ class ChannelsActivity : ComponentActivity() {
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(
                                         this@ChannelsActivity,
-                                        "Nessun canale caricato. Verificare Server e MAC Address.",
+                                        "Nessun canale caricato. Verificare i dati di accesso.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
                             }
-
-                            withContext(Dispatchers.Main) {
-                                isLoading = false
-                            }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
-                                isLoading = false
                                 Toast.makeText(
                                     this@ChannelsActivity,
-                                    "Errore Rete: ${e.localizedMessage}",
+                                    "Errore: ${e.localizedMessage}",
                                     Toast.LENGTH_LONG
                                 ).show()
+                            }
+                        } finally {
+                            withContext(Dispatchers.Main) {
+                                isLoading = false
                             }
                         }
                     }
@@ -219,7 +214,6 @@ fun ChannelsScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Barra di Ricerca
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -231,7 +225,6 @@ fun ChannelsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Tasto Filtro Preferiti
         FilterChip(
             selected = showOnlyFavorites,
             onClick = { showOnlyFavorites = !showOnlyFavorites },
@@ -264,7 +257,10 @@ fun ChannelsScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filteredChannels, key = { it.id }) { channel ->
+                items(
+                    items = filteredChannels,
+                    key = { channel -> channel.id }
+                ) { channel ->
                     ChannelItem(
                         channel = channel,
                         onClick = { onChannelClick(channel) },
