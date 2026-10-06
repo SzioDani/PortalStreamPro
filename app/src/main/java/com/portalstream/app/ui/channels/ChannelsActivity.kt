@@ -166,6 +166,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
                                                     putExtra("STREAM_URL", channel.url)
                                                     putExtra("CHANNEL_NAME", channel.name)
+                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
                                                 }
                                                 startActivity(intent)
                                             }
