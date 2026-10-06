@@ -2,170 +2,134 @@ package com.portalstream.app.ui.channels
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.portalstream.app.R
+import androidx.lifecycle.lifecycleScope
+import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
-import com.portalstream.app.network.PlaylistDownloader
-import com.portalstream.app.ui.home.ChannelCache
+import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.player.PlayerActivity
+import com.portalstream.app.ui.theme.PortalStreamTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import timber.log.Timber
+import java.net.URL
 
 class ChannelsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
-        val url = intent.getStringExtra(EXTRA_URL)
-        val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)?.takeIf { it.isNotBlank() }
 
-        setContentView(ComposeView(this).apply {
-            setContent {
-                MaterialTheme {
-                    ChannelsScreen(title, url, userAgent, ChannelCache.take())
+        val portalUrl = intent.getStringExtra("PORTAL_URL") ?: ""
+        val playlistId = intent.getIntExtra("PLAYLIST_ID", 1)
+        val db = AppDatabase.getDatabase(this)
+        val channelDao = db.channelDao()
+
+        setContent {
+            PortalStreamTheme {
+                // Recupera la lista di tutti i gruppi
+                val groups by channelDao.getGroups().collectAsState(initial = emptyList())
+                var selectedGroup by remember { mutableStateOf<String?>(null) }
+                var isLoading by remember { mutableStateOf(false) }
+
+                // Se c'è un gruppo selezionato carica i suoi canali, altrimenti lista vuota
+                val channels by if (selectedGroup != null) {
+                    channelDao.getChannelsByGroup(selectedGroup!!).collectAsState(initial = emptyList())
+                } else {
+                    remember { mutableStateOf(emptyList()) }
                 }
-            }
-        })
-    }
 
-    @Composable
-    fun ChannelsScreen(
-        title: String,
-        url: String?,
-        userAgent: String?,
-        initial: List<Channel>
-    ) {
-        var channels by remember { mutableStateOf(initial) }
-        var loading by remember { mutableStateOf(initial.isEmpty() && !url.isNullOrBlank()) }
-        var error by remember { mutableStateOf<String?>(null) }
+                // Carica la lista via rete solo se il DB non ha ancora gruppi
+                LaunchedEffect(portalUrl) {
+                    if (groups.isEmpty() && portalUrl.isNotEmpty()) {
+                        isLoading = true
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                val inputStream = URL(portalUrl).openStream()
+                                val tempBuffer = mutableListOf<Channel>()
 
-        LaunchedEffect(Unit) {
-            if (channels.isEmpty() && !url.isNullOrBlank()) {
-                loading = true
-                try {
-                    // Usiamo la nuova architettura in un thread separato (IO)
-                    withContext(Dispatchers.IO) {
-                        val tempList = mutableListOf<Channel>()
-                        // Il nuovo downloader estrae i canali uno ad uno e li mettiamo nella lista
-                        PlaylistDownloader().downloadAndParse(url) { channel ->
-                            tempList.add(channel)
-                        }
-                        channels = tempList
-                    }
-                    if (channels.isEmpty()) error = getString(R.string.playlist_no_channels)
-                } catch (e: Exception) {
-                    Timber.e(e, "Download playlist fallito")
-                    error = "${getString(R.string.config_import_failed)}: ${e.message}"
-                } finally {
-                    loading = false
-                }
-            }
-        }
+                                M3UParser.parseStreaming(inputStream) { channel ->
+                                    // Assegniamo l'ID della playlist se necessario
+                                    val channelWithPlaylist = channel.copy(playlistId = playlistId)
+                                    tempBuffer.add(channelWithPlaylist)
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { finish() }) { Text("Indietro") }
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (channels.isNotEmpty()) {
-                        Text(
-                            text = stringResource(R.string.playlist_channels_count, channels.size),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-
-            if (loading) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.width(12.dp))
-                    Text(stringResource(R.string.config_importing))
-                }
-            }
-
-            error?.let {
-                Text("Attenzione: $it", color = MaterialTheme.colorScheme.error)
-            }
-
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(channels, key = { it.url }) { channel ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                startActivity(
-                                    Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                        // Le nuove costanti allineate con ExoPlayer!
-                                        putExtra("STREAM_URL", channel.url)
-                                        putExtra("CHANNEL_NAME", channel.name)
-                                        putExtra("USER_AGENT", userAgent)
+                                    // Salva a blocchi di 100 canali tramite il tuo insertChannels
+                                    if (tempBuffer.size >= 100) {
+                                        val batch = tempBuffer.toList()
+                                        tempBuffer.clear()
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            channelDao.insertChannels(batch)
+                                        }
                                     }
-                                )
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            // Aggiornato: group ora non è più nullable nel nuovo modello
-                            if (channel.group.isNotBlank()) {
-                                Text(
-                                    text = channel.group,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                }
+
+                                if (tempBuffer.isNotEmpty()) {
+                                    channelDao.insertChannels(tempBuffer)
+                                }
+
+                                withContext(Dispatchers.Main) {
+                                    isLoading = false
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    isLoading = false
+                                    Toast.makeText(this@ChannelsActivity, "Errore caricamento lista", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Se non è ancora selezionato nessun gruppo, seleziona automaticamente il primo disponibile
+                LaunchedEffect(groups) {
+                    if (groups.isNotEmpty() && selectedGroup == null) {
+                        selectedGroup = groups.first()
+                    }
+                }
+
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    if (isLoading && groups.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                            // Mostra i canali del gruppo corrente
+                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                items(channels) { channel ->
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                            .clickable {
+                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                    putExtra("STREAM_URL", channel.url)
+                                                    putExtra("CHANNEL_NAME", channel.name)
+                                                }
+                                                startActivity(intent)
+                                            }
+                                    ) {
+                                        Text(
+                                            text = channel.name,
+                                            modifier = Modifier.padding(16.dp),
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-
-    companion object {
-        const val EXTRA_TITLE = "com.portalstream.app.extra.TITLE"
-        const val EXTRA_URL = "com.portalstream.app.extra.URL"
-        const val EXTRA_USER_AGENT = "com.portalstream.app.extra.USER_AGENT"
     }
 }
