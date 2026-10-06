@@ -54,7 +54,7 @@ class ChannelsActivity : ComponentActivity() {
             MaterialTheme {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
                 val localChannels = remember { ChannelCache.take() }
-                
+
                 val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
 
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
@@ -88,23 +88,23 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || macAddress.isNotBlank()
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
-                                          portalType.equals("XSTREAM", ignoreCase = true) || 
-                                          (server.isNotBlank() && username.isNotBlank())
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
+                                    portalType.equals("XSTREAM", ignoreCase = true) ||
+                                    (server.isNotBlank() && username.isNotBlank())
 
                             if (isStalker) {
                                 if (server.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore Stalker: Server URL vuoto!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ Server URL vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 } else if (macAddress.isBlank()) {
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ Errore Stalker: MAC Address vuoto!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(this@ChannelsActivity, "⚠️ MAC Address vuoto!", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
 
-                            val channels = when {
+                            val fetched = when {
                                 isStalker -> {
                                     val portalDraft = Portal(
                                         id = 0,
@@ -147,14 +147,14 @@ class ChannelsActivity : ComponentActivity() {
                                 else -> emptyList()
                             }
 
-                            if (channels.isNotEmpty()) {
+                            if (fetched.isNotEmpty()) {
                                 channelDao.clearAll()
-                                channelDao.insertChannels(channels)
+                                channelDao.insertChannels(fetched)
                             } else {
                                 withContext(Dispatchers.Main) {
                                     Toast.makeText(
                                         this@ChannelsActivity,
-                                        "Nessun canale caricato. Controlla MAC e Server.",
+                                        "Nessun canale caricato. Verifica le credenziali del server.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
