@@ -93,9 +93,10 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
     // WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.8.1")
+    implementation("androidx.work:work-runtime-ktx:2.8.1")      
     
     // Jetpack Compose
+    implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.compose.ui:ui:1.6.0")
     implementation("androidx.compose.material3:material3:1.1.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
