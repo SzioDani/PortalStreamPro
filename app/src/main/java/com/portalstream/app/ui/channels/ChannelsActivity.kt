@@ -21,8 +21,8 @@ import androidx.lifecycle.lifecycleScope
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
 import com.portalstream.app.streaming.M3UParser
+import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
-import com.portalstream.app.ui.theme.PortalStreamTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,43 +33,57 @@ class ChannelsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val portalUrl = intent.getStringExtra(EXTRA_URL) 
-            ?: intent.getStringExtra("PORTAL_URL") 
-            ?: ""
+        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
-        val playlistId = intent.getIntExtra("PLAYLIST_ID", 1)
+        val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
 
         setContent {
-            PortalStreamTheme {
-                // Recupera la lista di tutti i gruppi memorizzati nel DB
-                val groups by channelDao.getGroups().collectAsState(initial = emptyList())
+            MaterialTheme {
+                var localChannels by remember { mutableStateOf(ChannelCache.take()) }
+                val dbGroups by channelDao.getGroups().collectAsState(initial = emptyList())
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var isLoading by remember { mutableStateOf(false) }
 
-                // Se c'è un gruppo selezionato carica i suoi canali, altrimenti lista vuota
-                val channels by if (selectedGroup != null) {
+                // Determina le categorie disponibili (file locale o DB)
+                val allGroups = if (localChannels.isNotEmpty()) {
+                    localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
+                } else {
+                    dbGroups
+                }
+
+                // Canali scaricati da Room per il gruppo attivo
+                val dbChannels by if (selectedGroup != null) {
                     channelDao.getChannelsByGroup(selectedGroup!!).collectAsState(initial = emptyList())
                 } else {
                     remember { mutableStateOf(emptyList()) }
                 }
 
-                // Carica la lista via rete solo se il DB non ha ancora gruppi memorizzati
+                // Canali correnti da mostrare
+                val currentChannels = if (localChannels.isNotEmpty()) {
+                    if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
+                } else {
+                    dbChannels
+                }
+
+                // Parsing streaming via rete se non sono presenti canali in locale o DB
                 LaunchedEffect(portalUrl) {
-                    if (groups.isEmpty() && portalUrl.isNotEmpty()) {
+                    if (localChannels.isEmpty() && dbGroups.isEmpty() && portalUrl.isNotEmpty()) {
                         isLoading = true
                         lifecycleScope.launch(Dispatchers.IO) {
                             try {
-                                val inputStream = URL(portalUrl).openStream()
+                                val connection = URL(portalUrl).openConnection()
+                                if (!userAgent.isNullOrBlank()) {
+                                    connection.setRequestProperty("User-Agent", userAgent)
+                                }
+                                val inputStream = connection.getInputStream()
                                 val tempBuffer = mutableListOf<Channel>()
 
                                 M3UParser.parseStreaming(inputStream) { channel ->
-                                    val channelWithPlaylist = channel.copy(playlistId = playlistId)
-                                    tempBuffer.add(channelWithPlaylist)
+                                    tempBuffer.add(channel)
 
-                                    // Salva a blocchi di 100 canali
                                     if (tempBuffer.size >= 100) {
                                         val batch = tempBuffer.toList()
                                         tempBuffer.clear()
@@ -96,15 +110,15 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // Se non è ancora selezionato nessun gruppo, seleziona automaticamente il primo disponibile
-                LaunchedEffect(groups) {
-                    if (groups.isNotEmpty() && selectedGroup == null) {
-                        selectedGroup = groups.first()
+                // Selezione automatica prima categoria disponibile
+                LaunchedEffect(allGroups) {
+                    if (allGroups.isNotEmpty() && selectedGroup == null) {
+                        selectedGroup = allGroups.first()
                     }
                 }
 
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    if (isLoading && groups.isEmpty()) {
+                    if (isLoading && allGroups.isEmpty() && localChannels.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -117,22 +131,20 @@ class ChannelsActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(16.dp)
                         ) {
-                            // Titolo Portale / Playlist
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.headlineSmall,
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
 
-                            // Selettore orizzontale dei Gruppi / Categorie
-                            if (groups.isNotEmpty()) {
+                            if (allGroups.isNotEmpty()) {
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 12.dp)
                                 ) {
-                                    items(groups) { group ->
+                                    items(allGroups) { group ->
                                         FilterChip(
                                             selected = selectedGroup == group,
                                             onClick = { selectedGroup = group },
@@ -142,9 +154,8 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // Mostra i canali appartenenti al gruppo selezionato
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                items(channels) { channel ->
+                                items(currentChannels) { channel ->
                                     Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
