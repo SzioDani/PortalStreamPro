@@ -48,10 +48,12 @@ class ChannelsActivity : ComponentActivity() {
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var isLoading by remember { mutableStateOf(false) }
 
-                val allGroups = if (localChannels.isNotEmpty()) {
-                    localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
-                } else {
-                    dbGroups
+                val allGroups = remember(localChannels, dbGroups) {
+                    if (localChannels.isNotEmpty()) {
+                        localChannels.map { it.group }.distinct().filter { it.isNotBlank() }
+                    } else {
+                        dbGroups.distinct().filter { it.isNotBlank() }
+                    }
                 }
 
                 val dbChannels by if (selectedGroup != null) {
@@ -60,10 +62,14 @@ class ChannelsActivity : ComponentActivity() {
                     remember { mutableStateOf(emptyList()) }
                 }
 
-                val currentChannels = if (localChannels.isNotEmpty()) {
-                    if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
-                } else {
-                    dbChannels
+                // Filtraggio dei canali per gruppo + Rimozione duplicati per nome
+                val currentChannels = remember(localChannels, dbChannels, selectedGroup) {
+                    val rawList = if (localChannels.isNotEmpty()) {
+                        if (selectedGroup != null) localChannels.filter { it.group == selectedGroup } else localChannels
+                    } else {
+                        dbChannels
+                    }
+                    rawList.distinctBy { it.name.trim() }
                 }
 
                 LaunchedEffect(portalUrl) {
@@ -151,7 +157,7 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                items(currentChannels) { channel ->
+                                items(currentChannels, key = { it.url + it.name }) { channel ->
                                     Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
