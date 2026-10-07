@@ -1,5 +1,6 @@
 package com.portalstream.app.network
 
+import android.util.Log
 import com.portalstream.app.data.Portal
 import com.portalstream.app.domain.model.Channel
 import kotlinx.coroutines.Dispatchers
@@ -11,21 +12,27 @@ import java.util.concurrent.TimeUnit
 
 object XtreamClient {
 
+    private const val TAG = "XtreamClient"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     suspend fun fetchLiveChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
-        val baseUrl = portal.server.trimEnd('/')
-        if (baseUrl.isBlank() || portal.username.isBlank() || portal.password.isBlank()) {
+        var rawServer = portal.server.trim()
+        if (rawServer.isBlank() || portal.username.isBlank() || portal.password.isBlank()) {
+            Log.e(TAG, "Credenziali Xtream mancanti")
             return@withContext emptyList()
         }
 
-        // 1. Scarica le categorie per associare category_id -> category_name
+        if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
+            rawServer = "http://$rawServer"
+        }
+        val baseUrl = rawServer.trimEnd('/')
+
         val categoriesMap = fetchCategories(baseUrl, portal.username, portal.password)
 
-        // 2. Scarica i canali Live
         val apiUrl = "$baseUrl/player_api.php?username=${portal.username}&password=${portal.password}&action=get_live_streams"
         val requestBuilder = Request.Builder().url(apiUrl)
         
@@ -41,6 +48,11 @@ object XtreamClient {
         try {
             val response = client.newCall(requestBuilder.build()).execute()
             val responseBody = response.body?.string() ?: return@withContext emptyList()
+
+            if (responseBody.trim().startsWith("{")) {
+                Log.e(TAG, "Risposta server è un JSONObject anziché JSONArray (credenziali errate o errore): $responseBody")
+                return@withContext emptyList()
+            }
 
             val jsonArray = JSONArray(responseBody)
             for (i in 0 until jsonArray.length()) {
@@ -68,7 +80,8 @@ object XtreamClient {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Errore Xtream: ${e.localizedMessage}", e)
+            throw e
         }
 
         return@withContext channels
