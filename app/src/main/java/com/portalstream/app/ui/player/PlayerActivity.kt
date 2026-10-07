@@ -1,7 +1,6 @@
 package com.portalstream.app.ui.player
 
 import android.app.PictureInPictureParams
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
@@ -25,6 +25,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -94,7 +95,24 @@ class PlayerActivity : ComponentActivity() {
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
-                            errorMessage = "Errore durante la riproduzione (${error.errorCodeName})"
+                            val cause = error.cause
+
+                            val customMessage = when (cause) {
+                                is HttpDataSource.InvalidResponseCodeException -> {
+                                    when (cause.responseCode) {
+                                        401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent nelle impostazioni."
+                                        429 -> "Troppi utenti connessi (HTTP 429). La playlist ha raggiunto il limite di connessioni contemporanee."
+                                        500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile o in errore (HTTP ${cause.responseCode})."
+                                        else -> "Il server ha restituito un errore HTTP ${cause.responseCode} durante la riproduzione."
+                                    }
+                                }
+                                is HttpDataSource.HttpDataSourceException -> {
+                                    "Impossibile connettersi al flusso video. Verifica la connessione di rete o l'URL del server."
+                                }
+                                else -> "Errore durante la riproduzione: ${error.localizedMessage ?: error.errorCodeName}"
+                            }
+
+                            errorMessage = customMessage
                             isBuffering = false
                         }
                     })
@@ -137,19 +155,28 @@ class PlayerActivity : ComponentActivity() {
 
             errorMessage?.let { msg ->
                 Surface(
-                    color = Color.Black.copy(alpha = 0.85f),
-                    modifier = Modifier.align(Alignment.Center)
+                    color = Color.Black.copy(alpha = 0.88f),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(24.dp)
                     ) {
                         Text(
-                            text = msg,
+                            text = "Attenzione",
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = msg,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
                         Button(onClick = {
                             errorMessage = null
                             isBuffering = true
