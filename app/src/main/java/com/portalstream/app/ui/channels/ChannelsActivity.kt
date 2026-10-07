@@ -29,6 +29,7 @@ import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
@@ -57,13 +58,22 @@ class ChannelsActivity : ComponentActivity() {
                 val localChannels = remember { ChannelCache.take() }
 
                 val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
+                val scope = rememberCoroutineScope()
 
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
                 var favoriteIds by remember { mutableStateOf(setOf<String>()) }
                 var isLoading by remember { mutableStateOf(true) }
+                var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
+
+                // Sincronizza lo stato locale dei preferiti con i dati presenti nel Database
+                LaunchedEffect(dbChannels) {
+                    if (dbChannels.isNotEmpty()) {
+                        favoriteIds = dbChannels.filter { it.isFavorite }.map { it.id }.toSet()
+                    }
+                }
 
                 val allGroups = remember(allChannels) {
                     allChannels.map { it.group }.distinct().filter { it.isNotBlank() }
@@ -88,9 +98,10 @@ class ChannelsActivity : ComponentActivity() {
                                 isLoading = false
                                 return@withContext
                             }
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)  
+
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
-                            
+
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
                                     if (server.isBlank() || macAddress.isBlank()) {
@@ -146,8 +157,13 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             if (fetched.isNotEmpty()) {
+                                // Mantiene lo stato preferito esistente se la lista viene ricaricata
+                                val existingFavs = dbChannels.filter { it.isFavorite }.map { it.id }.toSet()
+                                val channelsToSave = fetched.map { ch ->
+                                    if (existingFavs.contains(ch.id)) ch.copy(isFavorite = true) else ch
+                                }
                                 channelDao.clearAll()
-                                channelDao.insertChannels(fetched)
+                                channelDao.insertChannels(channelsToSave)
                             } else {
                                 statusMessage = "Nessun canale caricato. Controlla server e credenziali."
                             }
@@ -267,21 +283,66 @@ class ChannelsActivity : ComponentActivity() {
                                         key = { it.id.ifEmpty { it.url + it.name } }
                                     ) { channel ->
                                         val isFav = favoriteIds.contains(channel.id)
+                                        val isThisLoading = loadingChannelId == channel.id
 
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(vertical = 4.dp)
-                                                .clickable {
-                                                    val intent = Intent(
-                                                        this@ChannelsActivity,
-                                                        PlayerActivity::class.java
-                                                    ).apply {
-                                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, channel.url)
-                                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, userAgent)
+                                                .clickable(enabled = loadingChannelId == null) {
+                                                    loadingChannelId = channel.id
+
+                                                    scope.launch(Dispatchers.IO) {
+                                                        try {
+                                                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
+                                                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
+
+                                                            val playUrl = when {
+                                                                isStalker || macAddress.isNotBlank() -> {
+                                                                    val portalDraft = Portal(
+                                                                        id = 0,
+                                                                        server = server,
+                                                                        macAddress = macAddress,
+                                                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                                                        userAgent = userAgent ?: ""
+                                                                    )
+                                                                    StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
+                                                                }
+                                                                isXtream -> {
+                                                                    if (channel.url.startsWith("http")) {
+                                                                        channel.url
+                                                                    } else {
+                                                                        val cleanServer = server.trimEnd('/')
+                                                                        val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                        "$cleanServer/live/$username/$password/${channel.id}.$cleanFormat"
+                                                                    }
+                                                                }
+                                                                else -> channel.url
+                                                            }
+
+                                                            withContext(Dispatchers.Main) {
+                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                                }
+                                                                startActivity(intent)
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            withContext(Dispatchers.Main) {
+                                                                Toast.makeText(
+                                                                    this@ChannelsActivity,
+                                                                    "Errore apertura flusso: ${e.localizedMessage}",
+                                                                    Toast.LENGTH_SHORT
+                                                                ).show()
+                                                            }
+                                                        } finally {
+                                                            withContext(Dispatchers.Main) {
+                                                                loadingChannelId = null
+                                                            }
+                                                        }
                                                     }
-                                                    startActivity(intent)
                                                 }
                                         ) {
                                             Row(
@@ -305,16 +366,29 @@ class ChannelsActivity : ComponentActivity() {
                                                     }
                                                 }
 
-                                                IconButton(
-                                                    onClick = {
-                                                        favoriteIds = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                        contentDescription = "Preferito",
-                                                        tint = if (isFav) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                if (isThisLoading) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(24.dp),
+                                                        strokeWidth = 2.dp
                                                     )
+                                                } else {
+                                                    IconButton(
+                                                        onClick = {
+                                                            val newFavState = !isFav
+                                                            favoriteIds = if (newFavState) favoriteIds + channel.id else favoriteIds - channel.id
+
+                                                            scope.launch(Dispatchers.IO) {
+                                                                val updatedChannel = channel.copy(isFavorite = newFavState)
+                                                                channelDao.insertChannels(listOf(updatedChannel))
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                            contentDescription = "Preferito",
+                                                            tint = if (isFav) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
