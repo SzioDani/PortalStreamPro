@@ -63,6 +63,7 @@ class ChannelsActivity : ComponentActivity() {
                 var showOnlyFavorites by remember { mutableStateOf(false) }
                 var favoriteIds by remember { mutableStateOf(setOf<String>()) }
                 var isLoading by remember { mutableStateOf(true) }
+                var statusMessage by remember { mutableStateOf("") }
 
                 val allGroups = remember(allChannels) {
                     allChannels.map { it.group }.distinct().filter { it.isNotBlank() }
@@ -88,36 +89,29 @@ class ChannelsActivity : ComponentActivity() {
                                 return@withContext
                             }
 
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || macAddress.isNotBlank()
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                    portalType.equals("XSTREAM", ignoreCase = true) ||
-                                    (server.isNotBlank() && username.isNotBlank())
-
-                            if (isStalker) {
-                                if (server.isBlank()) {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ Server URL vuoto!", Toast.LENGTH_LONG).show()
-                                    }
-                                } else if (macAddress.isBlank()) {
-                                    withContext(Dispatchers.Main) {
-                                        Toast.makeText(this@ChannelsActivity, "⚠️ MAC Address vuoto!", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            }
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true)
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
 
                             val fetched = when {
-                                isStalker -> {
-                                    val portalDraft = Portal(
-                                        id = 0,
-                                        server = server,
-                                        macAddress = macAddress,
-                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                        userAgent = userAgent ?: ""
-                                    )
-                                    StalkerClient.fetchChannels(portalDraft)
+                                isStalker || macAddress.isNotBlank() -> {
+                                    if (server.isBlank() || macAddress.isBlank()) {
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(this@ChannelsActivity, "Server o MAC vuoti!", Toast.LENGTH_LONG).show()
+                                        }
+                                        emptyList()
+                                    } else {
+                                        val portalDraft = Portal(
+                                            id = 0,
+                                            server = server,
+                                            macAddress = macAddress,
+                                            useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                            userAgent = userAgent ?: ""
+                                        )
+                                        StalkerClient.fetchChannels(portalDraft)
+                                    }
                                 }
 
-                                isXtream -> {
+                                isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
                                     val portalDraft = Portal(
                                         id = 0,
                                         server = server,
@@ -131,7 +125,11 @@ class ChannelsActivity : ComponentActivity() {
                                 }
 
                                 portalUrl.isNotEmpty() -> {
-                                    val connection = URL(portalUrl).openConnection()
+                                    var formattedUrl = portalUrl.trim()
+                                    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
+                                        formattedUrl = "http://$formattedUrl"
+                                    }
+                                    val connection = URL(formattedUrl).openConnection()
                                     if (!userAgent.isNullOrBlank()) {
                                         connection.setRequestProperty("User-Agent", userAgent)
                                     }
@@ -152,19 +150,14 @@ class ChannelsActivity : ComponentActivity() {
                                 channelDao.clearAll()
                                 channelDao.insertChannels(fetched)
                             } else {
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(
-                                        this@ChannelsActivity,
-                                        "Nessun canale caricato. Verifica le credenziali del server.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
+                                statusMessage = "Nessun canale caricato. Controlla server e credenziali."
                             }
                         } catch (e: Exception) {
+                            statusMessage = "Errore Rete: ${e.localizedMessage}"
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(
                                     this@ChannelsActivity,
-                                    "Errore rete: ${e.localizedMessage}",
+                                    "Errore: ${e.localizedMessage}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -263,7 +256,7 @@ class ChannelsActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (showOnlyFavorites) "Nessun canale preferito." else "Nessun canale trovato.",
+                                        text = if (statusMessage.isNotBlank()) statusMessage else if (showOnlyFavorites) "Nessun canale preferito." else "Nessun canale trovato.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
