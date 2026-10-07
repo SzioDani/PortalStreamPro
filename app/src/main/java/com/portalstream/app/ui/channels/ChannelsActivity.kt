@@ -1,5 +1,6 @@
 package com.portalstream.app.ui.channels
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -52,6 +53,8 @@ class ChannelsActivity : ComponentActivity() {
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
 
+        val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
+
         setContent {
             MaterialTheme {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
@@ -63,21 +66,19 @@ class ChannelsActivity : ComponentActivity() {
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
-                var favoriteIds by remember { mutableStateOf(setOf<String>()) }
+                
+                // Persistenza dei preferiti tramite SharedPreferences
+                var favoriteIds by remember {
+                    mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
+                }
+
                 var isLoading by remember { mutableStateOf(true) }
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
 
-                // Stato per la gestione del Dialog dei Gruppi
+                // Dialog dei Gruppi
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
-
-                // Sincronizza lo stato locale dei preferiti con il Database
-                LaunchedEffect(dbChannels) {
-                    if (dbChannels.isNotEmpty()) {
-                        favoriteIds = dbChannels.filter { it.isFavorite }.map { it.id }.toSet()
-                    }
-                }
 
                 val allGroups = remember(allChannels) {
                     allChannels.map { it.group }.distinct().filter { it.isNotBlank() }
@@ -161,12 +162,8 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             if (fetched.isNotEmpty()) {
-                                val existingFavs = dbChannels.filter { it.isFavorite }.map { it.id }.toSet()
-                                val channelsToSave = fetched.map { ch ->
-                                    if (existingFavs.contains(ch.id)) ch.copy(isFavorite = true) else ch
-                                }
                                 channelDao.clearAll()
-                                channelDao.insertChannels(channelsToSave)
+                                channelDao.insertChannels(fetched)
                             } else {
                                 statusMessage = "Nessun canale caricato. Controlla server e credenziali."
                             }
@@ -233,7 +230,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 groupSearchQuery = ""
                                             }
                                         )
-                                        HorizontalDivider()
+                                        Divider()
                                     }
 
                                     items(filteredGroups) { group ->
@@ -448,13 +445,10 @@ class ChannelsActivity : ComponentActivity() {
                                                 } else {
                                                     IconButton(
                                                         onClick = {
-                                                            val newFavState = !isFav
-                                                            favoriteIds = if (newFavState) favoriteIds + channel.id else favoriteIds - channel.id
-
-                                                            scope.launch(Dispatchers.IO) {
-                                                                val updatedChannel = channel.copy(isFavorite = newFavState)
-                                                                channelDao.insertChannels(listOf(updatedChannel))
-                                                            }
+                                                            val newFavs = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
+                                                            favoriteIds = newFavs
+                                                            // Salvataggio permanente su disco
+                                                            prefs.edit().putStringSet("favorite_ids", newFavs).apply()
                                                         }
                                                     ) {
                                                         Icon(
