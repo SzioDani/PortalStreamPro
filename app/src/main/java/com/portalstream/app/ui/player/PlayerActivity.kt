@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -52,7 +53,7 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Schermo sempre attivo durante la riproduzione
+        // Mantiene lo schermo sempre acceso durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -96,7 +97,7 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            // Abilita il fallback a decodificatori software (es. audio MP2 per Rai)
+            // Abilita la decodifica software di fallback per audio MP2 (canali Rai)
             val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
                 setEnableDecoderFallback(true)
             }
@@ -127,13 +128,13 @@ class PlayerActivity : ComponentActivity() {
                                 is HttpDataSource.InvalidResponseCodeException -> {
                                     when (cause.responseCode) {
                                         401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
-                                        429, 458, 462 -> "Troppi utenti o troppe connessioni contemporanee al server (HTTP ${cause.responseCode}). Attendi qualche secondo e riprova."
-                                        500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile o in errore (HTTP ${cause.responseCode})."
+                                        429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode}). Attendi qualche secondo e riprova."
+                                        500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile (HTTP ${cause.responseCode})."
                                         else -> "Il server ha restituito un errore HTTP ${cause.responseCode} durante la riproduzione."
                                     }
                                 }
                                 is HttpDataSource.HttpDataSourceException -> {
-                                    "Impossibile connettersi al flusso video. Verifica la connessione di rete o l'URL del server."
+                                    "Impossibile connettersi al flusso video. Verifica la connessione di rete."
                                 }
                                 else -> "Errore formato/decodifica: ${error.localizedMessage ?: error.errorCodeName}"
                             }
@@ -166,8 +167,8 @@ class PlayerActivity : ComponentActivity() {
                         setShowNextButton(false)
                         setShowPreviousButton(false)
 
-                        // Mappa la rotellina nativa in basso a destra al nostro pannello personalizzato
-                        setControllerSettingsButtonClickListener {
+                        // Mappa il pulsante settings nativo exo_settings per aprire il nostro pannello
+                        findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener {
                             showSettingsSheet = true
                         }
                     }
@@ -175,6 +176,9 @@ class PlayerActivity : ComponentActivity() {
                 update = { view ->
                     view.player = player
                     view.resizeMode = resizeMode
+                    view.findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener {
+                        showSettingsSheet = true
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -410,7 +414,7 @@ class PlayerActivity : ComponentActivity() {
             if (group.type == trackType) {
                 val mediaTrackGroup = group.mediaTrackGroup
                 for (i in 0 until mediaTrackGroup.length) {
-                    val isSupported = group.getTrackSupport(i) == C.FORMAT_HANDLED
+                    val isSupported = group.isTrackSupported(i)
                     val format = mediaTrackGroup.getFormat(i)
                     val lang = format.language?.uppercase() ?: "IT"
                     val label = (format.label ?: "Traccia ${result.size + 1} ($lang)")
