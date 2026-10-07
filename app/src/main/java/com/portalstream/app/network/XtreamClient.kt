@@ -8,6 +8,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 object XtreamClient {
@@ -23,7 +25,7 @@ object XtreamClient {
         var rawServer = portal.server.trim()
         if (rawServer.isBlank() || portal.username.isBlank() || portal.password.isBlank()) {
             Log.e(TAG, "Credenziali Xtream mancanti")
-            return@withContext emptyList()
+            throw PortalException.InvalidCredentials()
         }
 
         if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
@@ -31,26 +33,40 @@ object XtreamClient {
         }
         val baseUrl = rawServer.trimEnd('/')
 
-        val categoriesMap = fetchCategories(baseUrl, portal.username, portal.password)
+        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
+            portal.userAgent
+        } else {
+            "PortalStreamPro/1.0"
+        }
+
+        val categoriesMap = fetchCategories(baseUrl, portal.username, portal.password, userAgent)
 
         val apiUrl = "$baseUrl/player_api.php?username=${portal.username}&password=${portal.password}&action=get_live_streams"
-        val requestBuilder = Request.Builder().url(apiUrl)
-        
-        if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
-            requestBuilder.header("User-Agent", portal.userAgent)
-        } else {
-            requestBuilder.header("User-Agent", "PortalStreamPro/1.0")
-        }
+        val requestBuilder = Request.Builder()
+            .url(apiUrl)
+            .header("User-Agent", userAgent)
 
         val channels = mutableListOf<Channel>()
         val format = if (portal.streamFormat.isBlank()) "m3u8" else portal.streamFormat
 
         try {
             val response = client.newCall(requestBuilder.build()).execute()
+
+            when (response.code) {
+                401, 403 -> throw PortalException.UserAgentBlocked()
+                429 -> throw PortalException.MaxConnectionsReached()
+            }
+
             val responseBody = response.body?.string() ?: return@withContext emptyList()
 
             if (responseBody.trim().startsWith("{")) {
-                Log.e(TAG, "Risposta server è un JSONObject anziché JSONArray (credenziali errate o errore): $responseBody")
+                val lower = responseBody.lowercase()
+                if (lower.contains("auth_failed") || lower.contains("user_info\":null")) {
+                    throw PortalException.InvalidCredentials()
+                }
+                if (lower.contains("max_connections") || lower.contains("limit")) {
+                    throw PortalException.MaxConnectionsReached()
+                }
                 return@withContext emptyList()
             }
 
@@ -79,6 +95,12 @@ object XtreamClient {
                     )
                 )
             }
+        } catch (e: PortalException) {
+            throw e
+        } catch (e: UnknownHostException) {
+            throw PortalException.ServerUnreachable()
+        } catch (e: SocketTimeoutException) {
+            throw PortalException.ServerUnreachable()
         } catch (e: Exception) {
             Log.e(TAG, "Errore Xtream: ${e.localizedMessage}", e)
             throw e
@@ -87,11 +109,15 @@ object XtreamClient {
         return@withContext channels
     }
 
-    private fun fetchCategories(baseUrl: String, user: String, pass: String): Map<String, String> {
+    private fun fetchCategories(baseUrl: String, user: String, pass: String, userAgent: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
         val catUrl = "$baseUrl/player_api.php?username=$user&password=$pass&action=get_live_categories"
         try {
-            val request = Request.Builder().url(catUrl).build()
+            val request = Request.Builder()
+                .url(catUrl)
+                .header("User-Agent", userAgent)
+                .build()
+
             val response = client.newCall(request).execute()
             val jsonStr = response.body?.string() ?: return map
             val array = JSONArray(jsonStr)
