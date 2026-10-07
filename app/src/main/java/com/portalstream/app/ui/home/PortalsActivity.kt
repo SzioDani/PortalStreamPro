@@ -95,8 +95,9 @@ class PortalsActivity : ComponentActivity() {
                                     overflow = TextOverflow.Ellipsis
                                 )
 
+                                val displayAddress = portal.server.ifBlank { portal.url }
                                 Text(
-                                    text = portal.type.label + " - " + if (portal.url.isBlank()) portal.server else portal.url,
+                                    text = "${portal.type.label} - $displayAddress",
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -145,8 +146,8 @@ class PortalsActivity : ComponentActivity() {
                 type = type,
                 onDismiss = { formType = null },
                 onSave = { draft ->
-                    val detected = PortalType.detect(draft.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else type
+                    // Mantiene il tipo esplicito scelto dall'utente se non è UNKNOWN
+                    val finalType = if (type != PortalType.UNKNOWN) type else PortalType.detect(draft.url)
 
                     store.add(draft.copy(type = finalType))
                     portals = store.load()
@@ -162,8 +163,7 @@ class PortalsActivity : ComponentActivity() {
                 type = portal.type,
                 onDismiss = { editing = null },
                 onSave = { updated ->
-                    val detected = PortalType.detect(updated.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
+                    val finalType = if (portal.type != PortalType.UNKNOWN) portal.type else PortalType.detect(updated.url)
 
                     store.update(updated.copy(type = finalType))
                     portals = store.load()
@@ -176,17 +176,18 @@ class PortalsActivity : ComponentActivity() {
 
     private fun openChannels(portal: Portal) {
         val ua = if (portal.useCustomUserAgent) portal.userAgent else null
+        val effectiveServer = portal.server.ifBlank { portal.url }
 
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
                 putExtra(ChannelsActivity.EXTRA_TITLE, portal.name.ifBlank { "Portale ${portal.id}" })
                 putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
-                putExtra(ChannelsActivity.EXTRA_SERVER, portal.server)
+                putExtra(ChannelsActivity.EXTRA_SERVER, effectiveServer)
                 putExtra(ChannelsActivity.EXTRA_MAC, portal.macAddress)
                 putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
                 putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
                 putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
-                putExtra(ChannelsActivity.EXTRA_URL, portal.url)
+                putExtra(ChannelsActivity.EXTRA_URL, portal.url.ifBlank { effectiveServer })
                 putExtra(ChannelsActivity.EXTRA_USER_AGENT, ua)
             }
         )
