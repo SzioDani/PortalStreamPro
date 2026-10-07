@@ -88,10 +88,9 @@ class ChannelsActivity : ComponentActivity() {
                                 isLoading = false
                                 return@withContext
                             }
-
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true)
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)  
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
-
+                            
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
                                     if (server.isBlank() || macAddress.isBlank()) {
