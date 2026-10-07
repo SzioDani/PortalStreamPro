@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 object StalkerClient {
@@ -103,6 +104,93 @@ object StalkerClient {
         } catch (e: Exception) {
             Log.e(TAG, "Errore Stalker: ${e.localizedMessage}", e)
             throw e
+        }
+    }
+
+    suspend fun getStreamUrl(portal: Portal, cmd: String): String? = withContext(Dispatchers.IO) {
+        var rawServer = portal.server.trim()
+        if (rawServer.isBlank()) return@withContext null
+
+        if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
+            rawServer = "http://$rawServer"
+        }
+
+        var baseUrl = rawServer.trimEnd('/')
+        if (!baseUrl.endsWith("portal.php")) {
+            baseUrl = if (baseUrl.endsWith("/c")) "$baseUrl/portal.php" else "$baseUrl/portal.php"
+        }
+
+        val mac = portal.macAddress.trim()
+        if (mac.isBlank()) return@withContext null
+
+        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
+            portal.userAgent
+        } else {
+            DEFAULT_USER_AGENT
+        }
+
+        var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
+
+        try {
+            // Handshake per ottenere sessione e token autorizzato
+            val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
+            val handshakeRequest = Request.Builder()
+                .url(handshakeUrl)
+                .addHeader("User-Agent", userAgent)
+                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Cookie", sessionCookie)
+                .build()
+
+            val handshakeResponse = client.newCall(handshakeRequest).execute()
+
+            val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
+            if (setCookieHeaders.isNotEmpty()) {
+                val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
+                if (phpSessId != null) {
+                    val cookieValue = phpSessId.split(";").firstOrNull() ?: ""
+                    if (cookieValue.isNotBlank()) {
+                        sessionCookie += "; $cookieValue"
+                    }
+                }
+            }
+
+            val handshakeBody = handshakeResponse.body?.string() ?: ""
+            val token = parseToken(handshakeBody)
+
+            // Chiamata create_link
+            val cleanCmd = cmd.trim()
+            val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
+            val createLinkUrl = "$baseUrl?type=itv&action=create_link&cmd=$encodedCmd&series_id=0&JsHttpRequest=1-xml" +
+                    if (token.isNotBlank()) "&token=$token" else ""
+
+            val request = Request.Builder()
+                .url(createLinkUrl)
+                .addHeader("User-Agent", userAgent)
+                .addHeader("Cookie", sessionCookie)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val bodyStr = response.body?.string() ?: return@withContext null
+                val json = JSONObject(bodyStr)
+
+                val js = json.optJSONObject("js") ?: return@withContext null
+                var streamCmd = js.optString("cmd", "")
+
+                if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
+                if (streamCmd.startsWith("ffmpeg ")) streamCmd = streamCmd.removePrefix("ffmpeg ")
+
+                if (streamCmd.contains("http")) {
+                    val index = streamCmd.indexOf("http")
+                    streamCmd = streamCmd.substring(index)
+                }
+
+                val finalUrl = streamCmd.trim()
+                return@withContext if (finalUrl.isNotBlank()) finalUrl else null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
+            null
         }
     }
 
