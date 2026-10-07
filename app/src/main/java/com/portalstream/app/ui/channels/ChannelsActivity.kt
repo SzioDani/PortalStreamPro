@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.domain.model.Channel
+import com.portalstream.app.network.PortalException
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
@@ -52,7 +53,6 @@ class ChannelsActivity : ComponentActivity() {
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
-
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
 
         setContent {
@@ -66,8 +66,7 @@ class ChannelsActivity : ComponentActivity() {
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
-                
-                // Persistenza dei preferiti tramite SharedPreferences
+
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
                 }
@@ -76,7 +75,6 @@ class ChannelsActivity : ComponentActivity() {
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
 
-                // Dialog dei Gruppi
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
@@ -167,12 +165,17 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 statusMessage = "Nessun canale caricato. Controlla server e credenziali."
                             }
+                        } catch (e: PortalException) {
+                            statusMessage = e.localizedMessage ?: "Errore del portale"
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@ChannelsActivity, e.localizedMessage, Toast.LENGTH_LONG).show()
+                            }
                         } catch (e: Exception) {
-                            statusMessage = "Errore Rete: ${e.localizedMessage}"
+                            statusMessage = "Errore: ${e.localizedMessage}"
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(
                                     this@ChannelsActivity,
-                                    "Errore: ${e.localizedMessage}",
+                                    "Errore Rete: ${e.localizedMessage}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -184,7 +187,6 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // Popup Modal Dialog per la Selezione dei Gruppi
                 if (showGroupDialog) {
                     AlertDialog(
                         onDismissRequest = {
@@ -282,7 +284,6 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            // Barra di ricerca canale
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -303,7 +304,6 @@ class ChannelsActivity : ComponentActivity() {
                                 singleLine = true
                             )
 
-                            // Barra di selezione: Preferiti e Selettore Gruppo
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -400,6 +400,10 @@ class ChannelsActivity : ComponentActivity() {
                                                                 }
                                                                 startActivity(intent)
                                                             }
+                                                        } catch (e: PortalException) {
+                                                            withContext(Dispatchers.Main) {
+                                                                Toast.makeText(this@ChannelsActivity, e.localizedMessage, Toast.LENGTH_LONG).show()
+                                                            }
                                                         } catch (e: Exception) {
                                                             withContext(Dispatchers.Main) {
                                                                 Toast.makeText(
@@ -447,7 +451,6 @@ class ChannelsActivity : ComponentActivity() {
                                                         onClick = {
                                                             val newFavs = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
                                                             favoriteIds = newFavs
-                                                            // Salvataggio permanente su disco
                                                             prefs.edit().putStringSet("favorite_ids", newFavs).apply()
                                                         }
                                                     ) {
