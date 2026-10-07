@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +35,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -52,6 +52,7 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Schermo sempre attivo durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -85,7 +86,7 @@ class PlayerActivity : ComponentActivity() {
         var showSettingsSheet by remember { mutableStateOf(false) }
 
         var currentTracks by remember { mutableStateOf<Tracks?>(null) }
-        var activeTab by remember { mutableIntStateOf(0) } // 0: Aspect Ratio, 1: Audio, 2: Sottotitoli
+        var activeTab by remember { mutableIntStateOf(0) } // 0: Formato, 1: Audio, 2: Sottotitoli
 
         DisposableEffect(Unit) {
             val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
@@ -95,7 +96,13 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
+            // Abilita il fallback a decodificatori software (es. audio MP2 per Rai)
+            val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
+                setEnableDecoderFallback(true)
+            }
+
             val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
+                .setRenderersFactory(renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
@@ -119,8 +126,8 @@ class PlayerActivity : ComponentActivity() {
                             val customMessage = when (cause) {
                                 is HttpDataSource.InvalidResponseCodeException -> {
                                     when (cause.responseCode) {
-                                        401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent nelle impostazioni."
-                                        429, 458 -> "Troppi utenti connessi (HTTP ${cause.responseCode}). La playlist ha raggiunto il limite di connessioni contemporanee."
+                                        401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
+                                        429, 458, 462 -> "Troppi utenti o troppe connessioni contemporanee al server (HTTP ${cause.responseCode}). Attendi qualche secondo e riprova."
                                         500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile o in errore (HTTP ${cause.responseCode})."
                                         else -> "Il server ha restituito un errore HTTP ${cause.responseCode} durante la riproduzione."
                                     }
@@ -128,7 +135,7 @@ class PlayerActivity : ComponentActivity() {
                                 is HttpDataSource.HttpDataSourceException -> {
                                     "Impossibile connettersi al flusso video. Verifica la connessione di rete o l'URL del server."
                                 }
-                                else -> "Errore durante la riproduzione: ${error.localizedMessage ?: error.errorCodeName}"
+                                else -> "Errore formato/decodifica: ${error.localizedMessage ?: error.errorCodeName}"
                             }
 
                             errorMessage = customMessage
@@ -158,6 +165,11 @@ class PlayerActivity : ComponentActivity() {
                         useController = true
                         setShowNextButton(false)
                         setShowPreviousButton(false)
+
+                        // Mappa la rotellina nativa in basso a destra al nostro pannello personalizzato
+                        setControllerSettingsButtonClickListener {
+                            showSettingsSheet = true
+                        }
                     }
                 },
                 update = { view ->
@@ -166,21 +178,6 @@ class PlayerActivity : ComponentActivity() {
                 },
                 modifier = Modifier.fillMaxSize()
             )
-
-            // Tasto Impostazioni in alto a destra
-            IconButton(
-                onClick = { showSettingsSheet = true },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Impostazioni Player",
-                    tint = Color.White
-                )
-            }
 
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
@@ -226,7 +223,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Panel Impostazioni Avanzate
+            // Pannello Impostazioni Avanzate (Unificato)
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.92f),
@@ -312,7 +309,7 @@ class PlayerActivity : ComponentActivity() {
                                 }
                                 if (audioTracks.isEmpty()) {
                                     Text(
-                                        text = "Nessuna traccia audio secondaria trovata.",
+                                        text = "Nessuna traccia audio disponibile.",
                                         color = Color.Gray,
                                         modifier = Modifier.padding(vertical = 16.dp)
                                     )
@@ -413,12 +410,15 @@ class PlayerActivity : ComponentActivity() {
             if (group.type == trackType) {
                 val mediaTrackGroup = group.mediaTrackGroup
                 for (i in 0 until mediaTrackGroup.length) {
+                    val isSupported = group.getTrackSupport(i) == C.FORMAT_HANDLED
                     val format = mediaTrackGroup.getFormat(i)
-                    val lang = format.language?.uppercase() ?: "Sconosciuto"
-                    val label = format.label ?: "Traccia ${result.size + 1} ($lang)"
+                    val lang = format.language?.uppercase() ?: "IT"
+                    val label = (format.label ?: "Traccia ${result.size + 1} ($lang)")
                     val isSelected = group.isTrackSelected(i)
 
-                    result.add(TrackInfo(group, i, label, isSelected))
+                    if (isSupported) {
+                        result.add(TrackInfo(group, i, label, isSelected))
+                    }
                 }
             }
         }
