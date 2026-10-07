@@ -16,11 +16,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -229,7 +226,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Panel Impostazioni Avanzate (Aspect Ratio, Audio, Sottotitoli)
+            // Panel Impostazioni Avanzate
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.92f),
@@ -266,20 +263,17 @@ class PlayerActivity : ComponentActivity() {
                             Tab(
                                 selected = activeTab == 0,
                                 onClick = { activeTab = 0 },
-                                text = { Text("Formato") },
-                                icon = { Icon(Icons.Default.AspectRatio, contentDescription = null) }
+                                text = { Text("Formato") }
                             )
                             Tab(
                                 selected = activeTab == 1,
                                 onClick = { activeTab = 1 },
-                                text = { Text("Audio") },
-                                icon = { Icon(Icons.Default.Audiotrack, contentDescription = null) }
+                                text = { Text("Audio") }
                             )
                             Tab(
                                 selected = activeTab == 2,
                                 onClick = { activeTab = 2 },
-                                text = { Text("Sottotitoli") },
-                                icon = { Icon(Icons.Default.Subtitles, contentDescription = null) }
+                                text = { Text("Sottotitoli") }
                             )
                         }
 
