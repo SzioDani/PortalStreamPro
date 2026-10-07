@@ -9,7 +9,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.SocketTimeoutException
 import java.net.URLEncoder
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 object StalkerClient {
@@ -25,10 +27,7 @@ object StalkerClient {
 
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         var rawServer = portal.server.trim()
-        if (rawServer.isBlank()) {
-            Log.e(TAG, "Server URL vuoto")
-            return@withContext emptyList()
-        }
+        if (rawServer.isBlank()) return@withContext emptyList()
 
         if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
             rawServer = "http://$rawServer"
@@ -40,10 +39,7 @@ object StalkerClient {
         }
 
         val mac = portal.macAddress.trim()
-        if (mac.isBlank()) {
-            Log.e(TAG, "MAC Address mancante")
-            return@withContext emptyList()
-        }
+        if (mac.isBlank()) return@withContext emptyList()
 
         val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
             portal.userAgent
@@ -55,7 +51,6 @@ object StalkerClient {
 
         try {
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
-            Log.d(TAG, "Handshake URL: $handshakeUrl")
 
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
@@ -65,6 +60,7 @@ object StalkerClient {
                 .build()
 
             val handshakeResponse = client.newCall(handshakeRequest).execute()
+            checkHttpResponseCode(handshakeResponse.code)
 
             val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
             if (setCookieHeaders.isNotEmpty()) {
@@ -78,8 +74,9 @@ object StalkerClient {
             }
 
             val handshakeBody = handshakeResponse.body?.string() ?: ""
-            val token = parseToken(handshakeBody)
+            checkPayloadForErrors(handshakeBody)
 
+            val token = parseToken(handshakeBody)
             val categoriesMap = fetchGenres(baseUrl, userAgent, sessionCookie, token)
 
             val channelsUrl = "$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml" +
@@ -92,7 +89,10 @@ object StalkerClient {
                 .build()
 
             val response = client.newCall(channelsRequest).execute()
+            checkHttpResponseCode(response.code)
+
             val responseBody = response.body?.string() ?: ""
+            checkPayloadForErrors(responseBody)
 
             var channels = parseChannels(responseBody, categoriesMap)
 
@@ -101,6 +101,12 @@ object StalkerClient {
             }
 
             return@withContext channels
+        } catch (e: PortalException) {
+            throw e
+        } catch (e: UnknownHostException) {
+            throw PortalException.ServerUnreachable()
+        } catch (e: SocketTimeoutException) {
+            throw PortalException.ServerUnreachable()
         } catch (e: Exception) {
             Log.e(TAG, "Errore Stalker: ${e.localizedMessage}", e)
             throw e
@@ -132,7 +138,6 @@ object StalkerClient {
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
-            // Handshake per ottenere sessione e token autorizzato
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
@@ -142,6 +147,7 @@ object StalkerClient {
                 .build()
 
             val handshakeResponse = client.newCall(handshakeRequest).execute()
+            checkHttpResponseCode(handshakeResponse.code)
 
             val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
             if (setCookieHeaders.isNotEmpty()) {
@@ -157,7 +163,6 @@ object StalkerClient {
             val handshakeBody = handshakeResponse.body?.string() ?: ""
             val token = parseToken(handshakeBody)
 
-            // Chiamata create_link
             val cleanCmd = cmd.trim()
             val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
             val createLinkUrl = "$baseUrl?type=itv&action=create_link&cmd=$encodedCmd&series_id=0&JsHttpRequest=1-xml" +
@@ -170,10 +175,12 @@ object StalkerClient {
                 .build()
 
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val bodyStr = response.body?.string() ?: return@withContext null
-                val json = JSONObject(bodyStr)
+                checkHttpResponseCode(response.code)
 
+                val bodyStr = response.body?.string() ?: return@withContext null
+                checkPayloadForErrors(bodyStr)
+
+                val json = JSONObject(bodyStr)
                 val js = json.optJSONObject("js") ?: return@withContext null
                 var streamCmd = js.optString("cmd", "")
 
@@ -188,9 +195,32 @@ object StalkerClient {
                 val finalUrl = streamCmd.trim()
                 return@withContext if (finalUrl.isNotBlank()) finalUrl else null
             }
+        } catch (e: PortalException) {
+            throw e
+        } catch (e: UnknownHostException) {
+            throw PortalException.ServerUnreachable()
+        } catch (e: SocketTimeoutException) {
+            throw PortalException.ServerUnreachable()
         } catch (e: Exception) {
             Log.e(TAG, "Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
+        }
+    }
+
+    private fun checkHttpResponseCode(code: Int) {
+        when (code) {
+            401, 403 -> throw PortalException.UserAgentBlocked()
+            429 -> throw PortalException.MaxConnectionsReached()
+        }
+    }
+
+    private fun checkPayloadForErrors(body: String) {
+        val lower = body.lowercase()
+        if (lower.contains("limit_reached") || lower.contains("max_connections") || lower.contains("connection_limit")) {
+            throw PortalException.MaxConnectionsReached()
+        }
+        if (lower.contains("access_denied") || lower.contains("auth_error") || lower.contains("account_expired")) {
+            throw PortalException.InvalidCredentials()
         }
     }
 
