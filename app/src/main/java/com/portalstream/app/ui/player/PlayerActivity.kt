@@ -123,7 +123,7 @@ class PlayerActivity : ComponentActivity() {
                                 is HttpDataSource.InvalidResponseCodeException -> {
                                     when (cause.responseCode) {
                                         401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent nelle impostazioni."
-                                        429, 458 -> "Troppi utenti connessi (HTTP 429). La playlist ha raggiunto il limite di connessioni contemporanee."
+                                        429, 458 -> "Troppi utenti connessi (HTTP ${cause.responseCode}). La playlist ha raggiunto il limite di connessioni contemporanee."
                                         500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile o in errore (HTTP ${cause.responseCode})."
                                         else -> "Il server ha restituito un errore HTTP ${cause.responseCode} durante la riproduzione."
                                     }
