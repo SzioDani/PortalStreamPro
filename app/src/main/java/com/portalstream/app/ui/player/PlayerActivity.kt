@@ -11,25 +11,40 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
+@OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
 
     private var player: ExoPlayer? = null
@@ -40,7 +55,6 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Schermo sempre attivo durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -63,7 +77,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(UnstableApi::class)
     @Composable
     fun PlayerScreen(
         channelName: String,
@@ -71,6 +84,11 @@ class PlayerActivity : ComponentActivity() {
     ) {
         var isBuffering by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
+        var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+        var showSettingsSheet by remember { mutableStateOf(false) }
+
+        var currentTracks by remember { mutableStateOf<Tracks?>(null) }
+        var activeTab by remember { mutableIntStateOf(0) } // 0: Aspect Ratio, 1: Audio, 2: Sottotitoli
 
         DisposableEffect(Unit) {
             val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
@@ -92,6 +110,10 @@ class PlayerActivity : ComponentActivity() {
                     addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             isBuffering = (playbackState == Player.STATE_BUFFERING)
+                        }
+
+                        override fun onTracksChanged(tracks: Tracks) {
+                            currentTracks = tracks
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
@@ -135,6 +157,7 @@ class PlayerActivity : ComponentActivity() {
                 factory = { ctx ->
                     PlayerView(ctx).apply {
                         this.player = player
+                        this.resizeMode = resizeMode
                         useController = true
                         setShowNextButton(false)
                         setShowPreviousButton(false)
@@ -142,9 +165,25 @@ class PlayerActivity : ComponentActivity() {
                 },
                 update = { view ->
                     view.player = player
+                    view.resizeMode = resizeMode
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
+            // Tasto Impostazioni in alto a destra
+            IconButton(
+                onClick = { showSettingsSheet = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Impostazioni Player",
+                    tint = Color.White
+                )
+            }
 
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
@@ -153,6 +192,7 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
+            // Dialog Messaggio di Errore
             errorMessage?.let { msg ->
                 Surface(
                     color = Color.Black.copy(alpha = 0.88f),
@@ -188,6 +228,229 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
+
+            // Panel Impostazioni Avanzate (Aspect Ratio, Audio, Sottotitoli)
+            if (showSettingsSheet) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.92f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Opzioni Riproduzione",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = { showSettingsSheet = false }) {
+                                Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
+                            }
+                        }
+
+                        TabRow(
+                            selectedTabIndex = activeTab,
+                            containerColor = Color.Transparent,
+                            contentColor = Color.White
+                        ) {
+                            Tab(
+                                selected = activeTab == 0,
+                                onClick = { activeTab = 0 },
+                                text = { Text("Formato") },
+                                icon = { Icon(Icons.Default.AspectRatio, contentDescription = null) }
+                            )
+                            Tab(
+                                selected = activeTab == 1,
+                                onClick = { activeTab = 1 },
+                                text = { Text("Audio") },
+                                icon = { Icon(Icons.Default.Audiotrack, contentDescription = null) }
+                            )
+                            Tab(
+                                selected = activeTab == 2,
+                                onClick = { activeTab = 2 },
+                                text = { Text("Sottotitoli") },
+                                icon = { Icon(Icons.Default.Subtitles, contentDescription = null) }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        when (activeTab) {
+                            0 -> {
+                                Column {
+                                    val modes = listOf(
+                                        "Adatta Schermo (Originale)" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                                        "Riempi Schermo (Stretch)" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
+                                        "Zoom / Ritaglio (Crop)" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    )
+                                    modes.forEach { (label, mode) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { resizeMode = mode }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = (resizeMode == mode),
+                                                onClick = { resizeMode = mode }
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(text = label, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
+                            1 -> {
+                                val audioTracks = remember(currentTracks) {
+                                    getTracksForType(currentTracks, C.TRACK_TYPE_AUDIO)
+                                }
+                                if (audioTracks.isEmpty()) {
+                                    Text(
+                                        text = "Nessuna traccia audio secondaria trovata.",
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(vertical = 16.dp)
+                                    )
+                                } else {
+                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                                        items(audioTracks) { trackInfo ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        selectTrack(player, trackInfo)
+                                                    }
+                                                    .padding(vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = trackInfo.isSelected,
+                                                    onClick = { selectTrack(player, trackInfo) }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = trackInfo.label,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            2 -> {
+                                val subtitleTracks = remember(currentTracks) {
+                                    getTracksForType(currentTracks, C.TRACK_TYPE_TEXT)
+                                }
+                                Column {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                disableTrackType(player, C.TRACK_TYPE_TEXT)
+                                            }
+                                            .padding(vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = subtitleTracks.none { it.isSelected },
+                                            onClick = { disableTrackType(player, C.TRACK_TYPE_TEXT) }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(text = "Disattivati", color = Color.White)
+                                    }
+
+                                    LazyColumn(modifier = Modifier.heightIn(max = 180.dp)) {
+                                        items(subtitleTracks) { trackInfo ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        selectTrack(player, trackInfo)
+                                                    }
+                                                    .padding(vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = trackInfo.isSelected,
+                                                    onClick = { selectTrack(player, trackInfo) }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = trackInfo.label,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private data class TrackInfo(
+        val group: Tracks.Group,
+        val trackIndex: Int,
+        val label: String,
+        val isSelected: Boolean
+    )
+
+    @OptIn(UnstableApi::class)
+    private fun getTracksForType(tracks: Tracks?, trackType: Int): List<TrackInfo> {
+        if (tracks == null) return emptyList()
+        val result = mutableListOf<TrackInfo>()
+
+        for (group in tracks.groups) {
+            if (group.type == trackType) {
+                val mediaTrackGroup = group.mediaTrackGroup
+                for (i in 0 until mediaTrackGroup.length) {
+                    val format = mediaTrackGroup.getFormat(i)
+                    val lang = format.language?.uppercase() ?: "Sconosciuto"
+                    val label = format.label ?: "Traccia ${result.size + 1} ($lang)"
+                    val isSelected = group.isTrackSelected(i)
+
+                    result.add(TrackInfo(group, i, label, isSelected))
+                }
+            }
+        }
+        return result
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun selectTrack(exoPlayer: ExoPlayer?, trackInfo: TrackInfo) {
+        exoPlayer?.let { p ->
+            p.trackSelectionParameters = p.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(trackInfo.group.type, false)
+                .setOverrideForType(
+                    TrackSelectionOverride(trackInfo.group.mediaTrackGroup, trackInfo.trackIndex)
+                )
+                .build()
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun disableTrackType(exoPlayer: ExoPlayer?, trackType: Int) {
+        exoPlayer?.let { p ->
+            p.trackSelectionParameters = p.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(trackType, true)
+                .build()
         }
     }
 
