@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -38,6 +39,8 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -53,7 +56,7 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Mantiene lo schermo sempre acceso durante la riproduzione
+        // Schermo sempre acceso durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -97,9 +100,19 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            // Abilita la decodifica software di fallback per audio MP2 (canali Rai)
+            // Reindirizza le richieste per audio MP2 (audio/mpeg-L2) al decoder MP3 nativo di Android
+            val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
+                val targetMime = if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
+                    MimeTypes.AUDIO_MPEG
+                } else {
+                    mimeType
+                }
+                MediaCodecUtil.getDecoderInfos(targetMime, requiresSecureDecoder, requiresTunneling)
+            }
+
             val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
                 setEnableDecoderFallback(true)
+                setMediaCodecSelector(customMediaCodecSelector)
             }
 
             val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
@@ -107,6 +120,12 @@ class PlayerActivity : ComponentActivity() {
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
+                    // Abilita la riproduzione anche in caso di discrepanze dichiarate dal decoder
+                    trackSelectionParameters = trackSelectionParameters.buildUpon()
+                        .setExceedRendererCapabilitiesIfNecessary(true)
+                        .setExceedAudioConstraintsIfNecessary(true)
+                        .build()
+
                     val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
                     setMediaItem(mediaItem)
                     prepare()
@@ -126,17 +145,18 @@ class PlayerActivity : ComponentActivity() {
 
                             val customMessage = when (cause) {
                                 is HttpDataSource.InvalidResponseCodeException -> {
-                                    when (cause.responseCode) {
+                                    when (cause.resp
                                         401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
-                                        429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode}). Attendi qualche secondo e riprova."
+                                        456 -> "Accesso o IP rifiutato dal server (HTTP ${cause.responseCode}). Verifica credenziali o VPN."
+                                        429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode})."
                                         500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile (HTTP ${cause.responseCode})."
-                                        else -> "Il server ha restituito un errore HTTP ${cause.responseCode} durante la riproduzione."
+                                        else -> "Errore HTTP ${cause.responseCode} dal server."
                                     }
                                 }
                                 is HttpDataSource.HttpDataSourceException -> {
                                     "Impossibile connettersi al flusso video. Verifica la connessione di rete."
                                 }
-                                else -> "Errore formato/decodifica: ${error.localizedMessage ?: error.errorCodeName}"
+                                else -> "Errore durante la riproduzione: ${error.localizedMessage ?: error.errorCodeName}"
                             }
 
                             errorMessage = customMessage
@@ -167,7 +187,7 @@ class PlayerActivity : ComponentActivity() {
                         setShowNextButton(false)
                         setShowPreviousButton(false)
 
-                        // Mappa il pulsante settings nativo exo_settings per aprire il nostro pannello
+                        // Mappa la rotellina impostazioni nativa ExoPlayer per aprire il menu personalizzato
                         findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener {
                             showSettingsSheet = true
                         }
@@ -190,7 +210,7 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
-            // Dialog Messaggio di Errore
+            // Dialog Errore
             errorMessage?.let { msg ->
                 Surface(
                     color = Color.Black.copy(alpha = 0.88f),
@@ -414,15 +434,12 @@ class PlayerActivity : ComponentActivity() {
             if (group.type == trackType) {
                 val mediaTrackGroup = group.mediaTrackGroup
                 for (i in 0 until mediaTrackGroup.length) {
-                    val isSupported = group.isTrackSupported(i)
                     val format = mediaTrackGroup.getFormat(i)
                     val lang = format.language?.uppercase() ?: "IT"
-                    val label = (format.label ?: "Traccia ${result.size + 1} ($lang)")
+                    val label = format.label ?: "Traccia ${result.size + 1} ($lang)"
                     val isSelected = group.isTrackSelected(i)
 
-                    if (isSupported) {
-                        result.add(TrackInfo(group, i, label, isSelected))
-                    }
+                    result.add(TrackInfo(group, i, label, isSelected))
                 }
             }
         }
