@@ -122,7 +122,6 @@ class PlayerActivity : ComponentActivity() {
                 .build()
                 .apply {
                     trackSelectionParameters = trackSelectionParameters.buildUpon()
-                        .setExceedRendererCapabilitiesIfNecessary(true)
                         .setExceedAudioConstraintsIfNecessary(true)
                         .build()
 
