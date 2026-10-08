@@ -121,10 +121,6 @@ class PlayerActivity : ComponentActivity() {
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
-                    trackSelectionParameters = trackSelectionParameters.buildUpon()
-                        .setExceedAudioConstraintsIfNecessary(true)
-                        .build()
-
                     val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
                     setMediaItem(mediaItem)
                     prepare()
@@ -483,3 +479,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+        
