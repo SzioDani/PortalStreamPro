@@ -44,6 +44,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.R as Media3R
 
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
@@ -56,7 +57,7 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Schermo sempre acceso durante la riproduzione
+        // Mantiene lo schermo acceso durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -100,7 +101,7 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            // Reindirizza le richieste per audio MP2 (audio/mpeg-L2) al decoder MP3 nativo di Android
+            // Selector custom per reindirizzare MP2 (audio/mpeg-L2) al decoder MP3 nativo Android
             val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
                 val targetMime = if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
                     MimeTypes.AUDIO_MPEG
@@ -120,7 +121,6 @@ class PlayerActivity : ComponentActivity() {
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
                 .apply {
-                    // Abilita la riproduzione anche in caso di discrepanze dichiarate dal decoder
                     trackSelectionParameters = trackSelectionParameters.buildUpon()
                         .setExceedRendererCapabilitiesIfNecessary(true)
                         .setExceedAudioConstraintsIfNecessary(true)
@@ -145,7 +145,7 @@ class PlayerActivity : ComponentActivity() {
 
                             val customMessage = when (cause) {
                                 is HttpDataSource.InvalidResponseCodeException -> {
-                                    when (cause.resp
+                                    when (cause.responseCode) {
                                         401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
                                         456 -> "Accesso o IP rifiutato dal server (HTTP ${cause.responseCode}). Verifica credenziali o VPN."
                                         429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode})."
@@ -187,8 +187,7 @@ class PlayerActivity : ComponentActivity() {
                         setShowNextButton(false)
                         setShowPreviousButton(false)
 
-                        // Mappa la rotellina impostazioni nativa ExoPlayer per aprire il menu personalizzato
-                        findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener {
+                        findViewById<View>(Media3R.id.exo_settings)?.setOnClickListener {
                             showSettingsSheet = true
                         }
                     }
@@ -196,7 +195,7 @@ class PlayerActivity : ComponentActivity() {
                 update = { view ->
                     view.player = player
                     view.resizeMode = resizeMode
-                    view.findViewById<View>(androidx.media3.ui.R.id.exo_settings)?.setOnClickListener {
+                    view.findViewById<View>(Media3R.id.exo_settings)?.setOnClickListener {
                         showSettingsSheet = true
                     }
                 },
