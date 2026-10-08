@@ -39,6 +39,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -101,14 +102,26 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            // Selector custom per reindirizzare MP2 (audio/mpeg-L2) al decoder MP3 nativo Android
+            // Selector custom che sintetizza un MediaCodecInfo per MP2/L1 (Rai) appoggiandosi al decoder MP3 nativo Android
             val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
-                val targetMime = if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
-                    MimeTypes.AUDIO_MPEG
+                if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
+                    val nativeDecoders = MediaCodecUtil.getDecoderInfos(MimeTypes.AUDIO_MPEG, requiresSecureDecoder, requiresTunneling)
+                    nativeDecoders.map { decoder ->
+                        MediaCodecInfo.newInstance(
+                            decoder.name,
+                            mimeType, // "audio/mpeg-L2"
+                            MimeTypes.AUDIO_MPEG, // "audio/mpeg"
+                            decoder.capabilities,
+                            decoder.hardwareAccelerated,
+                            decoder.softwareOnly,
+                            decoder.vendor,
+                            false,
+                            false
+                        )
+                    }
                 } else {
-                    mimeType
+                    MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
                 }
-                MediaCodecUtil.getDecoderInfos(targetMime, requiresSecureDecoder, requiresTunneling)
             }
 
             val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
@@ -338,19 +351,32 @@ class PlayerActivity : ComponentActivity() {
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clickable {
-                                                        selectTrack(player, trackInfo)
+                                                        if (trackInfo.isSupported) {
+                                                            selectTrack(player, trackInfo)
+                                                        } else {
+                                                            Toast.makeText(
+                                                                this@PlayerActivity,
+                                                                "Traccia audio non supportata dal dispositivo",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
                                                     }
                                                     .padding(vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 RadioButton(
                                                     selected = trackInfo.isSelected,
-                                                    onClick = { selectTrack(player, trackInfo) }
+                                                    enabled = trackInfo.isSupported,
+                                                    onClick = {
+                                                        if (trackInfo.isSupported) {
+                                                            selectTrack(player, trackInfo)
+                                                        }
+                                                    }
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = trackInfo.label,
-                                                    color = Color.White
+                                                    text = if (trackInfo.isSupported) trackInfo.label else "${trackInfo.label} (Non supportato)",
+                                                    color = if (trackInfo.isSupported) Color.White else Color.Gray
                                                 )
                                             }
                                         }
@@ -416,7 +442,8 @@ class PlayerActivity : ComponentActivity() {
         val group: Tracks.Group,
         val trackIndex: Int,
         val label: String,
-        val isSelected: Boolean
+        val isSelected: Boolean,
+        val isSupported: Boolean
     )
 
     @OptIn(UnstableApi::class)
@@ -430,10 +457,12 @@ class PlayerActivity : ComponentActivity() {
                 for (i in 0 until mediaTrackGroup.length) {
                     val format = mediaTrackGroup.getFormat(i)
                     val lang = format.language?.uppercase() ?: "IT"
-                    val label = format.label ?: "Traccia ${result.size + 1} ($lang)"
+                    val codec = format.sampleMimeType?.substringAfterLast("/")?.uppercase() ?: ""
+                    val label = format.label ?: "Traccia ${result.size + 1} ($lang $codec)".trim()
                     val isSelected = group.isTrackSelected(i)
+                    val isSupported = group.isTrackSupported(i)
 
-                    result.add(TrackInfo(group, i, label, isSelected))
+                    result.add(TrackInfo(group, i, label, isSelected, isSupported))
                 }
             }
         }
@@ -479,4 +508,3 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
-        
