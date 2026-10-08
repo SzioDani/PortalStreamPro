@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -39,9 +38,6 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -54,6 +50,7 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
+    private var hasAttemptedHlsFallback: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,31 +99,8 @@ class PlayerActivity : ComponentActivity() {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            // Selector custom che sintetizza un MediaCodecInfo per MP2/L1 (Rai) appoggiandosi al decoder MP3 nativo Android
-            val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
-                if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
-                    val nativeDecoders = MediaCodecUtil.getDecoderInfos(MimeTypes.AUDIO_MPEG, requiresSecureDecoder, requiresTunneling)
-                    nativeDecoders.map { decoder ->
-                        MediaCodecInfo.newInstance(
-                            decoder.name,
-                            mimeType, // "audio/mpeg-L2"
-                            MimeTypes.AUDIO_MPEG, // "audio/mpeg"
-                            decoder.capabilities,
-                            decoder.hardwareAccelerated,
-                            decoder.softwareOnly,
-                            decoder.vendor,
-                            false,
-                            false
-                        )
-                    }
-                } else {
-                    MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
-                }
-            }
-
             val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
                 setEnableDecoderFallback(true)
-                setMediaCodecSelector(customMediaCodecSelector)
             }
 
             val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
@@ -150,6 +124,27 @@ class PlayerActivity : ComponentActivity() {
 
                         override fun onPlayerError(error: PlaybackException) {
                             val cause = error.cause
+                            val errorMsg = error.localizedMessage ?: ""
+
+                            // Se l'errore riguarda il codec audio non supportato (MP2/AC3) e lo stream è un file .ts, prova il fallback a HLS (.m3u8)
+                            if (!hasAttemptedHlsFallback && (streamUrl.contains(".ts") || errorMsg.contains("audio/mpeg-L2") || errorMsg.contains("audio/ac3"))) {
+                                hasAttemptedHlsFallback = true
+                                val fallbackUrl = when {
+                                    streamUrl.contains(".ts?") -> streamUrl.replace(".ts?", ".m3u8?")
+                                    streamUrl.endsWith(".ts") -> streamUrl.dropLast(3) + ".m3u8"
+                                    else -> streamUrl
+                                }
+
+                                if (fallbackUrl != streamUrl) {
+                                    streamUrl = fallbackUrl
+                                    isBuffering = true
+                                    errorMessage = null
+                                    setMediaItem(MediaItem.fromUri(Uri.parse(streamUrl)))
+                                    prepare()
+                                    play()
+                                    return
+                                }
+                            }
 
                             val customMessage = when (cause) {
                                 is HttpDataSource.InvalidResponseCodeException -> {
