@@ -5,12 +5,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
-import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,33 +26,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.Tracks
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.HttpDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
-import androidx.media3.ui.R as Media3R
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
+import java.net.HttpURLConnection
+import java.net.URL
 
-@OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
 
-    private var player: ExoPlayer? = null
+    private var libVLC: LibVLC? = null
+    private var mediaPlayer: MediaPlayer? = null
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
@@ -90,117 +77,66 @@ class PlayerActivity : ComponentActivity() {
     ) {
         var isBuffering by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
-        var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
         var showSettingsSheet by remember { mutableStateOf(false) }
-
-        var currentTracks by remember { mutableStateOf<Tracks?>(null) }
         var activeTab by remember { mutableIntStateOf(0) }
 
+        var audioTracks by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
+        var currentAudioTrackId by remember { mutableIntStateOf(-1) }
+
         DisposableEffect(Unit) {
-            val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
-                setUserAgent(userAgent ?: "PortalStreamPro/1.0")
-                setAllowCrossProtocolRedirects(true)
-                setConnectTimeoutMs(15000)
-                setReadTimeoutMs(15000)
+            val options = ArrayList<String>().apply {
+                add("--no-drop-late-frames")
+                add("--no-skip-frames")
+                add("--rtsp-tcp")
+                add("--http-reconnect")
+                add("--network-caching=1500")
             }
 
-            val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
+            val vlc = LibVLC(this@PlayerActivity, options)
+            val mp = MediaPlayer(vlc)
 
-            // Selector codec personalizzato per forzare il decoder MPEG nativo di Android sulle tracce MP2/MP1
-            val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
-                if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
-                    val nativeDecoders = MediaCodecUtil.getDecoderInfos(MimeTypes.AUDIO_MPEG, requiresSecureDecoder, requiresTunneling)
-                    nativeDecoders.map { decoder ->
-                        MediaCodecInfo.newInstance(
-                            decoder.name,
-                            mimeType,
-                            MimeTypes.AUDIO_MPEG,
-                            decoder.capabilities,
-                            decoder.hardwareAccelerated,
-                            decoder.softwareOnly,
-                            decoder.vendor,
-                            false,
-                            false
-                        )
+            libVLC = vlc
+            mediaPlayer = mp
+
+            val media = Media(vlc, Uri.parse(streamUrl)).apply {
+                setHWDecoderEnabled(true, false)
+                if (!userAgent.isNullOrBlank()) {
+                    addOption(":http-user-agent=$userAgent")
+                }
+            }
+
+            mp.media = media
+            media.release()
+
+            mp.setEventListener { event ->
+                when (event.type) {
+                    MediaPlayer.Event.Buffering -> {
+                        isBuffering = event.buffering < 100f
                     }
-                } else {
-                    MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
+                    MediaPlayer.Event.Playing -> {
+                        isBuffering = false
+                        errorMessage = null
+                        audioTracks = mp.audioTracks?.toList() ?: emptyList()
+                        currentAudioTrackId = mp.audioTrack
+                    }
+                    MediaPlayer.Event.EncounteredError -> {
+                        isBuffering = false
+                        // Intercetta l'errore ed esegue l'ispezione HTTP per rilevare il codice esatto
+                        checkHttpError(streamUrl, userAgent) { mappedMessage ->
+                            errorMessage = mappedMessage
+                        }
+                    }
                 }
             }
 
-            // AudioSink ottimizzato per gestire PCM e passthrough delle tracce AC3 e MP2
-            val audioSink = DefaultAudioSink.Builder(this@PlayerActivity)
-                .setEnableFloatOutput(true)
-                .setEnableAudioTrackPlaybackParams(true)
-                .build()
-
-            val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
-                setEnableDecoderFallback(true)
-                setMediaCodecSelector(customMediaCodecSelector)
-            }
-
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(2000, 10000, 1500, 2000)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build()
-
-            val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
-                .setRenderersFactory(renderersFactory)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setLoadControl(loadControl)
-                .setAudioAttributes(audioAttributes, true)
-                .build()
-                .apply {
-                    val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
-                    setMediaItem(mediaItem)
-                    prepare()
-                    playWhenReady = true
-
-                    addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            isBuffering = (playbackState == Player.STATE_BUFFERING)
-                        }
-
-                        override fun onTracksChanged(tracks: Tracks) {
-                            currentTracks = tracks
-                        }
-
-                        override fun onPlayerError(error: PlaybackException) {
-                            val cause = error.cause
-
-                            val customMessage = when (cause) {
-                                is HttpDataSource.InvalidResponseCodeException -> {
-                                    when (cause.responseCode) {
-                                        401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
-                                        404 -> "Canale o risorsa non trovata sul server (HTTP 404)."
-                                        456 -> "Accesso o IP rifiutato dal server (HTTP ${cause.responseCode}). Verifica credenziali o VPN."
-                                        429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode})."
-                                        500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile (HTTP ${cause.responseCode})."
-                                        else -> "Errore HTTP ${cause.responseCode} dal server."
-                                    }
-                                }
-                                is HttpDataSource.HttpDataSourceException -> {
-                                    "Impossibile connettersi al flusso video. Verifica la connessione di rete."
-                                }
-                                else -> "Errore durante la riproduzione: ${error.localizedMessage ?: error.errorCodeName}"
-                            }
-
-                            errorMessage = customMessage
-                            isBuffering = false
-                        }
-                    })
-                }
-
-            player = exoPlayer
+            mp.play()
 
             onDispose {
-                exoPlayer.release()
-                player = null
+                mp.stop()
+                mp.release()
+                vlc.release()
+                mediaPlayer = null
+                libVLC = null
             }
         }
 
@@ -211,27 +147,29 @@ class PlayerActivity : ComponentActivity() {
         ) {
             AndroidView(
                 factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        this.player = player
-                        this.resizeMode = resizeMode
-                        useController = true
-                        setShowNextButton(false)
-                        setShowPreviousButton(false)
-
-                        findViewById<View>(Media3R.id.exo_settings)?.setOnClickListener {
-                            showSettingsSheet = true
-                        }
-                    }
-                },
-                update = { view ->
-                    view.player = player
-                    view.resizeMode = resizeMode
-                    view.findViewById<View>(Media3R.id.exo_settings)?.setOnClickListener {
-                        showSettingsSheet = true
+                    VLCVideoLayout(ctx).apply {
+                        mediaPlayer?.attachViews(this, null, false, false)
                     }
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
+            IconButton(
+                onClick = {
+                    audioTracks = mediaPlayer?.audioTracks?.toList() ?: emptyList()
+                    currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
+                    showSettingsSheet = true
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Impostazioni",
+                    tint = Color.White
+                )
+            }
 
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
@@ -267,8 +205,7 @@ class PlayerActivity : ComponentActivity() {
                         Button(onClick = {
                             errorMessage = null
                             isBuffering = true
-                            player?.prepare()
-                            player?.play()
+                            mediaPlayer?.play()
                         }) {
                             Text("Riprova")
                         }
@@ -294,7 +231,7 @@ class PlayerActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Opzioni Riproduzione",
+                                text = "Opzioni Riproduzione (LibVLC)",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -312,17 +249,12 @@ class PlayerActivity : ComponentActivity() {
                             Tab(
                                 selected = activeTab == 0,
                                 onClick = { activeTab = 0 },
-                                text = { Text("Formato") }
+                                text = { Text("Audio") }
                             )
                             Tab(
                                 selected = activeTab == 1,
                                 onClick = { activeTab = 1 },
-                                text = { Text("Audio") }
-                            )
-                            Tab(
-                                selected = activeTab == 2,
-                                onClick = { activeTab = 2 },
-                                text = { Text("Sottotitoli") }
+                                text = { Text("Formato") }
                             )
                         }
 
@@ -330,105 +262,62 @@ class PlayerActivity : ComponentActivity() {
 
                         when (activeTab) {
                             0 -> {
-                                Column {
-                                    val modes = listOf(
-                                        "Adatta Schermo (Originale)" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                                        "Riempi Schermo (Stretch)" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
-                                        "Zoom / Ritaglio (Crop)" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                if (audioTracks.isEmpty()) {
+                                    Text(
+                                        text = "Nessuna traccia audio trovata.",
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(vertical = 16.dp)
                                     )
-                                    modes.forEach { (label, mode) ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { resizeMode = mode }
-                                                .padding(vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = (resizeMode == mode),
-                                                onClick = { resizeMode = mode }
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(text = label, color = Color.White)
+                                } else {
+                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                                        items(audioTracks) { track ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        mediaPlayer?.setAudioTrack(track.id)
+                                                        currentAudioTrackId = track.id
+                                                    }
+                                                    .padding(vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                RadioButton(
+                                                    selected = (track.id == currentAudioTrackId),
+                                                    onClick = {
+                                                        mediaPlayer?.setAudioTrack(track.id)
+                                                        currentAudioTrackId = track.id
+                                                    }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = track.name ?: "Traccia ${track.id}",
+                                                    color = Color.White
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
 
                             1 -> {
-                                val audioTracks = remember(currentTracks) {
-                                    getTracksForType(currentTracks, C.TRACK_TYPE_AUDIO)
-                                }
-                                if (audioTracks.isEmpty()) {
-                                    Text(
-                                        text = "Nessuna traccia audio disponibile.",
-                                        color = Color.Gray,
-                                        modifier = Modifier.padding(vertical = 16.dp)
-                                    )
-                                } else {
-                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                                        items(audioTracks) { trackInfo ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { selectTrack(player, trackInfo) }
-                                                    .padding(vertical = 10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                RadioButton(
-                                                    selected = trackInfo.isSelected,
-                                                    onClick = { selectTrack(player, trackInfo) }
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = trackInfo.label,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            2 -> {
-                                val subtitleTracks = remember(currentTracks) {
-                                    getTracksForType(currentTracks, C.TRACK_TYPE_TEXT)
-                                }
+                                val ratios = listOf(
+                                    "Originale" to null,
+                                    "16:9" to "16:9",
+                                    "4:3" to "4:3",
+                                    "Riempi Schermo" to "18:9"
+                                )
                                 Column {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { disableTrackType(player, C.TRACK_TYPE_TEXT) }
-                                            .padding(vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = subtitleTracks.none { it.isSelected },
-                                            onClick = { disableTrackType(player, C.TRACK_TYPE_TEXT) }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(text = "Disattivati", color = Color.White)
-                                    }
-
-                                    LazyColumn(modifier = Modifier.heightIn(max = 180.dp)) {
-                                        items(subtitleTracks) { trackInfo ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { selectTrack(player, trackInfo) }
-                                                    .padding(vertical = 10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                RadioButton(
-                                                    selected = trackInfo.isSelected,
-                                                    onClick = { selectTrack(player, trackInfo) }
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = trackInfo.label,
-                                                    color = Color.White
-                                                )
-                                            }
+                                    ratios.forEach { (label, ratio) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    mediaPlayer?.aspectRatio = ratio
+                                                }
+                                                .padding(vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(text = label, color = Color.White)
                                         }
                                     }
                                 }
@@ -440,55 +329,37 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private data class TrackInfo(
-        val group: Tracks.Group,
-        val trackIndex: Int,
-        val label: String,
-        val isSelected: Boolean
-    )
+    /**
+     * Esegue una verifica HTTP in background per mappare il codice esatto dell'errore (401, 403, 404, 456, 429, 500, ecc.)
+     */
+    private fun checkHttpError(urlStr: String, userAgentStr: String?, onResult: (String) -> Unit) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var message = "Errore durante la riproduzione del flusso multimediale."
+            try {
+                val url = URL(urlStr)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                userAgentStr?.let { conn.setRequestProperty("User-Agent", it) }
 
-    @OptIn(UnstableApi::class)
-    private fun getTracksForType(tracks: Tracks?, trackType: Int): List<TrackInfo> {
-        if (tracks == null) return emptyList()
-        val result = mutableListOf<TrackInfo>()
-
-        for (group in tracks.groups) {
-            if (group.type == trackType) {
-                val mediaTrackGroup = group.mediaTrackGroup
-                for (i in 0 until mediaTrackGroup.length) {
-                    val format = mediaTrackGroup.getFormat(i)
-                    val lang = format.language?.uppercase() ?: "IT"
-                    val codec = format.sampleMimeType?.substringAfterLast("/")?.uppercase() ?: ""
-                    val label = format.label ?: "Traccia ${result.size + 1} ($lang $codec)".trim()
-                    val isSelected = group.isTrackSelected(i)
-
-                    result.add(TrackInfo(group, i, label, isSelected))
+                val responseCode = conn.responseCode
+                message = when (responseCode) {
+                    200 -> "Errore del flusso video o formato non supportato."
+                    401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP $responseCode). Prova a cambiare User-Agent."
+                    404 -> "Canale o risorsa non trovata sul server (HTTP 404)."
+                    456 -> "Accesso o IP rifiutato dal server (HTTP $responseCode). Verifica credenziali o VPN."
+                    429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP $responseCode)."
+                    in 500..504 -> "Server IPTV momentaneamente non disponibile (HTTP $responseCode)."
+                    else -> "Errore HTTP $responseCode dal server IPTV."
                 }
+                conn.disconnect()
+            } catch (e: Exception) {
+                message = "Impossibile connettersi al server IPTV. Verifica la connessione di rete."
             }
-        }
-        return result
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun selectTrack(exoPlayer: ExoPlayer?, trackInfo: TrackInfo) {
-        exoPlayer?.let { p ->
-            p.trackSelectionParameters = p.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(trackInfo.group.type, false)
-                .setOverrideForType(
-                    TrackSelectionOverride(trackInfo.group.mediaTrackGroup, trackInfo.trackIndex)
-                )
-                .build()
-        }
-    }
-
-    @OptIn(UnstableApi::class)
-    private fun disableTrackType(exoPlayer: ExoPlayer?, trackType: Int) {
-        exoPlayer?.let { p ->
-            p.trackSelectionParameters = p.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(trackType, true)
-                .build()
+            withContext(Dispatchers.Main) {
+                onResult(message)
+            }
         }
     }
 
