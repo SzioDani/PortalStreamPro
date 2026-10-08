@@ -30,6 +30,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -40,6 +41,10 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -52,12 +57,10 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
-    private var hasAttemptedHlsFallback: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Mantiene lo schermo acceso durante la riproduzione
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -91,28 +94,53 @@ class PlayerActivity : ComponentActivity() {
         var showSettingsSheet by remember { mutableStateOf(false) }
 
         var currentTracks by remember { mutableStateOf<Tracks?>(null) }
-        var activeTab by remember { mutableIntStateOf(0) } // 0: Formato, 1: Audio, 2: Sottotitoli
+        var activeTab by remember { mutableIntStateOf(0) }
 
         DisposableEffect(Unit) {
             val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
                 setUserAgent(userAgent ?: "PortalStreamPro/1.0")
                 setAllowCrossProtocolRedirects(true)
+                setConnectTimeoutMs(15000)
+                setReadTimeoutMs(15000)
             }
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory)
 
-            val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
-                setEnableDecoderFallback(true)
+            // Selector codec personalizzato per forzare il decoder MPEG nativo di Android sulle tracce MP2/MP1
+            val customMediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
+                if (mimeType.equals("audio/mpeg-L2", ignoreCase = true) || mimeType.equals("audio/mpeg-L1", ignoreCase = true)) {
+                    val nativeDecoders = MediaCodecUtil.getDecoderInfos(MimeTypes.AUDIO_MPEG, requiresSecureDecoder, requiresTunneling)
+                    nativeDecoders.map { decoder ->
+                        MediaCodecInfo.newInstance(
+                            decoder.name,
+                            mimeType,
+                            MimeTypes.AUDIO_MPEG,
+                            decoder.capabilities,
+                            decoder.hardwareAccelerated,
+                            decoder.softwareOnly,
+                            decoder.vendor,
+                            false,
+                            false
+                        )
+                    }
+                } else {
+                    MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
+                }
             }
 
-            // Ottimizzazione Buffer per azzerare il ritardo audio/video nei flussi live
-            val lowLatencyLoadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    1500, // Min buffer per avvio rapido (1.5 sec)
-                    5000, // Max buffer (5 sec)
-                    1000, // Buffer necessario per far partire la riproduzione (1 sec)
-                    1500  // Buffer dopo eventuale re-buffering (1.5 sec)
-                )
+            // AudioSink ottimizzato per gestire PCM e passthrough delle tracce AC3 e MP2
+            val audioSink = DefaultAudioSink.Builder(this@PlayerActivity)
+                .setEnableFloatOutput(true)
+                .setEnableAudioTrackPlaybackParams(true)
+                .build()
+
+            val renderersFactory = DefaultRenderersFactory(this@PlayerActivity).apply {
+                setEnableDecoderFallback(true)
+                setMediaCodecSelector(customMediaCodecSelector)
+            }
+
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(2000, 10000, 1500, 2000)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
@@ -124,7 +152,7 @@ class PlayerActivity : ComponentActivity() {
             val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
                 .setRenderersFactory(renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
-                .setLoadControl(lowLatencyLoadControl)
+                .setLoadControl(loadControl)
                 .setAudioAttributes(audioAttributes, true)
                 .build()
                 .apply {
@@ -140,71 +168,16 @@ class PlayerActivity : ComponentActivity() {
 
                         override fun onTracksChanged(tracks: Tracks) {
                             currentTracks = tracks
-
-                            // Rilevamento automatico: se lo stream ha tracce audio MA NESSUNA è supportata dall'hardware del telefono
-                            val hasAudio = tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO }
-                            val hasSupportedAudio = tracks.groups.any { group ->
-                                group.type == C.TRACK_TYPE_AUDIO && (0 until group.length).any { group.isTrackSupported(it) }
-                            }
-
-                            if (hasAudio && !hasSupportedAudio && !hasAttemptedHlsFallback) {
-                                hasAttemptedHlsFallback = true
-
-                                val fallbackUrl = when {
-                                    streamUrl.contains(".ts?") -> streamUrl.replace(".ts?", ".m3u8?")
-                                    streamUrl.endsWith(".ts") -> streamUrl.dropLast(3) + ".m3u8"
-                                    streamUrl.contains(".ts") -> streamUrl.replace(".ts", ".m3u8")
-                                    !streamUrl.contains(".m3u8") -> {
-                                        if (streamUrl.contains("?")) {
-                                            val parts = streamUrl.split("?", limit = 2)
-                                            "${parts[0]}.m3u8?${parts[1]}"
-                                        } else {
-                                            "$streamUrl.m3u8"
-                                        }
-                                    }
-                                    else -> streamUrl
-                                }
-
-                                if (fallbackUrl != streamUrl) {
-                                    streamUrl = fallbackUrl
-                                    isBuffering = true
-                                    errorMessage = null
-                                    setMediaItem(MediaItem.fromUri(Uri.parse(streamUrl)))
-                                    prepare()
-                                    play()
-                                    return
-                                }
-                            }
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
                             val cause = error.cause
-                            val errorMsg = error.localizedMessage ?: ""
-
-                            // Fallback di emergenza anche su errore fatale
-                            if (!hasAttemptedHlsFallback && (streamUrl.contains(".ts") || errorMsg.contains("audio/mpeg-L2") || errorMsg.contains("audio/ac3"))) {
-                                hasAttemptedHlsFallback = true
-                                val fallbackUrl = when {
-                                    streamUrl.contains(".ts?") -> streamUrl.replace(".ts?", ".m3u8?")
-                                    streamUrl.endsWith(".ts") -> streamUrl.dropLast(3) + ".m3u8"
-                                    else -> streamUrl
-                                }
-
-                                if (fallbackUrl != streamUrl) {
-                                    streamUrl = fallbackUrl
-                                    isBuffering = true
-                                    errorMessage = null
-                                    setMediaItem(MediaItem.fromUri(Uri.parse(streamUrl)))
-                                    prepare()
-                                    play()
-                                    return
-                                }
-                            }
 
                             val customMessage = when (cause) {
                                 is HttpDataSource.InvalidResponseCodeException -> {
                                     when (cause.responseCode) {
                                         401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP ${cause.responseCode}). Prova a modificare l'User-Agent."
+                                        404 -> "Canale o risorsa non trovata sul server (HTTP 404)."
                                         456 -> "Accesso o IP rifiutato dal server (HTTP ${cause.responseCode}). Verifica credenziali o VPN."
                                         429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP ${cause.responseCode})."
                                         500, 502, 503, 504 -> "Server IPTV momentaneamente non disponibile (HTTP ${cause.responseCode})."
@@ -267,7 +240,6 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
-            // Dialog Errore
             errorMessage?.let { msg ->
                 Surface(
                     color = Color.Black.copy(alpha = 0.88f),
@@ -304,7 +276,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Pannello Impostazioni Avanzate (Unificato)
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.92f),
@@ -400,33 +371,18 @@ class PlayerActivity : ComponentActivity() {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clickable {
-                                                        if (trackInfo.isSupported) {
-                                                            selectTrack(player, trackInfo)
-                                                        } else {
-                                                            Toast.makeText(
-                                                                this@PlayerActivity,
-                                                                "Traccia audio non supportata dal dispositivo",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                        }
-                                                    }
+                                                    .clickable { selectTrack(player, trackInfo) }
                                                     .padding(vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 RadioButton(
                                                     selected = trackInfo.isSelected,
-                                                    enabled = trackInfo.isSupported,
-                                                    onClick = {
-                                                        if (trackInfo.isSupported) {
-                                                            selectTrack(player, trackInfo)
-                                                        }
-                                                    }
+                                                    onClick = { selectTrack(player, trackInfo) }
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = if (trackInfo.isSupported) trackInfo.label else "${trackInfo.label} (Non supportato)",
-                                                    color = if (trackInfo.isSupported) Color.White else Color.Gray
+                                                    text = trackInfo.label,
+                                                    color = Color.White
                                                 )
                                             }
                                         }
@@ -442,9 +398,7 @@ class PlayerActivity : ComponentActivity() {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                disableTrackType(player, C.TRACK_TYPE_TEXT)
-                                            }
+                                            .clickable { disableTrackType(player, C.TRACK_TYPE_TEXT) }
                                             .padding(vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -461,9 +415,7 @@ class PlayerActivity : ComponentActivity() {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clickable {
-                                                        selectTrack(player, trackInfo)
-                                                    }
+                                                    .clickable { selectTrack(player, trackInfo) }
                                                     .padding(vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -492,8 +444,7 @@ class PlayerActivity : ComponentActivity() {
         val group: Tracks.Group,
         val trackIndex: Int,
         val label: String,
-        val isSelected: Boolean,
-        val isSupported: Boolean
+        val isSelected: Boolean
     )
 
     @OptIn(UnstableApi::class)
@@ -510,9 +461,8 @@ class PlayerActivity : ComponentActivity() {
                     val codec = format.sampleMimeType?.substringAfterLast("/")?.uppercase() ?: ""
                     val label = format.label ?: "Traccia ${result.size + 1} ($lang $codec)".trim()
                     val isSelected = group.isTrackSelected(i)
-                    val isSupported = group.isTrackSupported(i)
 
-                    result.add(TrackInfo(group, i, label, isSelected, isSupported))
+                    result.add(TrackInfo(group, i, label, isSelected))
                 }
             }
         }
