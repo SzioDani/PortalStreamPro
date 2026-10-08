@@ -83,7 +83,11 @@ class PlayerActivity : ComponentActivity() {
         var audioTracks by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
 
-        DisposableEffect(Unit) {
+        var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
+
+        DisposableEffect(vlcVideoLayout) {
+            val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
+
             val options = ArrayList<String>().apply {
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
@@ -97,6 +101,9 @@ class PlayerActivity : ComponentActivity() {
 
             libVLC = vlc
             mediaPlayer = mp
+
+            // useTextureView = true per renderizzare correttamente con Jetpack Compose
+            mp.attachViews(layout, null, false, true)
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
                 setHWDecoderEnabled(true, false)
@@ -121,7 +128,6 @@ class PlayerActivity : ComponentActivity() {
                     }
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
-                        // Intercetta l'errore ed esegue l'ispezione HTTP per rilevare il codice esatto
                         checkHttpError(streamUrl, userAgent) { mappedMessage ->
                             errorMessage = mappedMessage
                         }
@@ -133,6 +139,7 @@ class PlayerActivity : ComponentActivity() {
 
             onDispose {
                 mp.stop()
+                mp.detachViews()
                 mp.release()
                 vlc.release()
                 mediaPlayer = null
@@ -147,8 +154,8 @@ class PlayerActivity : ComponentActivity() {
         ) {
             AndroidView(
                 factory = { ctx ->
-                    VLCVideoLayout(ctx).apply {
-                        mediaPlayer?.attachViews(this, null, false, false)
+                    VLCVideoLayout(ctx).also { layout ->
+                        vlcVideoLayout = layout
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -329,9 +336,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Esegue una verifica HTTP in background per mappare il codice esatto dell'errore (401, 403, 404, 456, 429, 500, ecc.)
-     */
     private fun checkHttpError(urlStr: String, userAgentStr: String?, onResult: (String) -> Unit) {
         lifecycleScope.launch(Dispatchers.IO) {
             var message = "Errore durante la riproduzione del flusso multimediale."
@@ -346,9 +350,9 @@ class PlayerActivity : ComponentActivity() {
                 val responseCode = conn.responseCode
                 message = when (responseCode) {
                     200 -> "Errore del flusso video o formato non supportato."
-                    401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP $responseCode). Prova a cambiare User-Agent."
+                    401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP $responseCode)."
                     404 -> "Canale o risorsa non trovata sul server (HTTP 404)."
-                    456 -> "Accesso o IP rifiutato dal server (HTTP $responseCode). Verifica credenziali o VPN."
+                    456 -> "Accesso o IP rifiutato dal server (HTTP $responseCode)."
                     429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP $responseCode)."
                     in 500..504 -> "Server IPTV momentaneamente non disponibile (HTTP $responseCode)."
                     else -> "Errore HTTP $responseCode dal server IPTV."
