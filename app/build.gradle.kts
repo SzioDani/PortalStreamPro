@@ -67,6 +67,9 @@ dependencies {
     // FIRESTORE TV DEVICE DETECTION
     implementation("androidx.tvprovider:tvprovider:1.0.0")
 
+     // Motore multimediale nativo LibVLC
+    implementation("org.videolan.android:libvlc-all:3.5.4")
+
     // NETWORK MONITORING
     implementation("com.github.chuckerteam.chucker:library:4.0.0")
     
