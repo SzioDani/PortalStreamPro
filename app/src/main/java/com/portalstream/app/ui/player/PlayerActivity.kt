@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -36,6 +37,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -103,9 +105,27 @@ class PlayerActivity : ComponentActivity() {
                 setEnableDecoderFallback(true)
             }
 
+            // Ottimizzazione Buffer per azzerare il ritardo audio/video nei flussi live
+            val lowLatencyLoadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    1500, // Min buffer per avvio rapido (1.5 sec)
+                    5000, // Max buffer (5 sec)
+                    1000, // Buffer necessario per far partire la riproduzione (1 sec)
+                    1500  // Buffer dopo eventuale re-buffering (1.5 sec)
+                )
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build()
+
             val exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
                 .setRenderersFactory(renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(lowLatencyLoadControl)
+                .setAudioAttributes(audioAttributes, true)
                 .build()
                 .apply {
                     val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
@@ -120,13 +140,48 @@ class PlayerActivity : ComponentActivity() {
 
                         override fun onTracksChanged(tracks: Tracks) {
                             currentTracks = tracks
+
+                            // Rilevamento automatico: se lo stream ha tracce audio MA NESSUNA è supportata dall'hardware del telefono
+                            val hasAudio = tracks.groups.any { it.type == C.TRACK_TYPE_AUDIO }
+                            val hasSupportedAudio = tracks.groups.any { group ->
+                                group.type == C.TRACK_TYPE_AUDIO && (0 until group.length).any { group.isTrackSupported(it) }
+                            }
+
+                            if (hasAudio && !hasSupportedAudio && !hasAttemptedHlsFallback) {
+                                hasAttemptedHlsFallback = true
+
+                                val fallbackUrl = when {
+                                    streamUrl.contains(".ts?") -> streamUrl.replace(".ts?", ".m3u8?")
+                                    streamUrl.endsWith(".ts") -> streamUrl.dropLast(3) + ".m3u8"
+                                    streamUrl.contains(".ts") -> streamUrl.replace(".ts", ".m3u8")
+                                    !streamUrl.contains(".m3u8") -> {
+                                        if (streamUrl.contains("?")) {
+                                            val parts = streamUrl.split("?", limit = 2)
+                                            "${parts[0]}.m3u8?${parts[1]}"
+                                        } else {
+                                            "$streamUrl.m3u8"
+                                        }
+                                    }
+                                    else -> streamUrl
+                                }
+
+                                if (fallbackUrl != streamUrl) {
+                                    streamUrl = fallbackUrl
+                                    isBuffering = true
+                                    errorMessage = null
+                                    setMediaItem(MediaItem.fromUri(Uri.parse(streamUrl)))
+                                    prepare()
+                                    play()
+                                    return
+                                }
+                            }
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
                             val cause = error.cause
                             val errorMsg = error.localizedMessage ?: ""
 
-                            // Se l'errore riguarda il codec audio non supportato (MP2/AC3) e lo stream è un file .ts, prova il fallback a HLS (.m3u8)
+                            // Fallback di emergenza anche su errore fatale
                             if (!hasAttemptedHlsFallback && (streamUrl.contains(".ts") || errorMsg.contains("audio/mpeg-L2") || errorMsg.contains("audio/ac3"))) {
                                 hasAttemptedHlsFallback = true
                                 val fallbackUrl = when {
