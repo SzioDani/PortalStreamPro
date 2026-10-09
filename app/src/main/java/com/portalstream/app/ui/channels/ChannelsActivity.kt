@@ -67,8 +67,14 @@ class ChannelsActivity : ComponentActivity() {
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
 
+                // Preferiti per singoli canali
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
+                }
+
+                // Preferiti per interi Gruppi
+                var favoriteGroups by remember {
+                    mutableStateOf(prefs.getStringSet("favorite_groups", emptySet())?.toSet() ?: emptySet())
                 }
 
                 var isLoading by remember { mutableStateOf(true) }
@@ -187,11 +193,12 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
+                // Dialogo Selezione e Gestione Gruppi
                 if (showGroupDialog) {
                     AlertDialog(
                         onDismissRequest = {
                             showGroupDialog = false
-                            groupSearchQuery = ""
+                            // Manteniamo groupSearchQuery per non resettare la ricerca "IT"
                         },
                         title = { Text("Seleziona Gruppo") },
                         text = {
@@ -202,14 +209,27 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 8.dp),
-                                    placeholder = { Text("Cerca categoria...") },
+                                    placeholder = { Text("Cerca categoria (es. IT)...") },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                    trailingIcon = {
+                                        if (groupSearchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { groupSearchQuery = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Cancella")
+                                            }
+                                        }
+                                    },
                                     singleLine = true
                                 )
 
-                                val filteredGroups = remember(allGroups, groupSearchQuery) {
-                                    if (groupSearchQuery.isBlank()) allGroups
+                                // Filtra e ordina i gruppi mantenendo i preferiti in alto
+                                val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
+                                    val baseList = if (groupSearchQuery.isBlank()) allGroups
                                     else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
+
+                                    baseList.sortedWith(
+                                        compareByDescending<String> { favoriteGroups.contains(it) }
+                                            .thenBy { it }
+                                    )
                                 }
 
                                 LazyColumn(
@@ -229,20 +249,35 @@ class ChannelsActivity : ComponentActivity() {
                                                 selectedGroup = null
                                                 showOnlyFavorites = false
                                                 showGroupDialog = false
-                                                groupSearchQuery = ""
                                             }
                                         )
-                                        Divider()
+                                        HorizontalDivider()
                                     }
 
                                     items(filteredGroups) { group ->
+                                        val isFavGroup = favoriteGroups.contains(group)
+
                                         ListItem(
                                             headlineContent = { Text(group.ifBlank { "Generale" }) },
+                                            trailingContent = {
+                                                IconButton(
+                                                    onClick = {
+                                                        val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
+                                                        favoriteGroups = newFavs
+                                                        prefs.edit().putStringSet("favorite_groups", newFavs).apply()
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                        contentDescription = "Preferito Gruppo",
+                                                        tint = if (isFavGroup) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            },
                                             modifier = Modifier.clickable {
                                                 selectedGroup = group
                                                 showOnlyFavorites = false
                                                 showGroupDialog = false
-                                                groupSearchQuery = ""
                                             }
                                         )
                                     }
@@ -250,10 +285,7 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         },
                         confirmButton = {
-                            TextButton(onClick = {
-                                showGroupDialog = false
-                                groupSearchQuery = ""
-                            }) {
+                            TextButton(onClick = { showGroupDialog = false }) {
                                 Text("Chiudi")
                             }
                         }
