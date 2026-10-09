@@ -207,18 +207,22 @@ class ChannelsActivity : ComponentActivity() {
                                     onValueChange = { groupSearchQuery = it },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 8.dp),
-                                    placeholder = { Text("Cerca categoria (es. IT)...") },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                        .height(48.dp)
+                                        .padding(bottom = 4.dp),
+                                    placeholder = { Text("Cerca categoria (es. IT)...", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                     trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
                                             IconButton(onClick = { groupSearchQuery = "" }) {
-                                                Icon(Icons.Default.Clear, contentDescription = "Cancella")
+                                                Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
                                             }
                                         }
                                     },
-                                    singleLine = true
+                                    singleLine = true,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                                 )
+
+                                Spacer(modifier = Modifier.height(8.dp))
 
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
@@ -233,7 +237,7 @@ class ChannelsActivity : ComponentActivity() {
                                 LazyColumn(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = 350.dp)
+                                        .heightIn(max = 320.dp)
                                 ) {
                                     item {
                                         ListItem(
@@ -314,26 +318,32 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
+                            // Campo Ricerca Canale (Compatto in altezza)
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                placeholder = { Text("Cerca canale...") },
+                                    .height(48.dp)
+                                    .padding(bottom = 4.dp),
+                                placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodyMedium) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Search, contentDescription = "Cerca")
+                                    Icon(Icons.Default.Search, contentDescription = "Cerca", modifier = Modifier.size(20.dp))
                                 },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Default.Clear, contentDescription = "Cancella")
+                                            Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
                                         }
                                     }
                                 },
-                                singleLine = true
+                                singleLine = true,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                             )
 
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Barra Pulsanti (Preferiti, Gruppi, Spazio per Opzioni)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -350,20 +360,23 @@ class ChannelsActivity : ComponentActivity() {
                                     label = { Text("⭐ Preferiti") }
                                 )
 
-                                ElevatedButton(
+                                FilterChip(
+                                    selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.List,
-                                        contentDescription = "Gruppi",
-                                        modifier = Modifier.padding(end = 6.dp)
-                                    )
-                                    Text(
-                                        text = selectedGroup ?: "Tutti i Gruppi",
-                                        maxLines = 1
-                                    )
-                                }
+                                    label = {
+                                        Text(
+                                            text = selectedGroup ?: "≡ Gruppi",
+                                            maxLines = 1
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.List,
+                                            contentDescription = "Gruppi",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                )
                             }
 
                             if (currentChannels.isEmpty()) {
