@@ -499,18 +499,54 @@ class PlayerActivity : ComponentActivity() {
                                     "16:9 (Standard HD)" to "16:9",
                                     "4:3 (TV Classica)" to "4:3",
                                     "21:9 (Cinematic)" to "21:9",
-                                    "Riempi Schermo" to "18:9"
+                                    "1.85:1 (Movie)" to "1.85:1",
+                                    "2.35:1 (CinemaScope)" to "2.35:1",
+                                    "2.39:1 (UltraWide)" to "2.39:1",
+                                    "Riempi Schermo" to "FILL"
                                 )
                                 Column {
-                                    ratios.forEach { (label, ratio) ->
+                                    ratios.chunked(2).forEach { rowItems ->
                                         Row(
                                             modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { mediaPlayer?.aspectRatio = ratio }
-                                                .padding(vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(text = label, color = Color.White)
+                                              .fillMaxWidth()
+                                              .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        )  {
+                                            rowItems.forEach { (label, ratio) ->
+                                                Surface(
+                                                    modifier = Modifier
+                                                      .weight(1f)
+                                                      .clickable {
+                                                          when (ratio) {
+                                                               "FILL" -> {
+                                                                   mediaPlayer?.aspectRatio = null
+                                                                   mediaPlayer?.scale = 1.3f
+                                                               }
+                                                               else -> {
+                                                                   mediaPlayer?.scale = 0f
+                                                                   mediaPlayer?.aspectRatio = ratio
+                                                               }
+                                                          }
+                                                      },
+                                                    color = Color.White.copy(alpha = 0.08f),
+                                                    shape = RoundedCornerShape(12.dp)
+                                               )   {
+                                                    Text(
+                                                        text = label,
+                                                        color = Color.White,
+                                                        textAlign = TextAlign.Center,
+                                                        modifier = Modifier
+                                                          .fillMaxWidth()
+                                                          .padding(
+                                                              horizontal = 8.dp,
+                                                              vertical = 14.dp
+                                                          )
+                                                    )
+                                                }
+                                            }
+                                            if (rowItems.size == 1) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
                                         }
                                     }
                                 }
