@@ -480,7 +480,10 @@ class PlayerActivity : ComponentActivity() {
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = track.name ?: "Traccia ${track.id}",
+                                                    text = mediaPlayer?.let { mp ->
+                                                        formatAudioTrackInfo(mp, audioTrackDescriptions, track.id)
+                                                        .replace("main - ", "")
+                                                    } ?: (track.name ?: "Traccia ${track.id}"),     
                                                     color = Color.White,
                                                     style = MaterialTheme.typography.bodyMedium
                                                 )
@@ -530,7 +533,8 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        var trackName = selectedTrackDesc?.name ?: "Traccia $activeId"
+        var trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+        .replace("main - ", "")
 
         try {
             val media = mp.media
