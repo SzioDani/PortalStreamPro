@@ -207,6 +207,7 @@ class ChannelsActivity : ComponentActivity() {
                                     onValueChange = { groupSearchQuery = it },
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .height(50.dp)
                                         .padding(bottom = 8.dp),
                                     placeholder = { Text("Cerca categoria (es. IT)...", style = MaterialTheme.typography.bodyMedium) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
@@ -321,6 +322,7 @@ class ChannelsActivity : ComponentActivity() {
                                 onValueChange = { searchQuery = it },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .height(50.dp)
                                     .padding(bottom = 8.dp),
                                 placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodyMedium) },
                                 leadingIcon = {
