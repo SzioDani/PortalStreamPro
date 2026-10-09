@@ -9,13 +9,21 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,10 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
@@ -47,11 +57,10 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: intent.getStringExtra("STREAM_URL") ?: ""
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale"
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
         if (streamUrl.isBlank()) {
@@ -71,19 +80,27 @@ class PlayerActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PlayerScreen(
-        channelName: String,
-        onBackPressed: () -> Unit
-    ) {
+    fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
+        var isPlaying by remember { mutableStateOf(true) }
         var isBuffering by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
+        var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
         var activeTab by remember { mutableIntStateOf(0) }
 
-        var audioTracks by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
+        var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
+        var currentAudioInfo by remember { mutableStateOf("Analisi audio in corso...") }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
+
+        // Timer di auto-nascondimento controlli (4 secondi)
+        LaunchedEffect(showControls, isPlaying) {
+            if (showControls && isPlaying) {
+                delay(4000)
+                showControls = false
+            }
+        }
 
         DisposableEffect(vlcVideoLayout) {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
@@ -102,7 +119,6 @@ class PlayerActivity : ComponentActivity() {
             libVLC = vlc
             mediaPlayer = mp
 
-            // useTextureView = true per renderizzare correttamente con Jetpack Compose
             mp.attachViews(layout, null, false, true)
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
@@ -122,12 +138,18 @@ class PlayerActivity : ComponentActivity() {
                     }
                     MediaPlayer.Event.Playing -> {
                         isBuffering = false
+                        isPlaying = true
                         errorMessage = null
-                        audioTracks = mp.audioTracks?.toList() ?: emptyList()
+                        audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
                         currentAudioTrackId = mp.audioTrack
+                        currentAudioInfo = extractAudioTrackDetails(mp)
+                    }
+                    MediaPlayer.Event.Paused -> {
+                        isPlaying = false
                     }
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
+                        isPlaying = false
                         checkHttpError(streamUrl, userAgent) { mappedMessage ->
                             errorMessage = mappedMessage
                         }
@@ -151,7 +173,12 @@ class PlayerActivity : ComponentActivity() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { showControls = !showControls }
         ) {
+            // Surface di rendering video LibVLC
             AndroidView(
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
@@ -161,23 +188,99 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            IconButton(
-                onClick = {
-                    audioTracks = mediaPlayer?.audioTracks?.toList() ?: emptyList()
-                    currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
-                    showSettingsSheet = true
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
+            // Controlli Overlay (Top Bar, Bottom Bar, Play/Pause centrale)
+            AnimatedVisibility(
+                visible = showControls,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
             ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Impostazioni",
-                    tint = Color.White
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                ) {
+                    // Top Bar (Indietro + Titolo Canale)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .statusBarsPadding()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onBackPressed) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = channelName,
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Audio: $currentAudioInfo",
+                                color = Color.LightGray,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+
+                    // Tasto Play/Pause al Centro
+                    IconButton(
+                        onClick = {
+                            mediaPlayer?.let { mp ->
+                                if (mp.isPlaying) {
+                                    mp.pause()
+                                } else {
+                                    mp.play()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .align(Alignment.Center)
+                            .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.extraLarge)
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pausa" else "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(44.dp)
+                        )
+                    }
+
+                    // Bottom Bar (PIP + Opzioni Audio/Formato)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            IconButton(onClick = { triggerPipMode() }) {
+                                Icon(Icons.Default.PictureInPicture, contentDescription = "PiP", tint = Color.White)
+                            }
+                        }
+                        IconButton(onClick = {
+                            audioTrackDescriptions = mediaPlayer?.audioTracks?.toList() ?: emptyList()
+                            currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
+                            showSettingsSheet = true
+                        }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
+                        }
+                    }
+                }
             }
 
+            // Indicatore Buffering
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
@@ -185,9 +288,10 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
+            // Box Gestione Errori HTTP
             errorMessage?.let { msg ->
                 Surface(
-                    color = Color.Black.copy(alpha = 0.88f),
+                    color = Color.Black.copy(alpha = 0.90f),
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(24.dp)
@@ -197,7 +301,7 @@ class PlayerActivity : ComponentActivity() {
                         modifier = Modifier.padding(24.dp)
                     ) {
                         Text(
-                            text = "Attenzione",
+                            text = "Errore di Riproduzione",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -220,9 +324,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
+            // Pannello Impostazioni Audio e Formato
             if (showSettingsSheet) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.92f),
+                    color = Color.Black.copy(alpha = 0.95f),
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
@@ -238,7 +343,7 @@ class PlayerActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Opzioni Riproduzione (LibVLC)",
+                                text = "Opzioni Riproduzione",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
@@ -253,37 +358,30 @@ class PlayerActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             contentColor = Color.White
                         ) {
-                            Tab(
-                                selected = activeTab == 0,
-                                onClick = { activeTab = 0 },
-                                text = { Text("Audio") }
-                            )
-                            Tab(
-                                selected = activeTab == 1,
-                                onClick = { activeTab = 1 },
-                                text = { Text("Formato") }
-                            )
+                            Tab(selected = activeTab == 0, onClick = { activeTab = 0 }, text = { Text("Audio") })
+                            Tab(selected = activeTab == 1, onClick = { activeTab = 1 }, text = { Text("Formato Aspect") })
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
                         when (activeTab) {
                             0 -> {
-                                if (audioTracks.isEmpty()) {
+                                if (audioTrackDescriptions.isEmpty()) {
                                     Text(
-                                        text = "Nessuna traccia audio trovata.",
+                                        text = "Nessuna traccia audio rilevata.",
                                         color = Color.Gray,
                                         modifier = Modifier.padding(vertical = 16.dp)
                                     )
                                 } else {
-                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                                        items(audioTracks) { track ->
+                                    LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
+                                        items(audioTrackDescriptions) { track ->
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clickable {
                                                         mediaPlayer?.setAudioTrack(track.id)
                                                         currentAudioTrackId = track.id
+                                                        mediaPlayer?.let { currentAudioInfo = extractAudioTrackDetails(it) }
                                                     }
                                                     .padding(vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
@@ -293,12 +391,14 @@ class PlayerActivity : ComponentActivity() {
                                                     onClick = {
                                                         mediaPlayer?.setAudioTrack(track.id)
                                                         currentAudioTrackId = track.id
+                                                        mediaPlayer?.let { currentAudioInfo = extractAudioTrackDetails(it) }
                                                     }
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = track.name ?: "Traccia ${track.id}",
-                                                    color = Color.White
+                                                    text = "${track.name ?: "Traccia ${track.id}"} ${if (track.id == currentAudioTrackId) "($currentAudioInfo)" else ""}",
+                                                    color = Color.White,
+                                                    style = MaterialTheme.typography.bodyMedium
                                                 )
                                             }
                                         }
@@ -308,9 +408,10 @@ class PlayerActivity : ComponentActivity() {
 
                             1 -> {
                                 val ratios = listOf(
-                                    "Originale" to null,
-                                    "16:9" to "16:9",
-                                    "4:3" to "4:3",
+                                    "Originale (Default)" to null,
+                                    "16:9 (Standard HD)" to "16:9",
+                                    "4:3 (TV Classica)" to "4:3",
+                                    "21:9 (Cinematic)" to "21:9",
                                     "Riempi Schermo" to "18:9"
                                 )
                                 Column {
@@ -318,10 +419,8 @@ class PlayerActivity : ComponentActivity() {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable {
-                                                    mediaPlayer?.aspectRatio = ratio
-                                                }
-                                                .padding(vertical = 10.dp),
+                                                .clickable { mediaPlayer?.aspectRatio = ratio }
+                                                .padding(vertical = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(text = label, color = Color.White)
@@ -333,6 +432,47 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun extractAudioTrackDetails(mp: MediaPlayer): String {
+        val media = mp.media ?: return "Sconosciuto"
+        val trackCount = media.trackCount
+        val activeTrackId = mp.audioTrack
+
+        if (activeTrackId == -1) return "Disattivato"
+
+        for (i in 0 until trackCount) {
+            val track = media.getTrack(i)
+            if (track != null && track.type == Media.Track.Type.Audio) {
+                val audioTrack = track as Media.AudioTrack
+                val codecName = when (audioTrack.codec?.uppercase()) {
+                    "MPGA", "MP2", "MP3" -> "MP2/MPEG"
+                    "A52", "AC3" -> "AC3 (Dolby Digital)"
+                    "EAC3" -> "EAC3 (Dolby Digital Plus)"
+                    "AAC", "MP4A" -> "AAC"
+                    else -> audioTrack.codec?.uppercase() ?: "Sconosciuto"
+                }
+                val channels = when (audioTrack.channels) {
+                    1 -> "Mono"
+                    2 -> "Stereo 2.0"
+                    6 -> "5.1 Surround"
+                    8 -> "7.1 Surround"
+                    else -> "${audioTrack.channels} Ch"
+                }
+                val sampleRate = if (audioTrack.rate > 0) "${audioTrack.rate / 1000} kHz" else ""
+                return "$codecName • $channels $sampleRate".trimEnd()
+            }
+        }
+        return "Standard Audio"
+    }
+
+    private fun triggerPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
         }
     }
 
@@ -349,32 +489,26 @@ class PlayerActivity : ComponentActivity() {
 
                 val responseCode = conn.responseCode
                 message = when (responseCode) {
-                    200 -> "Errore del flusso video o formato non supportato."
-                    401, 403 -> "User-Agent o MAC non autorizzato dal server (HTTP $responseCode)."
-                    404 -> "Canale o risorsa non trovata sul server (HTTP 404)."
-                    456 -> "Accesso o IP rifiutato dal server (HTTP $responseCode)."
-                    429, 458, 462 -> "Troppi utenti o connessioni contemporanee al server (HTTP $responseCode)."
+                    200 -> "Impossibile decodificare il flusso video."
+                    401, 403 -> "Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
+                    404 -> "Canale non trovato sul server IPTV (HTTP 404)."
+                    456 -> "Accesso o IP rifiutato dal server (HTTP 456)."
+                    459 -> "Limite connessioni contemporanee superato (HTTP 459)."
+                    429, 458, 462 -> "Troppi utenti collegati al server (HTTP $responseCode)."
                     in 500..504 -> "Server IPTV momentaneamente non disponibile (HTTP $responseCode)."
-                    else -> "Errore HTTP $responseCode dal server IPTV."
+                    else -> "Errore di connessione HTTP $responseCode."
                 }
                 conn.disconnect()
             } catch (e: Exception) {
-                message = "Impossibile connettersi al server IPTV. Verifica la connessione di rete."
+                message = "Impossibile connettersi al server IPTV. Verifica la connessione."
             }
-            withContext(Dispatchers.Main) {
-                onResult(message)
-            }
+            withContext(Dispatchers.Main) { onResult(message) }
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
-            enterPictureInPictureMode(params)
-        }
+        triggerPipMode()
     }
 
     companion object {
@@ -383,3 +517,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                  
