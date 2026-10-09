@@ -19,11 +19,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,6 +41,7 @@ import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
 import java.net.HttpURLConnection
 import java.net.URL
@@ -90,11 +89,10 @@ class PlayerActivity : ComponentActivity() {
 
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
-        var currentAudioInfo by remember { mutableStateOf("Analisi audio in corso...") }
+        var currentAudioInfo by remember { mutableStateOf("Analisi audio...") }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
 
-        // Timer di auto-nascondimento controlli (4 secondi)
         LaunchedEffect(showControls, isPlaying) {
             if (showControls && isPlaying) {
                 delay(4000)
@@ -178,7 +176,6 @@ class PlayerActivity : ComponentActivity() {
                     indication = null
                 ) { showControls = !showControls }
         ) {
-            // Surface di rendering video LibVLC
             AndroidView(
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
@@ -188,7 +185,6 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Controlli Overlay (Top Bar, Bottom Bar, Play/Pause centrale)
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
@@ -200,7 +196,6 @@ class PlayerActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
-                    // Top Bar (Indietro + Titolo Canale)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -210,7 +205,7 @@ class PlayerActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = onBackPressed) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro", tint = Color.White)
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Indietro", tint = Color.White)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -230,15 +225,10 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // Tasto Play/Pause al Centro
                     IconButton(
                         onClick = {
                             mediaPlayer?.let { mp ->
-                                if (mp.isPlaying) {
-                                    mp.pause()
-                                } else {
-                                    mp.play()
-                                }
+                                if (mp.isPlaying) mp.pause() else mp.play()
                             }
                         },
                         modifier = Modifier
@@ -246,29 +236,33 @@ class PlayerActivity : ComponentActivity() {
                             .align(Alignment.Center)
                             .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.extraLarge)
                     ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pausa" else "Play",
-                            tint = Color.White,
-                            modifier = Modifier.size(44.dp)
-                        )
+                        if (isPlaying) {
+                            Text("II", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(44.dp))
+                        }
                     }
 
-                    // Bottom Bar (PIP + Opzioni Audio/Formato)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
                             .navigationBarsPadding()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            IconButton(onClick = { triggerPipMode() }) {
-                                Icon(Icons.Default.PictureInPicture, contentDescription = "PiP", tint = Color.White)
+                            Button(
+                                onClick = { triggerPipMode() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
+                            ) {
+                                Text("PIP", color = Color.White)
                             }
+                        } else {
+                            Spacer(modifier = Modifier.width(1.dp))
                         }
+
                         IconButton(onClick = {
                             audioTrackDescriptions = mediaPlayer?.audioTracks?.toList() ?: emptyList()
                             currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
@@ -280,7 +274,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Indicatore Buffering
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
@@ -288,7 +281,6 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
-            // Box Gestione Errori HTTP
             errorMessage?.let { msg ->
                 Surface(
                     color = Color.Black.copy(alpha = 0.90f),
@@ -324,7 +316,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Pannello Impostazioni Audio e Formato
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.95f),
@@ -437,34 +428,41 @@ class PlayerActivity : ComponentActivity() {
 
     private fun extractAudioTrackDetails(mp: MediaPlayer): String {
         val media = mp.media ?: return "Sconosciuto"
-        val trackCount = media.trackCount
         val activeTrackId = mp.audioTrack
 
         if (activeTrackId == -1) return "Disattivato"
 
-        for (i in 0 until trackCount) {
-            val track = media.getTrack(i)
-            if (track != null && track.type == Media.Track.Type.Audio) {
-                val audioTrack = track as Media.AudioTrack
-                val codecName = when (audioTrack.codec?.uppercase()) {
-                    "MPGA", "MP2", "MP3" -> "MP2/MPEG"
-                    "A52", "AC3" -> "AC3 (Dolby Digital)"
-                    "EAC3" -> "EAC3 (Dolby Digital Plus)"
-                    "AAC", "MP4A" -> "AAC"
-                    else -> audioTrack.codec?.uppercase() ?: "Sconosciuto"
+        try {
+            val trackCount = media.trackCount
+            for (i in 0 until trackCount) {
+                val track = media.getTrack(i)
+                if (track != null && track.type == IMedia.Track.Type.Audio) {
+                    if (track is IMedia.AudioTrack) {
+                        val codecName = when (track.codec?.uppercase()) {
+                            "MPGA", "MP2", "MP3" -> "MP2/MPEG"
+                            "A52", "AC3" -> "AC3 (Dolby Digital)"
+                            "EAC3" -> "EAC3 (Dolby Digital Plus)"
+                            "AAC", "MP4A" -> "AAC"
+                            else -> track.codec?.uppercase() ?: "Sconosciuto"
+                        }
+                        val channels = when (track.channels) {
+                            1 -> "Mono"
+                            2 -> "Stereo 2.0"
+                            6 -> "5.1 Surround"
+                            8 -> "7.1 Surround"
+                            else -> "${track.channels} Ch"
+                        }
+                        val sampleRate = if (track.rate > 0) "${track.rate / 1000} kHz" else ""
+                        return "$codecName • $channels $sampleRate".trim()
+                    }
                 }
-                val channels = when (audioTrack.channels) {
-                    1 -> "Mono"
-                    2 -> "Stereo 2.0"
-                    6 -> "5.1 Surround"
-                    8 -> "7.1 Surround"
-                    else -> "${audioTrack.channels} Ch"
-                }
-                val sampleRate = if (audioTrack.rate > 0) "${audioTrack.rate / 1000} kHz" else ""
-                return "$codecName • $channels $sampleRate".trimEnd()
             }
+        } catch (e: Exception) {
+            // In caso di eccezione o traccia grezza
         }
-        return "Standard Audio"
+
+        val currentTrack = mp.audioTracks?.firstOrNull { it.id == activeTrackId }
+        return currentTrack?.name ?: "Standard Audio"
     }
 
     private fun triggerPipMode() {
@@ -493,7 +491,7 @@ class PlayerActivity : ComponentActivity() {
                     401, 403 -> "Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
                     404 -> "Canale non trovato sul server IPTV (HTTP 404)."
                     456 -> "Accesso o IP rifiutato dal server (HTTP 456)."
-                    459 -> "Limite connessioni contemporanee superato (HTTP 459)."
+                    459 -> "Limite connessioni contemporanee superato (HTTP 459). Disconnetti altri dispositivi."
                     429, 458, 462 -> "Troppi utenti collegati al server (HTTP $responseCode)."
                     in 500..504 -> "Server IPTV momentaneamente non disponibile (HTTP $responseCode)."
                     else -> "Errore di connessione HTTP $responseCode."
@@ -517,4 +515,3 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
-                  
