@@ -1,10 +1,7 @@
 package com.portalstream.app.ui.player
 
-import android.app.PictureInPictureParams
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -18,6 +15,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -89,7 +88,7 @@ class PlayerActivity : ComponentActivity() {
 
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
-        var currentAudioInfo by remember { mutableStateOf("Analisi audio...") }
+        var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
 
@@ -129,6 +128,24 @@ class PlayerActivity : ComponentActivity() {
             mp.media = media
             media.release()
 
+            fun refreshAudioState() {
+                val tracks = mp.audioTracks?.toList() ?: emptyList()
+                audioTrackDescriptions = tracks
+
+                var currentId = mp.audioTrack
+                val validTracks = tracks.filter { it.id != -1 }
+
+                // Se l'ID traccia è -1 ma esistono tracce audio, seleziona la prima traccia valida
+                if (currentId == -1 && validTracks.isNotEmpty()) {
+                    val defaultTrackId = validTracks.first().id
+                    mp.audioTrack = defaultTrackId
+                    currentId = defaultTrackId
+                }
+
+                currentAudioTrackId = currentId
+                currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
+            }
+
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
@@ -138,12 +155,16 @@ class PlayerActivity : ComponentActivity() {
                         isBuffering = false
                         isPlaying = true
                         errorMessage = null
-                        audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
-                        currentAudioTrackId = mp.audioTrack
-                        currentAudioInfo = extractAudioTrackDetails(mp)
+                        refreshAudioState()
                     }
                     MediaPlayer.Event.Paused -> {
                         isPlaying = false
+                    }
+                    MediaPlayer.Event.Stopped -> {
+                        isPlaying = false
+                    }
+                    MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
+                        refreshAudioState()
                     }
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
@@ -185,6 +206,7 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
+            // Controlli Overlay
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
@@ -196,6 +218,7 @@ class PlayerActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
+                    // Top Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -225,44 +248,108 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    IconButton(
-                        onClick = {
-                            mediaPlayer?.let { mp ->
-                                if (mp.isPlaying) mp.pause() else mp.play()
-                            }
-                        },
-                        modifier = Modifier
-                            .size(72.dp)
-                            .align(Alignment.Center)
-                            .background(Color.Black.copy(alpha = 0.6f), shape = MaterialTheme.shapes.extraLarge)
+                    // Controlli Centrali: Indietro (-10s), Play/Pausa, Stop, Avanti (+10s)
+                    Row(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isPlaying) {
-                            Text("II", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                        } else {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(44.dp))
+                        // Indietro -10s
+                        IconButton(
+                            onClick = {
+                                mediaPlayer?.let { mp ->
+                                    val target = (mp.time - 10000).coerceAtLeast(0)
+                                    mp.time = target
+                                }
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Text(
+                                text = "« 10s",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Play / Pausa
+                        IconButton(
+                            onClick = {
+                                mediaPlayer?.let { mp ->
+                                    if (mp.isPlaying) mp.pause() else mp.play()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(56.dp)
+                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                        ) {
+                            if (isPlaying) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                    Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+
+                        // Stop
+                        IconButton(
+                            onClick = {
+                                mediaPlayer?.stop()
+                                onBackPressed()
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp).background(Color.White, RoundedCornerShape(2.dp))
+                            )
+                        }
+
+                        // Avanti +10s
+                        IconButton(
+                            onClick = {
+                                mediaPlayer?.let { mp ->
+                                    val target = mp.time + 10000
+                                    mp.time = target
+                                }
+                            },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Text(
+                                text = "10s »",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 
+                    // Bottom Bar (Solo Tasto Impostazioni in basso a destra)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
+                            .align(Alignment.BottomEnd)
                             .navigationBarsPadding()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            Button(
-                                onClick = { triggerPipMode() },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
-                            ) {
-                                Text("PIP", color = Color.White)
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.width(1.dp))
-                        }
-
                         IconButton(onClick = {
                             audioTrackDescriptions = mediaPlayer?.audioTracks?.toList() ?: emptyList()
                             currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
@@ -357,7 +444,8 @@ class PlayerActivity : ComponentActivity() {
 
                         when (activeTab) {
                             0 -> {
-                                if (audioTrackDescriptions.isEmpty()) {
+                                val validTracks = audioTrackDescriptions.filter { it.id != -1 }
+                                if (validTracks.isEmpty()) {
                                     Text(
                                         text = "Nessuna traccia audio rilevata.",
                                         color = Color.Gray,
@@ -365,29 +453,34 @@ class PlayerActivity : ComponentActivity() {
                                     )
                                 } else {
                                     LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
-                                        items(audioTrackDescriptions) { track ->
+                                        items(validTracks) { track ->
+                                            val isSelected = (track.id == currentAudioTrackId)
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clickable {
                                                         mediaPlayer?.setAudioTrack(track.id)
                                                         currentAudioTrackId = track.id
-                                                        mediaPlayer?.let { currentAudioInfo = extractAudioTrackDetails(it) }
+                                                        mediaPlayer?.let { mp ->
+                                                            currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, track.id)
+                                                        }
                                                     }
                                                     .padding(vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 RadioButton(
-                                                    selected = (track.id == currentAudioTrackId),
+                                                    selected = isSelected,
                                                     onClick = {
                                                         mediaPlayer?.setAudioTrack(track.id)
                                                         currentAudioTrackId = track.id
-                                                        mediaPlayer?.let { currentAudioInfo = extractAudioTrackDetails(it) }
+                                                        mediaPlayer?.let { mp ->
+                                                            currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, track.id)
+                                                        }
                                                     }
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = "${track.name ?: "Traccia ${track.id}"} ${if (track.id == currentAudioTrackId) "($currentAudioInfo)" else ""}",
+                                                    text = track.name ?: "Traccia ${track.id}",
                                                     color = Color.White,
                                                     style = MaterialTheme.typography.bodyMedium
                                                 )
@@ -426,52 +519,50 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun extractAudioTrackDetails(mp: MediaPlayer): String {
-        val media = mp.media ?: return "Sconosciuto"
-        val activeTrackId = mp.audioTrack
+    private fun formatAudioTrackInfo(
+        mp: MediaPlayer,
+        tracks: List<MediaPlayer.TrackDescription>,
+        activeId: Int
+    ): String {
+        if (activeId == -1) {
+            val validTracks = tracks.filter { it.id != -1 }
+            return if (validTracks.isEmpty()) "Nessun audio" else "Disattivato"
+        }
 
-        if (activeTrackId == -1) return "Disattivato"
+        val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
+        var trackName = selectedTrackDesc?.name ?: "Traccia $activeId"
 
         try {
-            val trackCount = media.trackCount
-            for (i in 0 until trackCount) {
-                val track = media.getTrack(i)
-                if (track != null && track.type == IMedia.Track.Type.Audio) {
-                    if (track is IMedia.AudioTrack) {
-                        val codecName = when (track.codec?.uppercase()) {
-                            "MPGA", "MP2", "MP3" -> "MP2/MPEG"
-                            "A52", "AC3" -> "AC3 (Dolby Digital)"
-                            "EAC3" -> "EAC3 (Dolby Digital Plus)"
+            val media = mp.media
+            if (media != null) {
+                val count = media.trackCount
+                for (i in 0 until count) {
+                    val t = media.getTrack(i)
+                    if (t != null && t.type == IMedia.Track.Type.Audio && t is IMedia.AudioTrack) {
+                        val codec = when (t.codec?.uppercase()) {
+                            "MPGA", "MP2", "MP3" -> "MP2"
+                            "A52", "AC3" -> "AC3"
+                            "EAC3" -> "EAC3"
                             "AAC", "MP4A" -> "AAC"
-                            else -> track.codec?.uppercase() ?: "Sconosciuto"
+                            else -> t.codec?.uppercase()
                         }
-                        val channels = when (track.channels) {
+                        val channels = when (t.channels) {
                             1 -> "Mono"
                             2 -> "Stereo 2.0"
                             6 -> "5.1 Surround"
                             8 -> "7.1 Surround"
-                            else -> "${track.channels} Ch"
+                            else -> if (t.channels > 0) "${t.channels} Ch" else null
                         }
-                        val sampleRate = if (track.rate > 0) "${track.rate / 1000} kHz" else ""
-                        return "$codecName • $channels $sampleRate".trim()
+                        val details = listOfNotNull(codec, channels).joinToString(" • ")
+                        if (details.isNotBlank()) {
+                            return "$trackName ($details)"
+                        }
                     }
                 }
             }
-        } catch (e: Exception) {
-            // In caso di eccezione o traccia grezza
-        }
+        } catch (_: Exception) {}
 
-        val currentTrack = mp.audioTracks?.firstOrNull { it.id == activeTrackId }
-        return currentTrack?.name ?: "Standard Audio"
-    }
-
-    private fun triggerPipMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
-            enterPictureInPictureMode(params)
-        }
+        return trackName
     }
 
     private fun checkHttpError(urlStr: String, userAgentStr: String?, onResult: (String) -> Unit) {
@@ -504,14 +595,10 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        triggerPipMode()
-    }
-
     companion object {
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                                    
