@@ -198,7 +198,6 @@ class ChannelsActivity : ComponentActivity() {
                     AlertDialog(
                         onDismissRequest = {
                             showGroupDialog = false
-                            // Manteniamo groupSearchQuery per non resettare la ricerca "IT"
                         },
                         title = { Text("Seleziona Gruppo") },
                         text = {
@@ -221,7 +220,6 @@ class ChannelsActivity : ComponentActivity() {
                                     singleLine = true
                                 )
 
-                                // Filtra e ordina i gruppi mantenendo i preferiti in alto
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
                                     else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
@@ -251,7 +249,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 showGroupDialog = false
                                             }
                                         )
-                                        HorizontalDivider()
+                                        Divider()
                                     }
 
                                     items(filteredGroups) { group ->
