@@ -173,6 +173,8 @@ class PlayerActivity : ComponentActivity() {
                 currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
             }
 
+            var hasAppliedSettings = false  // ✅ FLAG PER EVITARE DOPPIA APPLICAZIONE
+
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
@@ -183,6 +185,41 @@ class PlayerActivity : ComponentActivity() {
                         isPlaying = true
                         isPlayerPlaying = true
                         errorMessage = null
+                        
+                        // ✅ APPLICA LE IMPOSTAZIONI SALVATE SOLO QUANDO IL PLAYER È PRONTO
+                        if (!hasAppliedSettings) {
+                            hasAppliedSettings = true
+                            
+                            // Applica l'aspect ratio salvato
+                            when (savedAspectRatio) {
+                                "ZOOM125" -> {
+                                    mp.aspectRatio = null
+                                    mp.scale = 1.25f
+                                    currentScale = 1.25f
+                                }
+                                "FILL" -> {
+                                    mp.aspectRatio = null
+                                    mp.scale = 1.3f
+                                    currentScale = 1.3f
+                                }
+                                null -> {
+                                    mp.aspectRatio = null
+                                    mp.scale = 0f
+                                    currentScale = 0f
+                                }
+                                else -> {
+                                    mp.scale = 0f
+                                    mp.aspectRatio = savedAspectRatio
+                                    currentAspectRatio = savedAspectRatio
+                                }
+                            }
+                            
+                            // Ripristina la posizione temporale
+                            if (playerCurrentTime > 0) {
+                                mp.time = playerCurrentTime
+                            }
+                        }
+                        
                         refreshAudioState()
                     }
                     MediaPlayer.Event.Paused -> {
@@ -207,36 +244,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            when (savedAspectRatio) {
-                "ZOOM125" -> {
-                    mp.aspectRatio = null
-                    mp.scale = 1.25f
-                    currentScale = 1.25f
-                }
-                "FILL" -> {
-                    mp.aspectRatio = null
-                    mp.scale = 1.3f
-                    currentScale = 1.3f
-                }
-                null -> {
-                    mp.aspectRatio = null
-                    mp.scale = 0f
-                    currentScale = 0f
-                }
-                else -> {
-                    mp.scale = 0f
-                    mp.aspectRatio = savedAspectRatio
-                    currentAspectRatio = savedAspectRatio
-                }
-            }
-
-            if (playerCurrentTime > 0 && !isPlayerPlaying) {
-                mp.time = playerCurrentTime
-            }
-
             mp.play()
 
             onDispose {
+                // ✅ SALVA LO STATO PRIMA DI RILASCIARE
                 mediaPlayer?.let {
                     savedAspectRatio = when {
                         it.scale == 1.25f -> "ZOOM125"
@@ -397,8 +408,7 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier
-                                .size(48.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(48.dp)background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Text(
                                 text = "10s »",
@@ -763,3 +773,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                                
