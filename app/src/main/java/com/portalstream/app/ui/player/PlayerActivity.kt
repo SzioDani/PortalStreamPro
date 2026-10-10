@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration // ✅ NUOVO IMPORT FONDAMENTALE
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,7 +87,6 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
-        // ✅ LEGGI LE PREFERENZE SALVATE
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
 
@@ -105,11 +105,33 @@ class PlayerActivity : ComponentActivity() {
         var currentScale by remember { mutableStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
+        
+        // ✅ STATI PER INTERCETTARE ROTAZIONE E PLAYER IN COMPOSE
+        val configuration = LocalConfiguration.current
+        var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
         LaunchedEffect(showControls, isPlaying) {
             if (showControls && isPlaying) {
                 delay(4000)
                 showControls = false
+            }
+        }
+
+        // ✅ QUESTO FORZA VLC A RIAPPLICARE IL FORMATO QUANDO RUOTI LO SCHERMO
+        LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer) {
+            composeMediaPlayer?.let { mp ->
+                // Aspetta 200ms che VLC abbia finito di ridisegnare la finestra nativa
+                delay(200) 
+                if (currentScale > 0f) {
+                    mp.aspectRatio = null
+                    mp.scale = currentScale
+                } else if (currentAspectRatio != null) {
+                    mp.scale = 0f
+                    mp.aspectRatio = currentAspectRatio
+                } else {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
+                }
             }
         }
 
@@ -129,6 +151,7 @@ class PlayerActivity : ComponentActivity() {
 
             libVLC = vlc
             mediaPlayer = mp
+            composeMediaPlayer = mp // ✅ Salviamo per intercettarlo in LaunchedEffect
 
             mp.attachViews(layout, null, false, true)
 
@@ -141,26 +164,6 @@ class PlayerActivity : ComponentActivity() {
 
             mp.media = media
             media.release()
-
-            // ✅ APPLICA LE IMPOSTAZIONI SALVATE PRIMA DI PLAY
-            when (savedAspectRatio) {
-                "ZOOM125" -> {
-                    mp.aspectRatio = null
-                    mp.scale = 1.25f
-                }
-                "FILL" -> {
-                    mp.aspectRatio = null
-                    mp.scale = 1.3f
-                }
-                null -> {
-                    mp.aspectRatio = null
-                    mp.scale = 0f
-                }
-                else -> {
-                    mp.scale = 0f
-                    mp.aspectRatio = savedAspectRatio
-                }
-            }
 
             fun refreshAudioState() {
                 val tracks = mp.audioTracks?.toList() ?: emptyList()
@@ -179,6 +182,8 @@ class PlayerActivity : ComponentActivity() {
                 currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
             }
 
+            var hasAppliedSettings = false
+
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
@@ -188,6 +193,20 @@ class PlayerActivity : ComponentActivity() {
                         isBuffering = false
                         isPlaying = true
                         errorMessage = null
+                        
+                        if (!hasAppliedSettings) {
+                            hasAppliedSettings = true
+                            
+                            // Applica alla prima riproduzione
+                            if (currentScale > 0f) {
+                                mp.aspectRatio = null
+                                mp.scale = currentScale
+                            } else if (currentAspectRatio != null) {
+                                mp.scale = 0f
+                                mp.aspectRatio = currentAspectRatio
+                            }
+                        }
+                        
                         refreshAudioState()
                     }
                     MediaPlayer.Event.Paused -> {
@@ -212,31 +231,12 @@ class PlayerActivity : ComponentActivity() {
             mp.play()
 
             onDispose {
-                // ✅ SALVA LO STATO ATTUALE
-                mediaPlayer?.let {
-                    val aspectRatio = when {
-                        it.scale == 1.25f -> "ZOOM125"
-                        it.scale == 1.3f -> "FILL"
-                        it.aspectRatio != null && it.aspectRatio.isNotBlank() -> it.aspectRatio
-                        else -> null
-                    }
-                    
-                    prefs.edit().apply {
-                        if (aspectRatio != null) {
-                            putString("aspect_ratio", aspectRatio)
-                        } else {
-                            remove("aspect_ratio")
-                        }
-                        putFloat("scale", it.scale)
-                        apply()
-                    }
-                }
-
                 mp.stop()
                 mp.detachViews()
                 mp.release()
                 vlc.release()
                 mediaPlayer = null
+                composeMediaPlayer = null
                 libVLC = null
             }
         }
@@ -326,11 +326,7 @@ class PlayerActivity : ComponentActivity() {
                         IconButton(
                             onClick = {
                                 mediaPlayer?.let { mp ->
-                                    if (mp.isPlaying) {
-                                        mp.pause()
-                                    } else {
-                                        mp.play()
-                                    }
+                                    if (mp.isPlaying) mp.pause() else mp.play()
                                 }
                             },
                             modifier = Modifier
@@ -523,43 +519,37 @@ class PlayerActivity : ComponentActivity() {
                                 onAspectRatioChange = { newRatio ->
                                     currentAspectRatio = newRatio
                                     
-                                    // ✅ APPLICA IMMEDIATAMENTE AL PLAYER
+                                    prefs.edit().apply {
+                                        if (newRatio != null) putString("aspect_ratio", newRatio)
+                                        else remove("aspect_ratio")
+                                        apply()
+                                    }
+                                    
                                     when (newRatio) {
                                         "FILL" -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 1.3f
                                             currentScale = 1.3f
+                                            prefs.edit().putFloat("scale", 1.3f).apply()
                                         }
                                         "ZOOM125" -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 1.25f
                                             currentScale = 1.25f
+                                            prefs.edit().putFloat("scale", 1.25f).apply()
                                         }
                                         null -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 0f
                                             currentScale = 0f
+                                            prefs.edit().putFloat("scale", 0f).apply()
                                         }
                                         else -> {
                                             mediaPlayer?.scale = 0f
                                             mediaPlayer?.aspectRatio = newRatio
                                             currentScale = 0f
+                                            prefs.edit().putFloat("scale", 0f).apply()
                                         }
-                                    }
-                                    
-                                    // ✅ SALVA IMMEDIATAMENTE SU DISCO
-                                    prefs.edit().apply {
-                                        if (newRatio != null) {
-                                            putString("aspect_ratio", newRatio)
-                                        } else {
-                                            remove("aspect_ratio")
-                                        }
-                                        when (newRatio) {
-                                            "FILL" -> putFloat("scale", 1.3f)
-                                            "ZOOM125" -> putFloat("scale", 1.25f)
-                                            else -> putFloat("scale", 0f)
-                                        }
-                                        apply()
                                     }
                                 }
                             )
@@ -601,8 +591,7 @@ class PlayerActivity : ComponentActivity() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = formatAudioInfo(track.id)
-                                .replace("main - ", ""),
+                            text = formatAudioInfo(track.id).replace("main - ", ""),
                             color = Color.White,
                             style = MaterialTheme.typography.bodyMedium
                         )
