@@ -53,7 +53,6 @@ class PlayerActivity : ComponentActivity() {
     private var channelName: String = ""
     private var userAgent: String? = null
     
-    // ✅ VARIABILI PERSISTENTI PER ROTAZIONE
     private var savedAspectRatio: String? = null
     private var savedScale: Float = 0f
     private var isPlayerPlaying: Boolean = false
@@ -75,7 +74,6 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        // ✅ Ripristina lo stato salvato da una rotazione precedente
         if (savedInstanceState != null) {
             savedAspectRatio = savedInstanceState.getString("saved_aspect_ratio")
             savedScale = savedInstanceState.getFloat("saved_scale", 0f)
@@ -93,7 +91,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    // ✅ Salva lo stato prima della rotazione
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         
@@ -118,7 +115,6 @@ class PlayerActivity : ComponentActivity() {
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
-        // ✅ STATO PERSISTENTE PER ASPECT RATIO
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
         var currentScale by remember { mutableStateOf(savedScale) }
 
@@ -211,7 +207,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // ✅ RIPRISTINA ASPECT RATIO DOPO LA ROTAZIONE - VERSIONE CORRETTA
             when (savedAspectRatio) {
                 "ZOOM125" -> {
                     mp.aspectRatio = null
@@ -235,7 +230,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // ✅ RIPRISTINA POSIZIONE TEMPORALE SE ERA IN PAUSA
             if (playerCurrentTime > 0 && !isPlayerPlaying) {
                 mp.time = playerCurrentTime
             }
@@ -243,7 +237,6 @@ class PlayerActivity : ComponentActivity() {
             mp.play()
 
             onDispose {
-                // ✅ SALVA LO STATO PRIMA DI RILASCIARE - VERSIONE CORRETTA
                 mediaPlayer?.let {
                     savedAspectRatio = when {
                         it.scale == 1.25f -> "ZOOM125"
@@ -283,7 +276,6 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Controlli Overlay
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
@@ -295,7 +287,6 @@ class PlayerActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
-                    // Top Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -325,13 +316,11 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // Controlli Centrali
                     Row(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Indietro -10s
                         IconButton(
                             onClick = {
                                 mediaPlayer?.let { mp ->
@@ -351,7 +340,6 @@ class PlayerActivity : ComponentActivity() {
                             )
                         }
 
-                        // Play / Pausa
                         IconButton(
                             onClick = {
                                 mediaPlayer?.let { mp ->
@@ -386,7 +374,6 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // Stop
                         IconButton(
                             onClick = {
                                 mediaPlayer?.stop()
@@ -402,7 +389,6 @@ class PlayerActivity : ComponentActivity() {
                             )
                         }
 
-                        // Avanti +10s
                         IconButton(
                             onClick = {
                                 mediaPlayer?.let { mp ->
@@ -423,7 +409,6 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // Bottom Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -459,7 +444,7 @@ class PlayerActivity : ComponentActivity() {
                         .padding(24.dp)
                 ) {
                     Column(
-                        horizontalAlignment = Alignment.CenterVertically,
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(24.dp)
                     ) {
                         Text(
@@ -486,7 +471,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // ✅ PANNELLO IMPOSTAZIONI COMPLETO
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.95f),
@@ -655,11 +639,10 @@ class PlayerActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     rowItems.forEach { (label, ratio) ->
-                        // ✅ LOGICA isSelected CORRETTA
                         val isSelected = when {
                             ratio == "FILL" && currentScale == 1.3f -> true
                             ratio == "ZOOM125" && currentScale == 1.25f -> true
@@ -669,14 +652,14 @@ class PlayerActivity : ComponentActivity() {
                         }
 
                         Button(
-                             onClick = { onAspectRatioChange(ratio) },
+                            onClick = { onAspectRatioChange(ratio) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                 containerColor = if (isSelected) 
+                                containerColor = if (isSelected) 
                                     Color.White.copy(alpha = 0.25f)
-                            else
+                                else
                                     Color.White.copy(alpha = 0.08f)
                             ),
                             shape = RoundedCornerShape(12.dp)
@@ -686,7 +669,7 @@ class PlayerActivity : ComponentActivity() {
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                                 textAlign = TextAlign.Center
-                             )            
+                            )
                         }
                     }
                     if (rowItems.size == 1) {
