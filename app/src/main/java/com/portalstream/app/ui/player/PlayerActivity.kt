@@ -173,7 +173,7 @@ class PlayerActivity : ComponentActivity() {
                 currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
             }
 
-            var hasAppliedSettings = false  // ✅ FLAG PER EVITARE DOPPIA APPLICAZIONE
+            var hasAppliedSettings = false
 
             mp.setEventListener { event ->
                 when (event.type) {
@@ -186,11 +186,9 @@ class PlayerActivity : ComponentActivity() {
                         isPlayerPlaying = true
                         errorMessage = null
                         
-                        // ✅ APPLICA LE IMPOSTAZIONI SALVATE SOLO QUANDO IL PLAYER È PRONTO
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             
-                            // Applica l'aspect ratio salvato
                             when (savedAspectRatio) {
                                 "ZOOM125" -> {
                                     mp.aspectRatio = null
@@ -214,7 +212,6 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                             
-                            // Ripristina la posizione temporale
                             if (playerCurrentTime > 0) {
                                 mp.time = playerCurrentTime
                             }
@@ -247,7 +244,6 @@ class PlayerActivity : ComponentActivity() {
             mp.play()
 
             onDispose {
-                // ✅ SALVA LO STATO PRIMA DI RILASCIARE
                 mediaPlayer?.let {
                     savedAspectRatio = when {
                         it.scale == 1.25f -> "ZOOM125"
@@ -408,7 +404,8 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier
-                                .size(48.dp)background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(48.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Text(
                                 text = "10s »",
@@ -539,7 +536,11 @@ class PlayerActivity : ComponentActivity() {
                                         currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
                                     }
                                 },
-                                formatAudioInfo = { formatAudioTrackInfo(mediaPlayer!!, audioTrackDescriptions, it) }
+                                formatAudioInfo = { trackId -> 
+                                    mediaPlayer?.let { mp ->
+                                        formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
+                                    } ?: "Disattivato"
+                                }
                             )
 
                             1 -> AspectRatioTabContent(
@@ -773,4 +774,3 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
-                                
