@@ -1,5 +1,6 @@
 package com.portalstream.app.ui.player
 
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -53,10 +54,10 @@ class PlayerActivity : ComponentActivity() {
     private var channelName: String = ""
     private var userAgent: String? = null
     
-    private var savedAspectRatio: String? = null
-    private var savedScale: Float = 0f
-    private var isPlayerPlaying: Boolean = false
-    private var playerCurrentTime: Long = 0L
+    // ✅ PREFERENZE PERSISTENTI
+    private val prefs by lazy {
+        getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,13 +75,6 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        if (savedInstanceState != null) {
-            savedAspectRatio = savedInstanceState.getString("saved_aspect_ratio")
-            savedScale = savedInstanceState.getFloat("saved_scale", 0f)
-            isPlayerPlaying = savedInstanceState.getBoolean("is_playing", false)
-            playerCurrentTime = savedInstanceState.getLong("player_time", 0L)
-        }
-
         setContent {
             MaterialTheme {
                 PlayerScreen(
@@ -91,20 +85,14 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        
-        mediaPlayer?.let { mp ->
-            outState.putString("saved_aspect_ratio", savedAspectRatio)
-            outState.putFloat("saved_scale", savedScale)
-            outState.putBoolean("is_playing", mp.isPlaying)
-            outState.putLong("player_time", mp.time)
-        }
-    }
-
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
-        var isPlaying by remember { mutableStateOf(isPlayerPlaying) }
+        // ✅ LEGGI DAL DISCO (SharedPreferences) AD OGNI RICOMPOSIZIONE
+        val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
+        val savedScale = remember { prefs.getFloat("scale", 0f) }
+        val savedTime = remember { prefs.getLong("player_time", 0L) }
+
+        var isPlaying by remember { mutableStateOf(false) }
         var isBuffering by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var showControls by remember { mutableStateOf(true) }
@@ -183,9 +171,9 @@ class PlayerActivity : ComponentActivity() {
                     MediaPlayer.Event.Playing -> {
                         isBuffering = false
                         isPlaying = true
-                        isPlayerPlaying = true
                         errorMessage = null
                         
+                        // ✅ APPLICA LE IMPOSTAZIONI SALVATE
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             
@@ -212,8 +200,9 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                             
-                            if (playerCurrentTime > 0) {
-                                mp.time = playerCurrentTime
+                            // ✅ RIPRISTINA IL TEMPO
+                            if (savedTime > 0) {
+                                mp.time = savedTime
                             }
                         }
                         
@@ -221,11 +210,9 @@ class PlayerActivity : ComponentActivity() {
                     }
                     MediaPlayer.Event.Paused -> {
                         isPlaying = false
-                        isPlayerPlaying = false
                     }
                     MediaPlayer.Event.Stopped -> {
                         isPlaying = false
-                        isPlayerPlaying = false
                     }
                     MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                         refreshAudioState()
@@ -233,7 +220,6 @@ class PlayerActivity : ComponentActivity() {
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
                         isPlaying = false
-                        isPlayerPlaying = false
                         checkHttpError(streamUrl, userAgent) { mappedMessage ->
                             errorMessage = mappedMessage
                         }
@@ -244,16 +230,25 @@ class PlayerActivity : ComponentActivity() {
             mp.play()
 
             onDispose {
+                // ✅ SALVA IMMEDIATAMENTE NELLE PREFERENZE
                 mediaPlayer?.let {
-                    savedAspectRatio = when {
+                    val aspectRatio = when {
                         it.scale == 1.25f -> "ZOOM125"
                         it.scale == 1.3f -> "FILL"
                         it.aspectRatio != null && it.aspectRatio.isNotBlank() -> it.aspectRatio
                         else -> null
                     }
-                    savedScale = it.scale
-                    isPlayerPlaying = it.isPlaying
-                    playerCurrentTime = it.time
+                    
+                    prefs.edit().apply {
+                        if (aspectRatio != null) {
+                            putString("aspect_ratio", aspectRatio)
+                        } else {
+                            remove("aspect_ratio")
+                        }
+                        putFloat("scale", it.scale)
+                        putLong("player_time", it.time)
+                        apply()
+                    }
                 }
 
                 mp.stop()
@@ -352,10 +347,8 @@ class PlayerActivity : ComponentActivity() {
                                 mediaPlayer?.let { mp ->
                                     if (mp.isPlaying) {
                                         mp.pause()
-                                        isPlayerPlaying = false
                                     } else {
                                         mp.play()
-                                        isPlayerPlaying = true
                                     }
                                 }
                             },
@@ -548,31 +541,41 @@ class PlayerActivity : ComponentActivity() {
                                 currentScale = currentScale,
                                 onAspectRatioChange = { newRatio ->
                                     currentAspectRatio = newRatio
-                                    savedAspectRatio = newRatio
+                                    
+                                    // ✅ SALVA IMMEDIATAMENTE
+                                    prefs.edit().apply {
+                                        if (newRatio != null) {
+                                            putString("aspect_ratio", newRatio)
+                                        } else {
+                                            remove("aspect_ratio")
+                                        }
+                                        apply()
+                                    }
+                                    
                                     when (newRatio) {
                                         "FILL" -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 1.3f
                                             currentScale = 1.3f
-                                            savedScale = 1.3f
+                                            prefs.edit().putFloat("scale", 1.3f).apply()
                                         }
                                         "ZOOM125" -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 1.25f
                                             currentScale = 1.25f
-                                            savedScale = 1.25f
+                                            prefs.edit().putFloat("scale", 1.25f).apply()
                                         }
                                         null -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 0f
                                             currentScale = 0f
-                                            savedScale = 0f
+                                            prefs.edit().putFloat("scale", 0f).apply()
                                         }
                                         else -> {
                                             mediaPlayer?.scale = 0f
                                             mediaPlayer?.aspectRatio = newRatio
                                             currentScale = 0f
-                                            savedScale = 0f
+                                            prefs.edit().putFloat("scale", 0f).apply()
                                         }
                                     }
                                 }
