@@ -677,12 +677,12 @@ class PlayerActivity : ComponentActivity() {
                                 Color.White.copy(alpha = 0.08f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Row(
+                            Column(  // ✅ CAMBIATO DA Row A Column
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
                                 if (isSelected) {
                                     Text(
