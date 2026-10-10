@@ -28,7 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration // ✅ NUOVO IMPORT FONDAMENTALE
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,7 +106,6 @@ class PlayerActivity : ComponentActivity() {
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
         
-        // ✅ STATI PER INTERCETTARE ROTAZIONE E PLAYER IN COMPOSE
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
@@ -120,7 +119,6 @@ class PlayerActivity : ComponentActivity() {
         // ✅ QUESTO FORZA VLC A RIAPPLICARE IL FORMATO QUANDO RUOTI LO SCHERMO
         LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer) {
             composeMediaPlayer?.let { mp ->
-                // Aspetta 200ms che VLC abbia finito di ridisegnare la finestra nativa
                 delay(200) 
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
@@ -151,7 +149,7 @@ class PlayerActivity : ComponentActivity() {
 
             libVLC = vlc
             mediaPlayer = mp
-            composeMediaPlayer = mp // ✅ Salviamo per intercettarlo in LaunchedEffect
+            composeMediaPlayer = mp 
 
             mp.attachViews(layout, null, false, true)
 
@@ -231,6 +229,27 @@ class PlayerActivity : ComponentActivity() {
             mp.play()
 
             onDispose {
+                // ✅ SALVATAGGIO STATO PRIMA DELLA CHIUSURA DEL PLAYER (Era mancante!)
+                composeMediaPlayer?.let { mpInstance ->
+                    val ratioToSave = when {
+                        mpInstance.scale == 1.1f -> "ZOOM110"
+                        mpInstance.scale == 1.25f -> "ZOOM125"
+                        mpInstance.scale == 1.33f -> "ZOOM133"
+                        mpInstance.scale == 1.5f -> "ZOOM150"
+                        mpInstance.scale == 1.3f -> "FILL"
+                        mpInstance.aspectRatio != null && mpInstance.aspectRatio.isNotBlank() -> mpInstance.aspectRatio
+                        else -> null
+                    }
+                    
+                    prefs.edit().apply {
+                        if (ratioToSave != null) putString("aspect_ratio", ratioToSave)
+                        else remove("aspect_ratio")
+                        putFloat("scale", mpInstance.scale)
+                        putLong("player_time", mpInstance.time)
+                        apply()
+                    }
+                }
+
                 mp.stop()
                 mp.detachViews()
                 mp.release()
@@ -525,6 +544,7 @@ class PlayerActivity : ComponentActivity() {
                                         apply()
                                     }
                                     
+                                    // ✅ LOGICA DI APPLICAZIONE DEI NUOVI FORMATI
                                     when (newRatio) {
                                         "FILL" -> {
                                             mediaPlayer?.aspectRatio = null
@@ -532,11 +552,29 @@ class PlayerActivity : ComponentActivity() {
                                             currentScale = 1.3f
                                             prefs.edit().putFloat("scale", 1.3f).apply()
                                         }
+                                        "ZOOM110" -> {
+                                            mediaPlayer?.aspectRatio = null
+                                            mediaPlayer?.scale = 1.1f
+                                            currentScale = 1.1f
+                                            prefs.edit().putFloat("scale", 1.1f).apply()
+                                        }
                                         "ZOOM125" -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 1.25f
                                             currentScale = 1.25f
                                             prefs.edit().putFloat("scale", 1.25f).apply()
+                                        }
+                                        "ZOOM133" -> {
+                                            mediaPlayer?.aspectRatio = null
+                                            mediaPlayer?.scale = 1.33f
+                                            currentScale = 1.33f
+                                            prefs.edit().putFloat("scale", 1.33f).apply()
+                                        }
+                                        "ZOOM150" -> {
+                                            mediaPlayer?.aspectRatio = null
+                                            mediaPlayer?.scale = 1.5f
+                                            currentScale = 1.5f
+                                            prefs.edit().putFloat("scale", 1.5f).apply()
                                         }
                                         null -> {
                                             mediaPlayer?.aspectRatio = null
@@ -545,6 +583,7 @@ class PlayerActivity : ComponentActivity() {
                                             prefs.edit().putFloat("scale", 0f).apply()
                                         }
                                         else -> {
+                                            // Intercetta stringhe pure (es. 16:9, 18:9, 4:3, 21:9)
                                             mediaPlayer?.scale = 0f
                                             mediaPlayer?.aspectRatio = newRatio
                                             currentScale = 0f
@@ -607,15 +646,17 @@ class PlayerActivity : ComponentActivity() {
         currentScale: Float,
         onAspectRatioChange: (String?) -> Unit
     ) {
+        // ✅ LISTA COMPLETA CON NUOVI ZOOM E ASPECT RATIOS
         val ratios = listOf(
-            "📦 Originale (Default)" to null,
+            "📦 Originale" to null,
             "📺 16:9 (Standard HD)" to "16:9",
+            "📱 18:9 (Smartphone)" to "18:9",
             "📺 4:3 (TV Classica)" to "4:3",
-            "🔍 Zoom 125%" to "ZOOM125",
             "🎬 21:9 (Cinematic)" to "21:9",
-            "🎬 1.85:1 (Movie)" to "1.85:1",
-            "🎬 2.35:1 (CinemaScope)" to "2.35:1",
-            "🎬 2.39:1 (UltraWide)" to "2.39:1",
+            "🔍 Zoom 110%" to "ZOOM110",
+            "🔍 Zoom 125%" to "ZOOM125",
+            "🔍 Zoom 133% (No Lati)" to "ZOOM133",
+            "🔍 Zoom 150%" to "ZOOM150",
             "🔲 Riempi Schermo" to "FILL"
         )
 
@@ -629,11 +670,15 @@ class PlayerActivity : ComponentActivity() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     rowItems.forEach { (label, ratio) ->
+                        // ✅ LOGICA DI SELEZIONE MIGLIORATA PER LE NUOVE OPZIONI
                         val isSelected = when {
                             ratio == "FILL" && currentScale == 1.3f -> true
+                            ratio == "ZOOM110" && currentScale == 1.1f -> true
                             ratio == "ZOOM125" && currentScale == 1.25f -> true
+                            ratio == "ZOOM133" && currentScale == 1.33f -> true
+                            ratio == "ZOOM150" && currentScale == 1.5f -> true
                             ratio == null && currentAspectRatio == null && currentScale == 0f -> true
-                            ratio != null && ratio != "FILL" && ratio != "ZOOM125" && currentAspectRatio == ratio -> true
+                            ratio != null && !ratio.startsWith("ZOOM") && ratio != "FILL" && currentAspectRatio == ratio -> true
                             else -> false
                         }
 
