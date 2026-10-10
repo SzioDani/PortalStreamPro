@@ -656,6 +656,7 @@ class PlayerActivity : ComponentActivity() {
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     rowItems.forEach { (label, ratio) ->
                         // ✅ LOGICA isSelected CORRETTA
@@ -667,39 +668,25 @@ class PlayerActivity : ComponentActivity() {
                             else -> false
                         }
 
-                        Surface(
+                        Button(
+                             onClick = { onAspectRatioChange(ratio) },
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { onAspectRatioChange(ratio) },
-                            color = if (isSelected) 
-                                Color.White.copy(alpha = 0.2f)
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                 containerColor = if (isSelected) 
+                                    Color.White.copy(alpha = 0.25f)
                             else
-                                Color.White.copy(alpha = 0.08f),
+                                    Color.White.copy(alpha = 0.08f)
+                            ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Column(  // ✅ CAMBIATO DA Row A Column
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 14.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                if (isSelected) {
-                                    Text(
-                                        text = "✓",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-                                Text(
-                                    text = label,
-                                    color = Color.White,
-                                    textAlign = TextAlign.Center,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
+                            Text(
+                                text = if (isSelected) "✓ $label" else label,
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center
+                             )            
                         }
                     }
                     if (rowItems.size == 1) {
