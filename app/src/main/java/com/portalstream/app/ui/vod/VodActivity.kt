@@ -23,15 +23,20 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,22 +61,18 @@ class VodActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "VOD - Film & Serie"
-        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "VOD - Film"
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
         val portalType = intent.getStringExtra(EXTRA_PORTAL_TYPE) ?: ""
         val server = intent.getStringExtra(EXTRA_SERVER) ?: ""
         val username = intent.getStringExtra(EXTRA_USERNAME) ?: ""
         val password = intent.getStringExtra(EXTRA_PASSWORD) ?: ""
         val format = intent.getStringExtra(EXTRA_FORMAT) ?: "mp4"
-        val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
 
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
 
         setContent {
             MaterialTheme {
-                val scope = rememberCoroutineScope()
-
                 var vodList by remember { mutableStateOf<List<VodItem>>(emptyList()) }
                 var selectedCategory by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
@@ -89,7 +90,7 @@ class VodActivity : ComponentActivity() {
                 var categorySearchQuery by remember { mutableStateOf("") }
 
                 val allCategories = remember(vodList) {
-                    vodList.map { it.category }.distinct().filter { it.isNotBlank() }
+                    vodList.map { it.category }.distinct().filter { it.isNotBlank() }.sorted()
                 }
 
                 val filteredVodList = remember(
@@ -116,8 +117,8 @@ class VodActivity : ComponentActivity() {
                                 val url = URL(apiUrl)
                                 val conn = url.openConnection() as HttpURLConnection
                                 conn.requestMethod = "GET"
-                                conn.connectTimeout = 8000
-                                conn.readTimeout = 8000
+                                conn.connectTimeout = 10000
+                                conn.readTimeout = 10000
                                 if (!userAgent.isNullOrBlank()) {
                                     conn.setRequestProperty("User-Agent", userAgent)
                                 }
@@ -129,9 +130,9 @@ class VodActivity : ComponentActivity() {
                                         for (i in 0 until jsonArray.length()) {
                                             val obj = jsonArray.getJSONObject(i)
                                             val streamId = obj.optString("stream_id", "")
-                                            val name = obj.optString("name", "Film senza nome")
+                                            val name = obj.optString("name", "Sconosciuto")
                                             val cover = obj.optString("stream_icon", null)
-                                            val category = obj.optString("category_name", "Film")
+                                            val category = obj.optString("category_name", "Generale")
                                             val rating = obj.optString("rating", null)
                                             val year = obj.optString("year", null)
                                             val container = obj.optString("container_extension", format.ifBlank { "mp4" })
@@ -144,9 +145,9 @@ class VodActivity : ComponentActivity() {
                                                         name = name,
                                                         streamUrl = streamUrl,
                                                         coverUrl = cover?.takeIf { it.isNotBlank() },
-                                                        category = category.ifBlank { "Film" },
-                                                        rating = rating,
-                                                        year = year
+                                                        category = category.ifBlank { "Generale" },
+                                                        rating = rating?.takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
+                                                        year = year?.takeIf { it.isNotBlank() && it != "0" }
                                                     )
                                                 )
                                             }
@@ -155,7 +156,7 @@ class VodActivity : ComponentActivity() {
                                 }
                                 conn.disconnect()
                             } else {
-                                statusMessage = "Supporto VOD attivo per Xtream Codes."
+                                statusMessage = "Supporto VOD attivo solo per portali Xtream Codes."
                             }
 
                             if (fetched.isNotEmpty()) {
@@ -164,13 +165,9 @@ class VodActivity : ComponentActivity() {
                                 statusMessage = "Nessun VOD trovato sul server."
                             }
                         } catch (e: Exception) {
-                            statusMessage = "Errore VOD: ${e.localizedMessage}"
+                            statusMessage = "Errore di connessione."
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    this@VodActivity,
-                                    "Errore Rete VOD: ${e.localizedMessage}",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast.makeText(this@VodActivity, "Errore: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                             }
                         } finally {
                             withContext(Dispatchers.Main) {
@@ -183,13 +180,13 @@ class VodActivity : ComponentActivity() {
                 if (showCategoryDialog) {
                     AlertDialog(
                         onDismissRequest = { showCategoryDialog = false },
-                        title = { Text("Seleziona Categoria VOD") },
+                        title = { Text("Seleziona Categoria") },
                         text = {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 CompactSearchBar(
                                     value = categorySearchQuery,
                                     onValueChange = { categorySearchQuery = it },
-                                    placeholderText = "Cerca categoria...",
+                                    placeholderText = "Cerca...",
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
 
@@ -205,14 +202,14 @@ class VodActivity : ComponentActivity() {
                                 ) {
                                     item {
                                         ListItem(
-                                            headlineContent = { Text("Tutte le Categorie", style = MaterialTheme.typography.bodyLarge) },
+                                            headlineContent = { Text("Tutte le Categorie", fontWeight = FontWeight.Bold) },
                                             modifier = Modifier.clickable {
                                                 selectedCategory = null
                                                 showOnlyFavorites = false
                                                 showCategoryDialog = false
                                             }
                                         )
-                                        Divider()
+                                        HorizontalDivider()
                                     }
                                     items(filteredCategories) { cat ->
                                         ListItem(
@@ -235,7 +232,10 @@ class VodActivity : ComponentActivity() {
                     )
                 }
 
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     if (isLoading) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -256,13 +256,14 @@ class VodActivity : ComponentActivity() {
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
                             CompactSearchBar(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                placeholderText = "Cerca film o serie...",
+                                placeholderText = "Cerca film...",
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
@@ -279,24 +280,20 @@ class VodActivity : ComponentActivity() {
                                         showOnlyFavorites = !showOnlyFavorites
                                         if (showOnlyFavorites) selectedCategory = null
                                     },
-                                    label = { Text("⭐ Preferiti") }
+                                    label = { Text("Preferiti") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Red)
+                                    }
                                 )
 
                                 FilterChip(
                                     selected = selectedCategory != null,
                                     onClick = { showCategoryDialog = true },
                                     label = {
-                                        Text(
-                                            text = selectedCategory ?: "≡ Categorie",
-                                            maxLines = 1
-                                        )
+                                        Text(text = selectedCategory ?: "Categorie", maxLines = 1)
                                     },
                                     leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.List,
-                                            contentDescription = "Categorie",
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp))
                                     }
                                 )
                             }
@@ -308,16 +305,17 @@ class VodActivity : ComponentActivity() {
                                 ) {
                                     Text(
                                         text = if (statusMessage.isNotBlank()) statusMessage else "Nessun contenuto trovato.",
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             } else {
+                                // ✅ LAZY GRID OTTIMIZZATA PER LE LOCANDINE
                                 LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
+                                    columns = GridCells.Adaptive(minSize = 120.dp), // Si adatta alla dimensione dello schermo
                                     modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     items(filteredVodList, key = { it.id }) { vod ->
                                         val isFav = favoriteVodIds.contains(vod.id)
@@ -326,10 +324,10 @@ class VodActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(240.dp)
+                                                .aspectRatio(0.66f) // ✅ Proporzione perfetta per locandine (2:3)
                                                 .clickable(enabled = loadingVodId == null) {
                                                     loadingVodId = vod.id
-                                                    val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                    val finalUserAgent = if (userAgent.isNullOrBlank()) "PortalStreamPro/1.0" else userAgent
                                                     val intent = Intent(this@VodActivity, PlayerActivity::class.java).apply {
                                                         putExtra(PlayerActivity.EXTRA_STREAM_URL, vod.streamUrl)
                                                         putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, vod.name)
@@ -338,84 +336,106 @@ class VodActivity : ComponentActivity() {
                                                     startActivity(intent)
                                                     loadingVodId = null
                                                 },
-                                            shape = RoundedCornerShape(12.dp)
+                                            shape = RoundedCornerShape(8.dp),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                                         ) {
                                             Box(modifier = Modifier.fillMaxSize()) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "🎬",
-                                                        style = MaterialTheme.typography.headlineLarge
+                                                
+                                                // ✅ CARICAMENTO IMMAGINE CON COIL
+                                                if (vod.coverUrl != null) {
+                                                    AsyncImage(
+                                                        model = vod.coverUrl,
+                                                        contentDescription = "Locandina ${vod.name}",
+                                                        contentScale = ContentScale.Crop, // Riempie tutta la card
+                                                        modifier = Modifier.fillMaxSize()
                                                     )
+                                                } else {
+                                                    // Fallback se l'immagine manca
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    }
                                                 }
 
+                                                // ✅ GRADIENTE NERO IN BASSO PER LEGGERE IL TESTO
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
                                                         .background(
-                                                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
-                                                                startY = 100f
+                                                            Brush.verticalGradient(
+                                                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                                                                startY = 200f
                                                             )
                                                         )
                                                 )
 
+                                                // RATING (Stellina)
+                                                if (vod.rating != null) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .padding(6.dp)
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .background(Color.Black.copy(alpha = 0.6f))
+                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                            .align(Alignment.TopStart),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(2.dp))
+                                                        Text(text = vod.rating, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                                                    }
+                                                }
+
+                                                // PREFERITI
+                                                IconButton(
+                                                    onClick = {
+                                                        val newFavs = if (isFav) favoriteVodIds - vod.id else favoriteVodIds + vod.id
+                                                        favoriteVodIds = newFavs
+                                                        prefs.edit().putStringSet("favorite_vod_ids", newFavs).apply()
+                                                    },
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopEnd)
+                                                        .size(36.dp)
+                                                        .padding(4.dp)
+                                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                        contentDescription = "Preferito VOD",
+                                                        tint = if (isFav) Color.Red else Color.White,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                // TESTO E CARICAMENTO IN BASSO
                                                 Column(
                                                     modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .padding(10.dp),
-                                                    verticalArrangement = Arrangement.SpaceBetween
+                                                        .align(Alignment.BottomStart)
+                                                        .fillMaxWidth()
+                                                        .padding(8.dp)
                                                 ) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.End
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                val newFavs = if (isFav) favoriteVodIds - vod.id else favoriteVodIds + vod.id
-                                                                favoriteVodIds = newFavs
-                                                                prefs.edit().putStringSet("favorite_vod_ids", newFavs).apply()
-                                                            },
-                                                            modifier = Modifier.size(32.dp)
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                                contentDescription = "Preferito VOD",
-                                                                tint = if (isFav) Color.Red else Color.White
-                                                            )
-                                                        }
+                                                    if (isThisLoading) {
+                                                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(2.dp), color = MaterialTheme.colorScheme.primary)
+                                                        Spacer(modifier = Modifier.height(4.dp))
                                                     }
-
-                                                    Column {
-                                                        if (isThisLoading) {
-                                                            CircularProgressIndicator(
-                                                                modifier = Modifier
-                                                                    .size(24.dp)
-                                                                    .align(Alignment.CenterHorizontally),
-                                                                color = Color.White,
-                                                                strokeWidth = 2.dp
-                                                            )
-                                                            Spacer(modifier = Modifier.height(4.dp))
-                                                        }
+                                                    Text(
+                                                        text = vod.name,
+                                                        color = Color.White,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    if (vod.year != null) {
                                                         Text(
-                                                            text = vod.name,
-                                                            color = Color.White,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            fontWeight = FontWeight.Bold,
-                                                            maxLines = 2,
-                                                            overflow = TextOverflow.Ellipsis
+                                                            text = vod.year,
+                                                            color = Color.LightGray,
+                                                            style = MaterialTheme.typography.labelSmall
                                                         )
-                                                        if (!vod.year.isNullOrBlank()) {
-                                                            Text(
-                                                                text = vod.year,
-                                                                color = Color.LightGray,
-                                                                style = MaterialTheme.typography.labelSmall
-                                                            )
-                                                        }
                                                     }
                                                 }
                                             }
@@ -430,6 +450,8 @@ class VodActivity : ComponentActivity() {
         }
     }
 
+    //... [Lascia qui companion object e la funzione CompactSearchBar invariati] ...
+    
     companion object {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
