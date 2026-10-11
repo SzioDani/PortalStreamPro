@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +16,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
@@ -24,22 +27,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.network.PortalException
-import com.portalstream.app.network.StalkerClient
-import com.portalstream.app.network.XtreamClient
-import com.portalstream.app.ui.channels.CompactSearchBar
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class VodItem(
     val id: String,
@@ -108,72 +111,64 @@ class VodActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
                         try {
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
+                            val fetched = mutableListOf<VodItem>()
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true) || (username.isNotBlank() && password.isNotBlank())
 
-                            val fetched = when {
-                                isStalker || macAddress.isNotBlank() -> {
-                                    if (server.isBlank() || macAddress.isBlank()) {
-                                        emptyList()
-                                    } else {
-                                        val portalDraft = Portal(
-                                            id = 0,
-                                            server = server,
-                                            macAddress = macAddress,
-                                            useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                            userAgent = userAgent ?: ""
-                                        )
-                                        StalkerClient.fetchVodMovies(portalDraft).map {
-                                            VodItem(
-                                                id = it.id,
-                                                name = it.name,
-                                                streamUrl = it.url,
-                                                coverUrl = it.cover,
-                                                category = it.group.ifBlank { "Film" },
-                                                rating = it.rating,
-                                                year = it.year
-                                            )
+                            if (isXtream && server.isNotBlank()) {
+                                val cleanServer = server.trimEnd('/')
+                                val apiUrl = "$cleanServer/player_api.php?username=$username&password=$password&action=get_vod_streams"
+                                val url = URL(apiUrl)
+                                val conn = url.openConnection() as HttpURLConnection
+                                conn.requestMethod = "GET"
+                                conn.connectTimeout = 8000
+                                conn.readTimeout = 8000
+                                if (!userAgent.isNullOrBlank()) {
+                                    conn.setRequestProperty("User-Agent", userAgent)
+                                }
+
+                                if (conn.responseCode == 200) {
+                                    val responseString = conn.inputStream.bufferedReader().use { it.readText() }
+                                    if (responseString.trim().startsWith("[")) {
+                                        val jsonArray = JSONArray(responseString)
+                                        for (i in 0 until jsonArray.length()) {
+                                            val obj = jsonArray.getJSONObject(i)
+                                            val streamId = obj.optString("stream_id", "")
+                                            val name = obj.optString("name", "Film senza nome")
+                                            val cover = obj.optString("stream_icon", null)
+                                            val category = obj.optString("category_name", "Film")
+                                            val rating = obj.optString("rating", null)
+                                            val year = obj.optString("year", null)
+                                            val container = obj.optString("container_extension", format.ifBlank { "mp4" })
+
+                                            val streamUrl = "$cleanServer/movie/$username/$password/$streamId.$container"
+                                            if (streamId.isNotBlank()) {
+                                                fetched.add(
+                                                    VodItem(
+                                                        id = streamId,
+                                                        name = name,
+                                                        streamUrl = streamUrl,
+                                                        coverUrl = cover?.takeIf { it.isNotBlank() },
+                                                        category = category.ifBlank { "Film" },
+                                                        rating = rating,
+                                                        year = year
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
-
-                                isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
-                                    val portalDraft = Portal(
-                                        id = 0,
-                                        server = server,
-                                        username = username,
-                                        password = password,
-                                        streamFormat = format,
-                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                    )
-                                    XtreamClient.fetchVodStreams(portalDraft).map {
-                                        VodItem(
-                                            id = it.id,
-                                            name = it.name,
-                                            streamUrl = it.url,
-                                            coverUrl = it.cover,
-                                            category = it.category.ifBlank { "Film" },
-                                            rating = it.rating,
-                                            year = it.year
-                                        )
-                                    }
-                                }
-
-                                else -> emptyList()
+                                conn.disconnect()
+                            } else {
+                                statusMessage = "Supporto VOD attivo per Xtream Codes."
                             }
 
                             if (fetched.isNotEmpty()) {
                                 vodList = fetched
-                            } else {
+                            } else if (statusMessage.isBlank()) {
                                 statusMessage = "Nessun VOD trovato sul server."
                             }
-                        } catch (e: PortalException) {
-                            statusMessage = e.localizedMessage ?: "Errore del portale"
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@VodActivity, e.localizedMessage, Toast.LENGTH_LONG).show()
-                            }
                         } catch (e: Exception) {
-                            statusMessage = "Errore: ${e.localizedMessage}"
+                            statusMessage = "Errore VOD: ${e.localizedMessage}"
                             withContext(Dispatchers.Main) {
                                 Toast.makeText(
                                     this@VodActivity,
@@ -339,71 +334,30 @@ class VodActivity : ComponentActivity() {
                                                 .height(240.dp)
                                                 .clickable(enabled = loadingVodId == null) {
                                                     loadingVodId = vod.id
-                                                    scope.launch(Dispatchers.IO) {
-                                                        try {
-                                                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
-                                                            val playUrl = if (isStalker || macAddress.isNotBlank()) {
-                                                                val portalDraft = Portal(
-                                                                    id = 0,
-                                                                    server = server,
-                                                                    macAddress = macAddress,
-                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                                                    userAgent = userAgent ?: ""
-                                                                )
-                                                                StalkerClient.getVodStreamUrl(portalDraft, vod.id) ?: vod.streamUrl
-                                                            } else {
-                                                                vod.streamUrl
-                                                            }
-
-                                                            withContext(Dispatchers.Main) {
-                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
-                                                                val intent = Intent(this@VodActivity, PlayerActivity::class.java).apply {
-                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
-                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, vod.name)
-                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
-                                                                }
-                                                                startActivity(intent)
-                                                            }
-                                                        } catch (e: Exception) {
-                                                            withContext(Dispatchers.Main) {
-                                                                Toast.makeText(
-                                                                    this@VodActivity,
-                                                                    "Errore riproduzione VOD: ${e.localizedMessage}",
-                                                                    Toast.LENGTH_SHORT
-                                                                ).show()
-                                                            }
-                                                        } finally {
-                                                            withContext(Dispatchers.Main) {
-                                                                loadingVodId = null
-                                                            }
-                                                        }
+                                                    val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                    val intent = Intent(this@VodActivity, PlayerActivity::class.java).apply {
+                                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, vod.streamUrl)
+                                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, vod.name)
+                                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
                                                     }
+                                                    startActivity(intent)
+                                                    loadingVodId = null
                                                 },
                                             shape = RoundedCornerShape(12.dp)
                                         ) {
                                             Box(modifier = Modifier.fillMaxSize()) {
-                                                if (!vod.coverUrl.isNullOrBlank()) {
-                                                    AsyncImage(
-                                                        model = vod.coverUrl,
-                                                        contentDescription = vod.name,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize()
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = "🎬",
+                                                        style = MaterialTheme.typography.headlineLarge
                                                     )
-                                                } else {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Text(
-                                                            text = "🎬",
-                                                            style = MaterialTheme.typography.headlineLarge
-                                                        )
-                                                    }
                                                 }
 
-                                                // Gradient overlay for text readability
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
@@ -493,3 +447,71 @@ class VodActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+
+@Composable
+fun CompactSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholderText: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(42.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholderTest,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (value.isNotEmpty()) {
+                IconButton(
+                    onClick = { onValueChange("") },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Cancella",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+                                                        
