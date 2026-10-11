@@ -29,18 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.portalstream.app.data.Portal
-import com.portalstream.app.network.PortalException
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -184,7 +180,6 @@ class VodActivity : ComponentActivity() {
                     }
                 }
 
-                // Dialogo Selezione Categorie VOD
                 if (showCategoryDialog) {
                     AlertDialog(
                         onDismissRequest = { showCategoryDialog = false },
@@ -482,7 +477,7 @@ fun CompactSearchBar(
             ) {
                 if (value.isEmpty()) {
                     Text(
-                        text = placeholderTest,
+                        text = placeholderText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -514,4 +509,3 @@ fun CompactSearchBar(
         }
     }
 }
-                                                        
