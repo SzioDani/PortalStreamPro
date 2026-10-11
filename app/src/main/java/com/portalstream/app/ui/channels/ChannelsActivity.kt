@@ -47,7 +47,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
-import java.net.HttpURLConnection
 import java.net.URL
 
 // ✅ DATA CLASS PER EPG CON PIÙ INFORMAZIONI
@@ -244,14 +243,14 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
-                    // ✅ EPG PARALLELO - NON BLOCCA
+                    // ✅ EPG PARALLELO - SICURO CONTRO SERVER VUOTI
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isXtreamServer = portalType.equals("XTREAM", ignoreCase = true) ||
                                     portalType.equals("XSTREAM", ignoreCase = true) ||
                                     (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
-                            if (isXtreamServer) {
+                            if (isXtreamServer && server.isNotBlank() && (server.startsWith("http://") || server.startsWith("https://"))) {
                                 Log.d(TAG, "Avvio fetch EPG in background")
                                 fetchEpgData(server, username, password, userAgent) { newEpgMap ->
                                     epgMap = newEpgMap
@@ -278,7 +277,7 @@ class ChannelsActivity : ComponentActivity() {
                                             portalType.equals("XSTREAM", ignoreCase = true) ||
                                             (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
-                                    if (isXtreamServer && server.isNotBlank()) {
+                                    if (isXtreamServer && server.isNotBlank() && (server.startsWith("http://") || server.startsWith("https://"))) {
                                         Log.d(TAG, "Refresh EPG in corso...")
                                         fetchEpgData(server, username, password, userAgent) { newEpgMap ->
                                             epgMap = newEpgMap
@@ -728,15 +727,16 @@ class ChannelsActivity : ComponentActivity() {
                 val responseBody = response.body?.string() ?: return@withContext
                 Log.d(TAG, "EPG Response length: ${responseBody.length}")
 
-                if (responseBody.isEmpty()) {
-                    Log.w(TAG, "EPG Response vuota")
+                // ✅ CONTROLLO: Se il server restituisce una pagina HTML di errore, evita il crash del JSON
+                if (responseBody.isEmpty() || responseBody.trim().startsWith("<")) {
+                    Log.w(TAG, "EPG Response non è un JSON valido (probabile HTML di errore)")
                     return@withContext
                 }
 
                 val jsonArray = try {
                     JSONArray(responseBody)
                 } catch (e: Exception) {
-                    Log.e(TAG, "EPG Response non è JSONArray valido")
+                    Log.e(TAG, "Errore parsing JSON EPG", e)
                     return@withContext
                 }
 
