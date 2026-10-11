@@ -175,11 +175,11 @@
     <string name="network_speed_poor">Scarsa</string>
 
     <!-- TIME & DURATION -->
-    <string name="time_format_hms">%02d:%02d:%02d</string>
+    <string name="time_format_hms" formatted="false">%02d:%02d:%02d</string>
     <string name="time_live">LIVE</string>
-    <string name="duration_seconds">%d sec</string>
-    <string name="duration_minutes">%d min</string>
-    <string name="duration_hours">%d h %d min</string>
+    <string name="duration_seconds" formatted="false">%d sec</string>
+    <string name="duration_minutes" formatted="false">%d min</string>
+    <string name="duration_hours" formatted="false">%d h %d min</string>
 
     <!-- ACCESSIBILITY -->
     <string name="accessibility_play_button">Pulsante riproduci</string>
