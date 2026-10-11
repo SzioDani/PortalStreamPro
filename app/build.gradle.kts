@@ -124,6 +124,9 @@ dependencies {
     
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Vod
+    implementation("io.coil-kt:coil-compose:2.5.0")
     
     // Testing
     testImplementation("junit:junit:4.13.2")
