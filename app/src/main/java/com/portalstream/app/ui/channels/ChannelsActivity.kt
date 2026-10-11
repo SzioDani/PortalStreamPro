@@ -127,103 +127,101 @@ class ChannelsActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
                         try {
-                            if (localChannels.isEmpty()) {
-                                Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress")
+                            // Pulisci immediatamente il database all'avvio per evitare qualsiasi contaminazione tra portali diversi (es. M3U -> MAC)
+                            channelDao.clearAll()
 
-                                val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
-                                              portalType.equals("MAG", ignoreCase = true)
-                                val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
-                                             portalType.equals("XSTREAM", ignoreCase = true)
+                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
 
-                                val fetched = when {
-                                    isStalker || macAddress.isNotBlank() -> {
-                                        Log.d(TAG, "Modalità STALKER/MAC rilevata")
-                                        if (server.isBlank() || macAddress.isBlank()) {
-                                            withContext(Dispatchers.Main) {
-                                                Toast.makeText(
-                                                    this@ChannelsActivity,
-                                                    "⚠️ Server o MAC vuoti!",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                            emptyList()
-                                        } else {
-                                            val portalDraft = Portal(
-                                                id = 0,
-                                                server = server,
-                                                macAddress = macAddress,
-                                                useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                                userAgent = userAgent ?: ""
-                                            )
-                                            Log.d(TAG, "Fetching Stalker da: $server")
-                                            StalkerClient.fetchChannels(portalDraft)
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
+                                          portalType.equals("MAG", ignoreCase = true)
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
+                                         portalType.equals("XSTREAM", ignoreCase = true)
+
+                            val fetched = when {
+                                isStalker || macAddress.isNotBlank() -> {
+                                    Log.d(TAG, "Modalità STALKER/MAC rilevata")
+                                    if (server.isBlank() || macAddress.isBlank()) {
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(
+                                                this@ChannelsActivity,
+                                                "⚠️ Server o MAC vuoti!",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                         }
-                                    }
-
-                                    isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
-                                        Log.d(TAG, "Modalità XTREAM rilevata")
+                                        emptyList()
+                                    } else {
                                         val portalDraft = Portal(
                                             id = 0,
                                             server = server,
-                                            username = username,
-                                            password = password,
-                                            streamFormat = format,
+                                            macAddress = macAddress,
                                             useCustomUserAgent = !userAgent.isNullOrBlank(),
                                             userAgent = userAgent ?: ""
                                         )
-                                        Log.d(TAG, "Fetching Xtream da: $server")
-                                        XtreamClient.fetchLiveChannels(portalDraft)
-                                    }
-
-                                    portalUrl.isNotEmpty() -> {
-                                        Log.d(TAG, "Modalità M3U rilevata")
-                                        var formattedUrl = portalUrl.trim()
-                                        if (!formattedUrl.startsWith("http://") && 
-                                            !formattedUrl.startsWith("https://")) {
-                                            formattedUrl = "http://$formattedUrl"
-                                        }
-                                        Log.d(TAG, "Fetching M3U da: $formattedUrl")
-                                        
-                                        val connection = URL(formattedUrl).openConnection()
-                                        if (!userAgent.isNullOrBlank()) {
-                                            connection.setRequestProperty("User-Agent", userAgent)
-                                        }
-
-                                        val inputStream = connection.getInputStream()
-                                        val tempBuffer = mutableListOf<Channel>()
-
-                                        M3UParser.parseStreaming(inputStream) {
-                                            tempBuffer.add(it)
-                                        }
-                                        tempBuffer
-                                    }
-
-                                    else -> {
-                                        Log.e(TAG, "Nessun tipo di portale valido configurato")
-                                        emptyList()
+                                        Log.d(TAG, "Fetching Stalker da: $server")
+                                        StalkerClient.fetchChannels(portalDraft)
                                     }
                                 }
 
-                                if (fetched.isNotEmpty()) {
-                                    Log.d(TAG, "Canali caricati: ${fetched.size}")
-                                    channelDao.clearAll()
-
-                                    // ✅ Assegna un ID univoco e sicuro a tutti i canali per evitare crash della chiave primaria su Room
-                                    val validFetched = fetched.mapIndexed { index, channel ->
-                                        val safeId = if (channel.id.isBlank()) {
-                                            "ch_${index}_${channel.name.hashCode()}"
-                                        } else {
-                                            "ch_${index}_${channel.id}"
-                                        }
-                                        channel.copy(id = safeId)
-                                    }
-                                    channelDao.insertChannels(validFetched)
-                                } else {
-                                    statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
-                                    Log.w(TAG, statusMessage)
+                                isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
+                                    Log.d(TAG, "Modalità XTREAM rilevata")
+                                    val portalDraft = Portal(
+                                        id = 0,
+                                        server = server,
+                                        username = username,
+                                        password = password,
+                                        streamFormat = format,
+                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
+                                        userAgent = userAgent ?: ""
+                                    )
+                                    Log.d(TAG, "Fetching Xtream da: $server")
+                                    XtreamClient.fetchLiveChannels(portalDraft)
                                 }
+
+                                portalUrl.isNotEmpty() -> {
+                                    Log.d(TAG, "Modalità M3U rilevata")
+                                    var formattedUrl = portalUrl.trim()
+                                    if (!formattedUrl.startsWith("http://") && 
+                                        !formattedUrl.startsWith("https://")) {
+                                        formattedUrl = "http://$formattedUrl"
+                                    }
+                                    Log.d(TAG, "Fetching M3U da: $formattedUrl")
+                                    
+                                    val connection = URL(formattedUrl).openConnection()
+                                    if (!userAgent.isNullOrBlank()) {
+                                        connection.setRequestProperty("User-Agent", userAgent)
+                                    }
+
+                                    val inputStream = connection.getInputStream()
+                                    val tempBuffer = mutableListOf<Channel>()
+
+                                    M3UParser.parseStreaming(inputStream) {
+                                        tempBuffer.add(it)
+                                    }
+                                    tempBuffer
+                                }
+
+                                else -> {
+                                    Log.e(TAG, "Nessun tipo di portale valido configurato")
+                                    emptyList()
+                                }
+                            }
+
+                            if (fetched.isNotEmpty()) {
+                                Log.d(TAG, "Canali caricati dal server: ${fetched.size}")
+
+                                // Assegna un ID univoco e sicuro a tutti i canali per evitare crash della chiave primaria su Room
+                                val validFetched = fetched.mapIndexed { index, channel ->
+                                    val safeId = if (channel.id.isBlank()) {
+                                        "ch_${index}_${channel.name.hashCode()}"
+                                    } else {
+                                        "ch_${index}_${channel.id}"
+                                    }
+                                    channel.copy(id = safeId)
+                                }
+                                channelDao.insertChannels(validFetched)
                             } else {
-                                Log.d(TAG, "Canali già in cache locale: ${localChannels.size}")
+                                statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
+                                Log.w(TAG, statusMessage)
                             }
 
                         } catch (e: PortalException) {
