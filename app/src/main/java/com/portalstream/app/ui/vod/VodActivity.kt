@@ -44,6 +44,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Divider
 
 data class VodItem(
     val id: String,
@@ -209,7 +212,7 @@ class VodActivity : ComponentActivity() {
                                                 showCategoryDialog = false
                                             }
                                         )
-                                        HorizontalDivider()
+                                        Divider()
                                     }
                                     items(filteredCategories) { cat ->
                                         ListItem(
