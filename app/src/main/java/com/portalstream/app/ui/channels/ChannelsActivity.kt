@@ -211,6 +211,15 @@ class ChannelsActivity : ComponentActivity() {
                                 if (fetched.isNotEmpty()) {
                                     Log.d(TAG, "Canali caricati: ${fetched.size}")
                                     channelDao.clearAll()
+
+                                    // ✅ Assegna un ID univoco se il canale ha l'ID vuoto (evita il crash della chiave primaria su Room)
+                                    val validFetched = fetched.mapIndexed { index, channel ->
+                                        if (channel.id.isBlank()) {
+                                            channel.copy(id = "ch_${index}_${channel.name.hashCode()}")
+                                        } else {
+                                            channel
+                                        }
+                                    }
                                     channelDao.insertChannels(fetched)
                                 } else {
                                     statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
