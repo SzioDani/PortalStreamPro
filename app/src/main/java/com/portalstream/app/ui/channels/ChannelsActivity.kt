@@ -47,6 +47,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URL
 
 data class EpgInfo(
@@ -127,7 +128,7 @@ class ChannelsActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
                         try {
-                            // Pulisci immediatamente il database all'avvio per evitare qualsiasi contaminazione tra portali diversi (es. M3U -> MAC)
+                            // Pulisci immediatamente il database all'avvio per evitare qualsiasi contaminazione
                             channelDao.clearAll()
 
                             Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
@@ -209,7 +210,7 @@ class ChannelsActivity : ComponentActivity() {
                             if (fetched.isNotEmpty()) {
                                 Log.d(TAG, "Canali caricati dal server: ${fetched.size}")
 
-                                // Assegna un ID univoco e sicuro a tutti i canali per evitare crash della chiave primaria su Room
+                                // Assegna un ID univoco e sicuro mantenendo il riferimento all'id originale nel modello se necessario
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = if (channel.id.isBlank()) {
                                         "ch_${index}_${channel.name.hashCode()}"
@@ -247,18 +248,29 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
+                    // Caricamento EPG in Background (Compatibile con Stalker/MAC e Xtream)
                     scope.launch(Dispatchers.IO) {
                         try {
-                            val isXtreamServer = portalType.equals("XTREAM", ignoreCase = true) ||
-                                    portalType.equals("XSTREAM", ignoreCase = true) ||
-                                    (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
+                                          portalType.equals("MAG", ignoreCase = true) || macAddress.isNotBlank()
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
+                                          portalType.equals("XSTREAM", ignoreCase = true) ||
+                                          (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
-                            if (isXtreamServer) {
-                                Log.d(TAG, "Avvio fetch EPG in background")
-                                fetchEpgData(server, username, password, userAgent) { newEpgMap ->
+                            if (isXtream || isStalker) {
+                                Log.d(TAG, "Avvio fetch EPG in background per tipo: $portalType")
+                                fetchUnifiedEpgData(
+                                    server = server,
+                                    username = username,
+                                    password = password,
+                                    macAddress = macAddress,
+                                    isStalker = isStalker,
+                                    userAgent = userAgent,
+                                    channels = dbChannels
+                                ) { newEpgMap ->
                                     epgMap = newEpgMap
                                     lastEpgUpdate = System.currentTimeMillis()
-                                    Log.d(TAG, "EPG aggiornato: ${newEpgMap.size} canali")
+                                    Log.d(TAG, "EPG aggiornato con successo: ${newEpgMap.size} canali associati")
                                 }
                             }
                         } catch (e: Exception) {
@@ -274,12 +286,22 @@ class ChannelsActivity : ComponentActivity() {
                         if (timeSinceLastUpdate > 60000) {
                             scope.launch(Dispatchers.IO) {
                                 try {
-                                    val isXtreamServer = portalType.equals("XTREAM", ignoreCase = true) ||
-                                            portalType.equals("XSTREAM", ignoreCase = true) ||
-                                            (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
+                                    val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
+                                                  portalType.equals("MAG", ignoreCase = true) || macAddress.isNotBlank()
+                                    val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
+                                                  portalType.equals("XSTREAM", ignoreCase = true) ||
+                                                  (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
-                                    if (isXtreamServer && server.isNotBlank()) {
-                                        fetchEpgData(server, username, password, userAgent) { newEpgMap ->
+                                    if ((isXtream || isStalker) && server.isNotBlank()) {
+                                        fetchUnifiedEpgData(
+                                            server = server,
+                                            username = username,
+                                            password = password,
+                                            macAddress = macAddress,
+                                            isStalker = isStalker,
+                                            userAgent = userAgent,
+                                            channels = dbChannels
+                                        ) { newEpgMap ->
                                             epgMap = newEpgMap
                                             lastEpgUpdate = System.currentTimeMillis()
                                         }
@@ -502,7 +524,11 @@ class ChannelsActivity : ComponentActivity() {
                                     ) { channel ->
                                         val isFav = favoriteIds.contains(channel.id)
                                         val isThisLoading = loadingChannelId == channel.id
-                                        val epgInfo = epgMap[channel.id] ?: EpgInfo()
+                                        
+                                        // Match EPG cercando sia l'ID completo del database sia l'ID grezzo
+                                        val epgInfo = epgMap[channel.id] 
+                                            ?: epgMap[extractRawId(channel.id)] 
+                                            ?: EpgInfo()
 
                                         ChannelCard(
                                             channel = channel,
@@ -544,7 +570,8 @@ class ChannelsActivity : ComponentActivity() {
                                                                 } else {
                                                                     val cleanServer = server.trimEnd('/')
                                                                     val cleanFormat = if (format.isBlank()) "m3u8" else format
-                                                                    "$cleanServer/live/${username}/${password}/${channel.id}.$cleanFormat"
+                                                                    val rawId = extractRawId(channel.id)
+                                                                    "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
                                                                 }
                                                             }
                                                             else -> channel.url
@@ -689,53 +716,121 @@ class ChannelsActivity : ComponentActivity() {
         return url.startsWith("http://") || url.startsWith("https://")
     }
 
-    private suspend fun fetchEpgData(
+    /**
+     * Estrae l'ID nativo rimuovendo il prefisso 'ch_index_' inserito per Room.
+     */
+    private fun extractRawId(safeId: String): String {
+        return if (safeId.startsWith("ch_")) {
+            safeId.substringAfterLast("_")
+        } else {
+            safeId
+        }
+    }
+
+    /**
+     * Recupera i dati EPG gestendo sia la modalità Stalker/MAC sia la modalità Xtream.
+     */
+    private suspend fun fetchUnifiedEpgData(
         server: String,
         username: String,
         password: String,
+        macAddress: String,
+        isStalker: Boolean,
         userAgent: String?,
+        channels: List<Channel>,
         onUpdate: (Map<String, EpgInfo>) -> Unit
     ) {
-        val cleanServer = server.trimEnd('/')
-        val epgUrl = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
-        
         withContext(Dispatchers.IO) {
+            val resultMap = mutableMapOf<String, EpgInfo>()
+
             try {
-                val request = Request.Builder()
-                    .url(epgUrl)
-                    .header("User-Agent", userAgent ?: "PortalStreamPro/1.0")
-                    .build()
+                if (isStalker && macAddress.isNotBlank()) {
+                    // --- MODALITÀ STALKER / MAG ---
+                    val cleanServer = server.trimEnd('/')
+                    val stalkerEpgUrl = "$cleanServer/server/load.php?type=itv&action=get_epg_info&mac=$macAddress"
 
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) return@withContext
+                    val request = Request.Builder()
+                        .url(stalkerEpgUrl)
+                        .header("User-Agent", userAgent ?: "MAG250")
+                        .header("Cookie", "mac=$macAddress")
+                        .build()
 
-                val responseBody = response.body?.string() ?: return@withContext
-                if (responseBody.isEmpty()) return@withContext
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val responseBody = response.body?.string() ?: ""
+                        if (responseBody.isNotBlank()) {
+                            val jsonRoot = JSONObject(responseBody)
+                            val jsObj = jsonRoot.optJSONObject("js")
+                            val dataObj = jsObj?.optJSONObject("data") ?: jsonRoot.optJSONObject("js")
 
-                val jsonArray = try {
-                    JSONArray(responseBody)
-                } catch (e: Exception) {
-                    return@withContext
-                }
+                            dataObj?.keys()?.forEach { chId ->
+                                val channelEpgArray = dataObj.optJSONArray(chId)
+                                if (channelEpgArray != null && channelEpgArray.length() > 0) {
+                                    val firstProg = channelEpgArray.getJSONObject(0)
+                                    val title = firstProg.optString("name", firstProg.optString("t_time", ""))
+                                    
+                                    val nextTitle = if (channelEpgArray.length() > 1) {
+                                        channelEpgArray.getJSONObject(1).optString("name", "")
+                                    } else ""
 
-                val map = mutableMapOf<String, EpgInfo>()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    val streamId = obj.optString("stream_id", "")
-                    val nowPlaying = obj.optJSONObject("epg_now")?.optString("title", null)
-                    val nextPlaying = obj.optJSONObject("epg_next")?.optString("title", null)
-                    val timeshift = obj.optInt("timeshift_available_hours", 0) / 24
+                                    if (title.isNotBlank()) {
+                                        val info = EpgInfo(
+                                            currentProgram = cleanHtmlIfNeeded(title),
+                                            nextProgram = cleanHtmlIfNeeded(nextTitle)
+                                        )
+                                        resultMap[chId] = info
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (username.isNotBlank() && password.isNotBlank()) {
+                    // --- MODALITÀ XTREAM ---
+                    val cleanServer = server.trimEnd('/')
+                    val epgUrl = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
 
-                    if (streamId.isNotBlank() && !nowPlaying.isNullOrBlank()) {
-                        map[streamId] = EpgInfo(
-                            currentProgram = cleanHtmlIfNeeded(nowPlaying),
-                            nextProgram = if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "",
-                            timeshift = timeshift
-                        )
+                    val request = Request.Builder()
+                        .url(epgUrl)
+                        .header("User-Agent", userAgent ?: "PortalStreamPro/1.0")
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val responseBody = response.body?.string() ?: ""
+                        if (responseBody.isNotBlank()) {
+                            val jsonArray = JSONArray(responseBody)
+                            for (i in 0 until jsonArray.length()) {
+                                val obj = jsonArray.getJSONObject(i)
+                                val streamId = obj.optString("stream_id", "")
+                                val nowPlaying = obj.optJSONObject("epg_now")?.optString("title", null)
+                                val nextPlaying = obj.optJSONObject("epg_next")?.optString("title", null)
+                                val timeshift = obj.optInt("timeshift_available_hours", 0) / 24
+
+                                if (streamId.isNotBlank() && !nowPlaying.isNullOrBlank()) {
+                                    resultMap[streamId] = EpgInfo(
+                                        currentProgram = cleanHtmlIfNeeded(nowPlaying),
+                                        nextProgram = if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "",
+                                        timeshift = timeshift
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-                onUpdate(map)
-            } catch (_: Exception) {}
+
+                // Mappatura extra per collegare gli ID originali salvati agli ID del database (es: ch_0_1234)
+                channels.forEach { ch ->
+                    val rawId = extractRawId(ch.id)
+                    val info = resultMap[rawId]
+                    if (info != null) {
+                        resultMap[ch.id] = info
+                    }
+                }
+
+                onUpdate(resultMap)
+            } catch (e: Exception) {
+                Log.w("ChannelsActivity", "Errore nel caricamento EPG: ${e.localizedMessage}")
+            }
         }
     }
 
