@@ -47,14 +47,12 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
-import java.net.HttpURLConnection
 import java.net.URL
 
-// ✅ DATA CLASS PER EPG CON PIÙ INFORMAZIONI
 data class EpgInfo(
     val currentProgram: String = "",
     val nextProgram: String = "",
-    val timeshift: Int = 0 // giorni di timeshift disponibili
+    val timeshift: Int = 0
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,7 +105,6 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                // ✅ MAPPA EPG MIGLIORATA
                 var epgMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
                 var lastEpgUpdate by remember { mutableStateOf(0L) }
 
@@ -127,12 +124,11 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // ✅ CARICAMENTO CANALI - SENZA ASPETTARE EPG
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
                         try {
                             if (localChannels.isEmpty()) {
-                                Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType")
+                                Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress")
 
                                 val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                               portalType.equals("MAG", ignoreCase = true)
@@ -140,13 +136,13 @@ class ChannelsActivity : ComponentActivity() {
                                              portalType.equals("XSTREAM", ignoreCase = true)
 
                                 val fetched = when {
-                                    isStalker && macAddress.isNotBlank() -> {
-                                        Log.d(TAG, "Modalità STALKER rilevata")
-                                        if (server.isBlank()) {
+                                    isStalker || macAddress.isNotBlank() -> {
+                                        Log.d(TAG, "Modalità STALKER/MAC rilevata")
+                                        if (server.isBlank() || macAddress.isBlank()) {
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(
                                                     this@ChannelsActivity,
-                                                    "⚠️ Server URL vuoto!",
+                                                    "⚠️ Server o MAC vuoti!",
                                                     Toast.LENGTH_LONG
                                                 ).show()
                                             }
@@ -164,7 +160,7 @@ class ChannelsActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    isXtream && username.isNotBlank() && password.isNotBlank() -> {
+                                    isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
                                         Log.d(TAG, "Modalità XTREAM rilevata")
                                         val portalDraft = Portal(
                                             id = 0,
@@ -243,7 +239,6 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
-                    // ✅ EPG PARALLELO - NON BLOCCA
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isXtreamServer = portalType.equals("XTREAM", ignoreCase = true) ||
@@ -264,11 +259,9 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // ✅ AUTO-REFRESH EPG - CON CICLO DI VITA RISPETTATO
                 LaunchedEffect(Unit) {
                     while (isActive) {
-                        delay(60000) // 60 secondi
-
+                        delay(60000)
                         val timeSinceLastUpdate = System.currentTimeMillis() - lastEpgUpdate
                         if (timeSinceLastUpdate > 60000) {
                             scope.launch(Dispatchers.IO) {
@@ -278,11 +271,9 @@ class ChannelsActivity : ComponentActivity() {
                                             (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
                                     if (isXtreamServer && server.isNotBlank()) {
-                                        Log.d(TAG, "Refresh EPG in corso...")
                                         fetchEpgData(server, username, password, userAgent) { newEpgMap ->
                                             epgMap = newEpgMap
                                             lastEpgUpdate = System.currentTimeMillis()
-                                            Log.d(TAG, "EPG refresh completato: ${newEpgMap.size} canali")
                                         }
                                     }
                                 } catch (e: Exception) {
@@ -293,7 +284,6 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // ✅ DIALOGO SELEZIONE GRUPPI
                 if (showGroupDialog) {
                     AlertDialog(
                         onDismissRequest = { showGroupDialog = false },
@@ -397,7 +387,6 @@ class ChannelsActivity : ComponentActivity() {
                     )
                 }
 
-                // ✅ UI PRINCIPALE
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (isLoading && allChannels.isEmpty()) {
                         Box(
@@ -416,7 +405,6 @@ class ChannelsActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(16.dp)
                         ) {
-                            // Titolo
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.headlineSmall,
@@ -424,7 +412,6 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            // Barra Ricerca
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -447,7 +434,6 @@ class ChannelsActivity : ComponentActivity() {
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
 
-                            // Filtri
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -483,7 +469,6 @@ class ChannelsActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Lista Canali
                             if (currentChannels.isEmpty()) {
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
@@ -535,7 +520,7 @@ class ChannelsActivity : ComponentActivity() {
                                                                 portalType.equals("XSTREAM", ignoreCase = true)
 
                                                         val playUrl = when {
-                                                            isStalker && macAddress.isNotBlank() -> {
+                                                            isStalker || macAddress.isNotBlank() -> {
                                                                 val portalDraft = Portal(
                                                                     id = 0,
                                                                     server = server,
@@ -619,7 +604,6 @@ class ChannelsActivity : ComponentActivity() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Logo
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -644,7 +628,6 @@ class ChannelsActivity : ComponentActivity() {
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Informazioni Canale
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = channel.name,
@@ -660,7 +643,6 @@ class ChannelsActivity : ComponentActivity() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Programma in Onda (se disponibile)
                     if (epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -673,7 +655,6 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // Pulsanti Azioni
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
@@ -718,63 +699,40 @@ class ChannelsActivity : ComponentActivity() {
                     .build()
 
                 val response = client.newCall(request).execute()
-
-                if (!response.isSuccessful) {
-                    Log.e(TAG, "Errore EPG HTTP: ${response.code}")
-                    return@withContext
-                }
+                if (!response.isSuccessful) return@withContext
 
                 val responseBody = response.body?.string() ?: return@withContext
-                Log.d(TAG, "EPG Response length: ${responseBody.length}")
-
-                if (responseBody.isEmpty()) {
-                    Log.w(TAG, "EPG Response vuota")
-                    return@withContext
-                }
+                if (responseBody.isEmpty()) return@withContext
 
                 val jsonArray = try {
                     JSONArray(responseBody)
                 } catch (e: Exception) {
-                    Log.e(TAG, "EPG Response non è JSONArray valido")
                     return@withContext
                 }
 
                 val map = mutableMapOf<String, EpgInfo>()
-
                 for (i in 0 until jsonArray.length()) {
                     val obj = jsonArray.getJSONObject(i)
                     val streamId = obj.optString("stream_id", "")
-
                     val nowPlaying = obj.optJSONObject("epg_now")?.optString("title", null)
                     val nextPlaying = obj.optJSONObject("epg_next")?.optString("title", null)
                     val timeshift = obj.optInt("timeshift_available_hours", 0) / 24
 
                     if (streamId.isNotBlank() && !nowPlaying.isNullOrBlank()) {
-                        val cleanNow = cleanHtmlIfNeeded(nowPlaying)
-                        val cleanNext = if (!nextPlaying.isNullOrBlank()) 
-                            cleanHtmlIfNeeded(nextPlaying) 
-                        else ""
-
                         map[streamId] = EpgInfo(
-                            currentProgram = cleanNow,
-                            nextProgram = cleanNext,
+                            currentProgram = cleanHtmlIfNeeded(nowPlaying),
+                            nextProgram = if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "",
                             timeshift = timeshift
                         )
                     }
                 }
-
-                Log.d(TAG, "EPG aggiornato: ${map.size} canali con programmi")
                 onUpdate(map)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Errore durante fetch EPG", e)
-            }
+            } catch (_: Exception) {}
         }
     }
 
     private fun cleanHtmlIfNeeded(text: String): String {
-        return if (text.contains("&") && 
-            (text.contains("quot") || text.contains("amp") || text.contains("lt"))) {
+        return if (text.contains("&") && (text.contains("quot") || text.contains("amp") || text.contains("lt"))) {
             android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
         } else {
             text
