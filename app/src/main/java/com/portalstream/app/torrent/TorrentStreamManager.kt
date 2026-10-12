@@ -7,7 +7,7 @@ import libtorrent4j.AlertListener
 import libtorrent4j.Priority
 import libtorrent4j.SessionManager
 import libtorrent4j.TorrentHandle
-import libtorrent4j.alerts.Alert<?>
+import libtorrent4j.alerts.Alert
 import libtorrent4j.alerts.AlertType
 import java.io.File
 import java.io.FileInputStream
@@ -21,12 +21,11 @@ class TorrentStreamManager(private val context: Context) {
     private val sessionManager = SessionManager()
     private var httpServer: HttpServer? = null
     private var activeTorrentHandle: TorrentHandle? = null
-    private val httpPort = 8888 // Porta locale per lo streaming su ExoPlayer
+    private val httpPort = 8888 // Porta locale per lo streaming su ExoPlayer/VLC
 
     fun startSession() {
         if (!sessionManager.isRunning) {
             sessionManager.start()
-            // Configurazione ottimale per lo streaming veloce (DHT, LPD, UPnP)
             sessionManager.applySettings(
                 libtorrent4j.settings_pack().apply {
                     enableDht(true)
@@ -39,8 +38,8 @@ class TorrentStreamManager(private val context: Context) {
     }
 
     /**
-     * Aggiunge il magnet link, imposta il download sequenziale e avvia il server locale
-     * Restituisce l'URL locale `http://127.0.0.1:8888/...` da passare a ExoPlayer.
+     * Aggiunge il magnet link, imposta il download sequenziale e avvia il server locale.
+     * Restituisce l'URL locale `http://127.0.0.1:8888/...` da passare al player.
      */
     fun prepareStream(magnetUri: String, onReady: (playbackUrl: String) -> Unit, onError: (String) -> Unit) {
         try {
@@ -59,10 +58,9 @@ class TorrentStreamManager(private val context: Context) {
                     if (alert.type() == AlertType.ADD_TORRENT) {
                         activeTorrentHandle = (alert as libtorrent4j.alerts.AddTorrentAlert).handle()
                         activeTorrentHandle?.let { handle ->
-                            // Attiva il download sequenziale (fondamentale per lo streaming immediato)
+                            // Attiva il download sequenziale per avviare subito la riproduzione
                             handle.setSequentialDownload(true)
                             
-                            // Imposta priorità alta al file video principale e bassa agli altri file
                             val wp = handle.torrentFile()
                             if (wp != null && wp.numFiles() > 0) {
                                 var largestFileIndex = 0
@@ -74,7 +72,6 @@ class TorrentStreamManager(private val context: Context) {
                                         largestFileIndex = i
                                     }
                                 }
-                                // Assegna priorità massima al file multimediale più grande
                                 val priorities = arrayOfNulls<Priority>(wp.numFiles())
                                 for (i in priorities.indices) {
                                     priorities[i] = if (i == largestFileIndex) Priority.DEFAULT else Priority.IGNORE
@@ -87,9 +84,8 @@ class TorrentStreamManager(private val context: Context) {
                         }
                     }
 
-                    // Quando abbiamo abbastanza pezzi per iniziare la riproduzione
                     if (alert.type() == AlertType.METADATA_RECEIVED || alert.type() == AlertType.PIECE_FINISHED) {
-                        if (videoFile != null && videoFile!!.exists() && videoFile!!.length() > 1024 * 512) { // Almeno 512KB scaricati
+                        if (videoFile != null && videoFile!!.exists() && videoFile!!.length() > 1024 * 512) {
                             latch.countDown()
                         }
                     }
@@ -99,20 +95,16 @@ class TorrentStreamManager(private val context: Context) {
             sessionManager.addListener(listener)
             sessionManager.download(magnetUri, saveDir)
 
-            // Avviamo un piccolo server HTTP locale per servire il file in streaming sequenziale a ExoPlayer
             startHttpServer(saveDir)
 
-            // Sblocchiamo non appena il file comincia a ricevere dati validi
             Thread {
                 val success = latch.await(30, TimeUnit.SECONDS)
                 sessionManager.removeListener(listener)
                 
                 if (success && videoFile != null) {
-                    // Genera l'URL locale che ExoPlayer aprirà senza lag
                     val localStreamUrl = "http://127.0.0.1:$httpPort/${videoFile!!.name}"
                     onReady(localStreamUrl)
                 } else {
-                    // Fallback: prova comunque ad avviare se il file esiste
                     if (videoFile != null) {
                         onReady("http://127.0.0.1:$httpPort/${videoFile!!.name}")
                     } else {
@@ -180,7 +172,7 @@ class TorrentStreamManager(private val context: Context) {
                         exchange.responseBody.use { it.write(msg.toByteArray()) }
                     }
                 }
-                executor = null // Usa il pool predefinito
+                executor = null
                 start()
             }
         } catch (e: Exception) {
