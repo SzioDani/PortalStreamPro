@@ -2,11 +2,10 @@ package com.portalstream.app.torrent
 
 import android.content.Context
 import android.util.Log
-import org.libtorrent4j.AddTorrentParams
 import org.libtorrent4j.SessionManager
+import org.libtorrent4j.swig.torrent_flags_t
 import java.io.File
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class TorrentStreamManager(private val context: Context) {
 
@@ -29,12 +28,8 @@ class TorrentStreamManager(private val context: Context) {
             val latch = CountDownLatch(1)
             var videoFile: File? = null
 
-            // Risolviamo il type mismatch: convertiamo il magnet in AddTorrentParams e impostiamo la cartella
-            val params = AddTorrentParams.parse(magnetUri)
-            params.savePath(saveDir.absolutePath)
-
-            // Avviamo il download passando l'oggetto nativo atteso dalla libreria
-            sessionManager.download(params)
+            // Firma esatta estratta dal SessionManager ufficiale di libtorrent4j 2.1.0-39
+            sessionManager.download(magnetUri, saveDir, torrent_flags_t())
 
             // Thread di monitoraggio della cache per individuare non appena il file video è disponibile e in scrittura
             Thread {
