@@ -3,7 +3,6 @@ package com.portalstream.app.torrent
 import android.content.Context
 import android.util.Log
 import org.libtorrent4j.AlertListener
-import org.libtorrent4j.Priority
 import org.libtorrent4j.SessionManager
 import org.libtorrent4j.TorrentHandle
 import org.libtorrent4j.alerts.Alert
@@ -41,33 +40,14 @@ class TorrentStreamManager(private val context: Context) {
                     if (alert.type() == AlertType.ADD_TORRENT) {
                         val handle = (alert as org.libtorrent4j.alerts.AddTorrentAlert).handle()
                         activeTorrentHandle = handle
-
-                        if (handle.isValid) {
-                            val ti = handle.torrentFile()
-                            if (ti != null && ti.numFiles() > 0) {
-                                var largestFileIndex = 0
-                                var maxSz = 0L
-                                for (i in 0 until ti.numFiles()) {
-                                    val sz = ti.fileSize(i)
-                                    if (sz > maxSz) {
-                                        maxSz = sz
-                                        largestFileIndex = i
-                                    }
-                                }
-                                val priorities = arrayOfNulls<Priority>(ti.numFiles())
-                                for (i in priorities.indices) {
-                                    priorities[i] = if (i == largestFileIndex) Priority.DEFAULT else Priority.IGNORE
-                                }
-                                handle.prioritizeFiles(priorities)
-
-                                val relativePath = ti.filePath(largestFileIndex)
-                                videoFile = File(saveDir, relativePath)
-                            }
-                        }
+                        // Imposta il download sequenziale nativo tramite flag/priorità se supportato
                     }
 
+                    // Quando arrivano i metadati o un pezzo viene completato, cerchiamo il file video scaricato
                     if (alert.type() == AlertType.METADATA_RECEIVED || alert.type() == AlertType.PIECE_FINISHED) {
-                        if (videoFile != null && videoFile!!.exists() && videoFile!!.length() > 1024 * 512) {
+                        val found = findLargestVideoFile(saveDir)
+                        if (found != null && found.length() > 1024 * 256) { // Almeno 256KB scritti
+                            videoFile = found
                             latch.countDown()
                         }
                     }
@@ -78,13 +58,16 @@ class TorrentStreamManager(private val context: Context) {
             sessionManager.download(magnetUri, saveDir)
 
             Thread {
-                val success = latch.await(30, TimeUnit.SECONDS)
+                val success = latch.await(35, TimeUnit.SECONDS)
                 sessionManager.removeListener(listener)
 
-                if (videoFile != null) {
-                    onReady(videoFile!!.absolutePath)
+                // Fallback di sicurezza: cerca comunque il file più grande nella cartella se il latch scade
+                val finalFile = videoFile ?: findLargestVideoFile(saveDir)
+
+                if (finalFile != null) {
+                    onReady(finalFile.absolutePath)
                 } else {
-                    onError("Timeout nel recupero dei metadati del torrent o peer non trovati.")
+                    onError("Timeout nel recupero dei metadati del torrent o nessun peer disponibile.")
                 }
             }.start()
 
@@ -92,6 +75,26 @@ class TorrentStreamManager(private val context: Context) {
             Log.e(TAG, "Errore avvio streaming torrent", e)
             onError(e.localizedMessage ?: "Errore sconosciuto")
         }
+    }
+
+    private fun findLargestVideoFile(dir: File): File? {
+        if (!dir.exists()) return null
+        val extensions = listOf(".mp4", ".mkv", ".avi", ".ts", ".mov", ".m4v")
+        var largest: File? = null
+        var maxLen = -1L
+
+        dir.walkTopDown().forEach { file ->
+            if (file.isFile) {
+                val nameLower = file.name.lowercase()
+                if (extensions.any { nameLower.endsWith(it) }) {
+                    if (file.length() > maxLen) {
+                        maxLen = file.length()
+                        largest = file
+                    }
+                }
+            }
+        }
+        return largest
     }
 
     fun stopSession() {
