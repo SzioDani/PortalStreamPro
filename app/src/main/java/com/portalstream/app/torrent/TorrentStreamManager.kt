@@ -38,15 +38,18 @@ class TorrentStreamManager(private val context: Context) {
 
                 override fun alert(alert: Alert<*>) {
                     if (alert.type() == AlertType.ADD_TORRENT) {
-                        val handle = (alert as org.libtorrent4j.alerts.AddTorrentAlert).handle()
-                        activeTorrentHandle = handle
-                        // Imposta il download sequenziale nativo tramite flag/priorità se supportato
+                        try {
+                            val addAlert = alert as? org.libtorrent4j.alerts.AddTorrentAlert
+                            addAlert?.let {
+                                activeTorrentHandle = it.handle()
+                            }
+                        } catch (_: Exception) {}
                     }
 
-                    // Quando arrivano i metadati o un pezzo viene completato, cerchiamo il file video scaricato
+                    // Controlla periodicamente se il file video è comparso e sta crescendo nella cache
                     if (alert.type() == AlertType.METADATA_RECEIVED || alert.type() == AlertType.PIECE_FINISHED) {
                         val found = findLargestVideoFile(saveDir)
-                        if (found != null && found.length() > 1024 * 256) { // Almeno 256KB scritti
+                        if (found != null && found.length() > 1024 * 256) {
                             videoFile = found
                             latch.countDown()
                         }
@@ -61,7 +64,6 @@ class TorrentStreamManager(private val context: Context) {
                 val success = latch.await(35, TimeUnit.SECONDS)
                 sessionManager.removeListener(listener)
 
-                // Fallback di sicurezza: cerca comunque il file più grande nella cartella se il latch scade
                 val finalFile = videoFile ?: findLargestVideoFile(saveDir)
 
                 if (finalFile != null) {
@@ -83,17 +85,20 @@ class TorrentStreamManager(private val context: Context) {
         var largest: File? = null
         var maxLen = -1L
 
-        dir.walkTopDown().forEach { file ->
-            if (file.isFile) {
-                val nameLower = file.name.lowercase()
-                if (extensions.any { nameLower.endsWith(it) }) {
-                    if (file.length() > maxLen) {
-                        maxLen = file.length()
-                        largest = file
+        try {
+            dir.walkTopDown().forEach { file ->
+                if (file.isFile) {
+                    val nameLower = file.name.lowercase()
+                    if (extensions.any { nameLower.endsWith(it) }) {
+                        if (file.length() > maxLen) {
+                            maxLen = file.length()
+                            largest = file
+                        }
                     }
                 }
             }
-        }
+        } catch (_: Exception) {}
+
         return largest
     }
 
