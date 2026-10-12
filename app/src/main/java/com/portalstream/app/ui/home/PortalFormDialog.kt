@@ -126,6 +126,7 @@ fun PortalFormDialog(
         PortalType.M3U -> "File o Link Playlist"
         PortalType.MAG -> "MAG Portale"
         PortalType.XSTREAM -> "Xtream Codes Portal"
+        PortalType.TORRENT -> "Torrent / Magnet"
         else -> "Portale"
     }
 
