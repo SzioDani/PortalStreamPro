@@ -6,7 +6,6 @@ import org.libtorrent4j.AlertListener
 import org.libtorrent4j.SessionManager
 import org.libtorrent4j.TorrentHandle
 import org.libtorrent4j.alerts.Alert
-import org.libtorrent4j.alerts.AlertType
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -37,22 +36,11 @@ class TorrentStreamManager(private val context: Context) {
                 override fun types(): IntArray? = null
 
                 override fun alert(alert: Alert<*>) {
-                    if (alert.type() == AlertType.ADD_TORRENT) {
-                        try {
-                            val addAlert = alert as? org.libtorrent4j.alerts.AddTorrentAlert
-                            addAlert?.let {
-                                activeTorrentHandle = it.handle()
-                            }
-                        } catch (_: Exception) {}
-                    }
-
-                    // Controlla periodicamente se il file video è comparso e sta crescendo nella cache
-                    if (alert.type() == AlertType.METADATA_RECEIVED || alert.type() == AlertType.PIECE_FINISHED) {
-                        val found = findLargestVideoFile(saveDir)
-                        if (found != null && found.length() > 1024 * 256) {
-                            videoFile = found
-                            latch.countDown()
-                        }
+                    // Controlliamo periodicamente la cartella cache per individuare il file video in scrittura
+                    val found = findLargestVideoFile(saveDir)
+                    if (found != null && found.length() > 1024 * 256) {
+                        videoFile = found
+                        latch.countDown()
                     }
                 }
             }
