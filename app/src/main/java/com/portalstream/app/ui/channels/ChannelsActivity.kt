@@ -49,6 +49,10 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 data class EpgInfo(
     val currentProgram: String = "",
@@ -91,6 +95,12 @@ class ChannelsActivity : ComponentActivity() {
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
 
+                // Stato per il fuso orario EPG
+                var showSettingsDialog by remember { mutableStateOf(false) }
+                var epgOffsetHours by remember {
+                    mutableStateOf(prefs.getInt("epg_offset_hours", 0))
+                }
+
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
                 }
@@ -128,9 +138,7 @@ class ChannelsActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     withContext(Dispatchers.IO) {
                         try {
-                            // Pulisci immediatamente il database all'avvio per evitare qualsiasi contaminazione
                             channelDao.clearAll()
-
                             Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
 
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
@@ -140,77 +148,47 @@ class ChannelsActivity : ComponentActivity() {
 
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
-                                    Log.d(TAG, "Modalità STALKER/MAC rilevata")
                                     if (server.isBlank() || macAddress.isBlank()) {
                                         withContext(Dispatchers.Main) {
-                                            Toast.makeText(
-                                                this@ChannelsActivity,
-                                                "⚠️ Server o MAC vuoti!",
-                                                Toast.LENGTH_LONG
-                                            ).show()
+                                            Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
                                         }
                                         emptyList()
                                     } else {
                                         val portalDraft = Portal(
-                                            id = 0,
-                                            server = server,
-                                            macAddress = macAddress,
-                                            useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                            userAgent = userAgent ?: ""
+                                            id = 0, server = server, macAddress = macAddress,
+                                            useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                         )
-                                        Log.d(TAG, "Fetching Stalker da: $server")
                                         StalkerClient.fetchChannels(portalDraft)
                                     }
                                 }
 
                                 isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
-                                    Log.d(TAG, "Modalità XTREAM rilevata")
                                     val portalDraft = Portal(
-                                        id = 0,
-                                        server = server,
-                                        username = username,
-                                        password = password,
-                                        streamFormat = format,
-                                        useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                        userAgent = userAgent ?: ""
+                                        id = 0, server = server, username = username, password = password,
+                                        streamFormat = format, useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                     )
-                                    Log.d(TAG, "Fetching Xtream da: $server")
                                     XtreamClient.fetchLiveChannels(portalDraft)
                                 }
 
                                 portalUrl.isNotEmpty() -> {
-                                    Log.d(TAG, "Modalità M3U rilevata")
                                     var formattedUrl = portalUrl.trim()
-                                    if (!formattedUrl.startsWith("http://") && 
-                                        !formattedUrl.startsWith("https://")) {
+                                    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
                                         formattedUrl = "http://$formattedUrl"
                                     }
-                                    Log.d(TAG, "Fetching M3U da: $formattedUrl")
-                                    
                                     val connection = URL(formattedUrl).openConnection()
                                     if (!userAgent.isNullOrBlank()) {
                                         connection.setRequestProperty("User-Agent", userAgent)
                                     }
-
                                     val inputStream = connection.getInputStream()
                                     val tempBuffer = mutableListOf<Channel>()
-
-                                    M3UParser.parseStreaming(inputStream) {
-                                        tempBuffer.add(it)
-                                    }
+                                    M3UParser.parseStreaming(inputStream) { tempBuffer.add(it) }
                                     tempBuffer
                                 }
 
-                                else -> {
-                                    Log.e(TAG, "Nessun tipo di portale valido configurato")
-                                    emptyList()
-                                }
+                                else -> emptyList()
                             }
 
                             if (fetched.isNotEmpty()) {
-                                Log.d(TAG, "Canali caricati dal server: ${fetched.size}")
-
-                                // Assegna un ID univoco e sicuro mantenendo il riferimento all'id originale nel modello se necessario
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = if (channel.id.isBlank()) {
                                         "ch_${index}_${channel.name.hashCode()}"
@@ -222,33 +200,16 @@ class ChannelsActivity : ComponentActivity() {
                                 channelDao.insertChannels(validFetched)
                             } else {
                                 statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
-                                Log.w(TAG, statusMessage)
                             }
 
-                        } catch (e: PortalException) {
-                            statusMessage = e.localizedMessage ?: "Errore del portale"
-                            Log.e(TAG, "PortalException: $statusMessage", e)
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@ChannelsActivity, statusMessage, Toast.LENGTH_LONG).show()
-                            }
                         } catch (e: Exception) {
-                            statusMessage = "Errore rete: ${e.localizedMessage}"
-                            Log.e(TAG, "Exception: $statusMessage", e)
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    this@ChannelsActivity,
-                                    "❌ Errore: ${e.localizedMessage}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
+                            statusMessage = "Errore: ${e.localizedMessage}"
                         } finally {
-                            withContext(Dispatchers.Main) {
-                                isLoading = false
-                            }
+                            withContext(Dispatchers.Main) { isLoading = false }
                         }
                     }
 
-                    // Caricamento EPG in Background (Compatibile con Stalker/MAC e Xtream)
+                    // Caricamento EPG in background
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
@@ -258,60 +219,81 @@ class ChannelsActivity : ComponentActivity() {
                                           (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
                             if (isXtream || isStalker) {
-                                Log.d(TAG, "Avvio fetch EPG in background per tipo: $portalType")
                                 fetchUnifiedEpgData(
-                                    server = server,
-                                    username = username,
-                                    password = password,
-                                    macAddress = macAddress,
-                                    isStalker = isStalker,
-                                    userAgent = userAgent,
-                                    channels = dbChannels
+                                    server = server, username = username, password = password,
+                                    macAddress = macAddress, isStalker = isStalker, userAgent = userAgent,
+                                    channels = dbChannels, offsetHours = epgOffsetHours
                                 ) { newEpgMap ->
                                     epgMap = newEpgMap
                                     lastEpgUpdate = System.currentTimeMillis()
-                                    Log.d(TAG, "EPG aggiornato con successo: ${newEpgMap.size} canali associati")
                                 }
                             }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Errore EPG iniziale (non critico)", e)
-                        }
+                        } catch (_: Exception) {}
                     }
                 }
 
-                LaunchedEffect(Unit) {
-                    while (isActive) {
-                        delay(60000)
-                        val timeSinceLastUpdate = System.currentTimeMillis() - lastEpgUpdate
-                        if (timeSinceLastUpdate > 60000) {
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
-                                                  portalType.equals("MAG", ignoreCase = true) || macAddress.isNotBlank()
-                                    val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                                  portalType.equals("XSTREAM", ignoreCase = true) ||
-                                                  (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
-
-                                    if ((isXtream || isStalker) && server.isNotBlank()) {
-                                        fetchUnifiedEpgData(
-                                            server = server,
-                                            username = username,
-                                            password = password,
-                                            macAddress = macAddress,
-                                            isStalker = isStalker,
-                                            userAgent = userAgent,
-                                            channels = dbChannels
-                                        ) { newEpgMap ->
-                                            epgMap = newEpgMap
-                                            lastEpgUpdate = System.currentTimeMillis()
+                // Dialog Impostazioni Fuso Orario EPG
+                if (showSettingsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showSettingsDialog = false },
+                        title = { Text("🕒 Regola Orario EPG") },
+                        text = {
+                            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Offset attuale: ${if (epgOffsetHours >= 0) "+$epgOffsetHours" else epgOffsetHours} ore",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Usa i pulsanti se la guida TV risulta in anticipo o in ritardo.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    Button(onClick = {
+                                        epgOffsetHours -= 1
+                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
+                                        // Ricarica EPG con il nuovo offset
+                                        scope.launch(Dispatchers.IO) {
+                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
                                         }
+                                    }) {
+                                        Text("-1 Ora")
                                     }
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "Errore durante refresh EPG", e)
+                                    Button(onClick = {
+                                        epgOffsetHours = 0
+                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
+                                        scope.launch(Dispatchers.IO) {
+                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
+                                        }
+                                    }) {
+                                        Text("Reset")
+                                    }
+                                    Button(onClick = {
+                                        epgOffsetHours += 1
+                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
+                                        scope.launch(Dispatchers.IO) {
+                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
+                                        }
+                                    }) {
+                                        Text("+1 Ora")
+                                    }
                                 }
                             }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showSettingsDialog = false }) {
+                                Text("Chiudi")
+                            }
                         }
-                    }
+                    )
                 }
 
                 if (showGroupDialog) {
@@ -323,16 +305,9 @@ class ChannelsActivity : ComponentActivity() {
                                 OutlinedTextField(
                                     value = groupSearchQuery,
                                     onValueChange = { groupSearchQuery = it },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(56.dp)
-                                        .padding(bottom = 8.dp),
-                                    placeholder = { 
-                                        Text("Cerca categoria...", style = MaterialTheme.typography.bodyMedium) 
-                                    },
-                                    leadingIcon = { 
-                                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) 
-                                    },
+                                    modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
+                                    placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                     trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
                                             IconButton(onClick = { groupSearchQuery = "" }) {
@@ -347,26 +322,13 @@ class ChannelsActivity : ComponentActivity() {
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
                                     else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
-
-                                    baseList.sortedWith(
-                                        compareByDescending<String> { favoriteGroups.contains(it) }
-                                            .thenBy { it }
-                                    )
+                                    baseList.sortedWith(compareByDescending<String> { favoriteGroups.contains(it) }.thenBy { it })
                                 }
 
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 320.dp)
-                                ) {
+                                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                                     item {
                                         ListItem(
-                                            headlineContent = {
-                                                Text(
-                                                    "Tutti i Gruppi",
-                                                    style = MaterialTheme.typography.bodyLarge
-                                                )
-                                            },
+                                            headlineContent = { Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyLarge) },
                                             modifier = Modifier.clickable {
                                                 selectedGroup = null
                                                 showOnlyFavorites = false
@@ -375,26 +337,19 @@ class ChannelsActivity : ComponentActivity() {
                                         )
                                         Divider()
                                     }
-
                                     items(filteredGroups) { group ->
                                         val isFavGroup = favoriteGroups.contains(group)
-
                                         ListItem(
                                             headlineContent = { Text(group.ifBlank { "Generale" }) },
                                             trailingContent = {
-                                                IconButton(
-                                                    onClick = {
-                                                        val newFavs = if (isFavGroup) 
-                                                            favoriteGroups - group 
-                                                        else 
-                                                            favoriteGroups + group
-                                                        favoriteGroups = newFavs
-                                                        prefs.edit().putStringSet("favorite_groups", newFavs).apply()
-                                                    }
-                                                ) {
+                                                IconButton(onClick = {
+                                                    val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
+                                                    favoriteGroups = newFavs
+                                                    prefs.edit().putStringSet("favorite_groups", newFavs).apply()
+                                                }) {
                                                     Icon(
                                                         imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                        contentDescription = "Preferito Gruppo",
+                                                        contentDescription = null,
                                                         tint = if (isFavGroup) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
@@ -410,19 +365,14 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         },
                         confirmButton = {
-                            TextButton(onClick = { showGroupDialog = false }) {
-                                Text("Chiudi")
-                            }
+                            TextButton(onClick = { showGroupDialog = false }) { Text("Chiudi") }
                         }
                     )
                 }
 
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (isLoading && allChannels.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator()
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -430,11 +380,7 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp)
-                        ) {
+                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                             Text(
                                 text = title,
                                 style = MaterialTheme.typography.headlineSmall,
@@ -445,18 +391,13 @@ class ChannelsActivity : ComponentActivity() {
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .padding(bottom = 8.dp),
+                                modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
                                 placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Search, contentDescription = "Cerca", modifier = Modifier.size(20.dp))
-                                },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
+                                            Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(20.dp))
                                         }
                                     }
                                 },
@@ -464,10 +405,9 @@ class ChannelsActivity : ComponentActivity() {
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
 
+                            // Riga dei bottoni di filtro (Preferiti, Gruppi e Pulsante EPG Time a destra)
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -483,34 +423,25 @@ class ChannelsActivity : ComponentActivity() {
                                 FilterChip(
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
+                                    label = { Text(text = selectedGroup ?: "≡ Gruppi", maxLines = 1) },
+                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                )
+
+                                // Pulsante Fuso Orario EPG posizionato esattamente a destra di Gruppi
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { showSettingsDialog = true },
                                     label = {
-                                        Text(
-                                            text = selectedGroup ?: "≡ Gruppi",
-                                            maxLines = 1
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.List,
-                                            contentDescription = "Gruppi",
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        val labelText = if (epgOffsetHours == 0) "🕒 EPG Time" else "🕒 ${if (epgOffsetHours > 0) "+$epgOffsetHours" else epgOffsetHours}h"
+                                        Text(labelText, maxLines = 1)
                                     }
                                 )
                             }
 
                             if (currentChannels.isEmpty()) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text(
-                                        text = if (statusMessage.isNotBlank()) 
-                                            statusMessage 
-                                        else if (showOnlyFavorites) 
-                                            "⭐ Nessun canale preferito" 
-                                        else 
-                                            "🔍 Nessun canale trovato",
+                                        text = if (statusMessage.isNotBlank()) statusMessage else "🔍 Nessun canale trovato",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center
@@ -518,17 +449,10 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                    items(
-                                        currentChannels,
-                                        key = { it.id.ifEmpty { it.url + it.name } }
-                                    ) { channel ->
+                                    items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
                                         val isFav = favoriteIds.contains(channel.id)
                                         val isThisLoading = loadingChannelId == channel.id
-                                        
-                                        // Match EPG cercando sia l'ID completo del database sia l'ID grezzo
-                                        val epgInfo = epgMap[channel.id] 
-                                            ?: epgMap[extractRawId(channel.id)] 
-                                            ?: EpgInfo()
+                                        val epgInfo = epgMap[channel.id] ?: epgMap[extractRawId(channel.id)] ?: EpgInfo()
 
                                         ChannelCard(
                                             channel = channel,
@@ -536,38 +460,28 @@ class ChannelsActivity : ComponentActivity() {
                                             isFavorite = isFav,
                                             isLoading = isThisLoading,
                                             onFavoriteToggle = {
-                                                val newFavs = if (isFav) 
-                                                    favoriteIds - channel.id 
-                                                else 
-                                                    favoriteIds + channel.id
+                                                val newFavs = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
                                                 favoriteIds = newFavs
                                                 prefs.edit().putStringSet("favorite_ids", newFavs).apply()
                                             },
                                             onPlayClick = {
                                                 loadingChannelId = channel.id
-
                                                 scope.launch(Dispatchers.IO) {
                                                     try {
-                                                        val isStalker = portalType.equals("STALKER", ignoreCase = true) ||
-                                                                portalType.equals("MAG", ignoreCase = true)
-                                                        val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                                                portalType.equals("XSTREAM", ignoreCase = true)
+                                                        val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                        val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
 
                                                         val playUrl = when {
                                                             isStalker || macAddress.isNotBlank() -> {
                                                                 val portalDraft = Portal(
-                                                                    id = 0,
-                                                                    server = server,
-                                                                    macAddress = macAddress,
-                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(),
-                                                                    userAgent = userAgent ?: ""
+                                                                    id = 0, server = server, macAddress = macAddress,
+                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                                                 )
                                                                 StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
                                                             }
                                                             isXtream -> {
-                                                                if (channel.url.startsWith("http")) {
-                                                                    channel.url
-                                                                } else {
+                                                                if (channel.url.startsWith("http")) channel.url
+                                                                else {
                                                                     val cleanServer = server.trimEnd('/')
                                                                     val cleanFormat = if (format.isBlank()) "m3u8" else format
                                                                     val rawId = extractRawId(channel.id)
@@ -586,22 +500,12 @@ class ChannelsActivity : ComponentActivity() {
                                                             }
                                                             startActivity(intent)
                                                         }
-                                                    } catch (e: PortalException) {
-                                                        withContext(Dispatchers.Main) {
-                                                            Toast.makeText(this@ChannelsActivity, e.localizedMessage, Toast.LENGTH_LONG).show()
-                                                        }
                                                     } catch (e: Exception) {
                                                         withContext(Dispatchers.Main) {
-                                                            Toast.makeText(
-                                                                this@ChannelsActivity,
-                                                                "❌ Errore apertura stream: ${e.localizedMessage}",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
+                                                            Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                                                         }
                                                     } finally {
-                                                        withContext(Dispatchers.Main) {
-                                                            loadingChannelId = null
-                                                        }
+                                                        withContext(Dispatchers.Main) { loadingChannelId = null }
                                                     }
                                                 }
                                             }
@@ -626,83 +530,45 @@ class ChannelsActivity : ComponentActivity() {
         onPlayClick: () -> Unit
     ) {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable(enabled = !isLoading, onClick = onPlayClick),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = !isLoading, onClick = onPlayClick),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!channel.logoUrl.isNullOrBlank() && isValidUrl(channel.logoUrl)) {
-                        AsyncImage(
-                            model = channel.logoUrl,
-                            contentDescription = channel.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
+                        AsyncImage(model = channel.logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                     } else {
-                        Text(
-                            text = "📺",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Text(text = "📺", style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = channel.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(text = channel.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (channel.group.isNotBlank()) {
-                        Text(
-                            text = channel.group,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(text = channel.group, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "▶ ${epgInfo.currentProgram}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Text(text = "▶ ${epgInfo.currentProgram}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 } else {
-                    IconButton(
-                        onClick = onFavoriteToggle,
-                        modifier = Modifier.size(40.dp)
-                    ) {
+                    IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Preferito",
+                            contentDescription = null,
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -716,20 +582,10 @@ class ChannelsActivity : ComponentActivity() {
         return url.startsWith("http://") || url.startsWith("https://")
     }
 
-    /**
-     * Estrae l'ID nativo rimuovendo il prefisso 'ch_index_' inserito per Room.
-     */
     private fun extractRawId(safeId: String): String {
-        return if (safeId.startsWith("ch_")) {
-            safeId.substringAfterLast("_")
-        } else {
-            safeId
-        }
+        return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
 
-    /**
-     * Recupera i dati EPG gestendo sia la modalità Stalker/MAC sia la modalità Xtream.
-     */
     private suspend fun fetchUnifiedEpgData(
         server: String,
         username: String,
@@ -738,99 +594,124 @@ class ChannelsActivity : ComponentActivity() {
         isStalker: Boolean,
         userAgent: String?,
         channels: List<Channel>,
+        offsetHours: Int,
         onUpdate: (Map<String, EpgInfo>) -> Unit
     ) {
         withContext(Dispatchers.IO) {
             val resultMap = mutableMapOf<String, EpgInfo>()
-
             try {
                 if (isStalker && macAddress.isNotBlank()) {
-                    // --- MODALITÀ STALKER / MAG ---
                     val cleanServer = server.trimEnd('/')
-                    val stalkerEpgUrl = "$cleanServer/server/load.php?type=itv&action=get_epg_info&mac=$macAddress"
-
-                    val request = Request.Builder()
-                        .url(stalkerEpgUrl)
-                        .header("User-Agent", userAgent ?: "MAG250")
-                        .header("Cookie", "mac=$macAddress")
-                        .build()
-
+                    val url = "$cleanServer/server/load.php?type=itv&action=get_epg_info&mac=$macAddress"
+                    val request = Request.Builder().url(url).header("User-Agent", userAgent ?: "MAG250").header("Cookie", "mac=$macAddress").build()
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
-                        val responseBody = response.body?.string() ?: ""
-                        if (responseBody.isNotBlank()) {
-                            val jsonRoot = JSONObject(responseBody)
+                        val body = response.body?.string() ?: ""
+                        if (body.isNotBlank()) {
+                            val jsonRoot = JSONObject(body)
                             val jsObj = jsonRoot.optJSONObject("js")
                             val dataObj = jsObj?.optJSONObject("data") ?: jsonRoot.optJSONObject("js")
+                            val nowSec = System.currentTimeMillis() / 1000
 
                             dataObj?.keys()?.forEach { chId ->
-                                val channelEpgArray = dataObj.optJSONArray(chId)
-                                if (channelEpgArray != null && channelEpgArray.length() > 0) {
-                                    val firstProg = channelEpgArray.getJSONObject(0)
-                                    val title = firstProg.optString("name", firstProg.optString("t_time", ""))
-                                    
-                                    val nextTitle = if (channelEpgArray.length() > 1) {
-                                        channelEpgArray.getJSONObject(1).optString("name", "")
-                                    } else ""
-
-                                    if (title.isNotBlank()) {
-                                        val info = EpgInfo(
-                                            currentProgram = cleanHtmlIfNeeded(title),
-                                            nextProgram = cleanHtmlIfNeeded(nextTitle)
-                                        )
-                                        resultMap[chId] = info
+                                val arr = dataObj.optJSONArray(chId)
+                                if (arr != null && arr.length() > 0) {
+                                    var currentTitle = ""
+                                    var nextTitle = ""
+                                    for (i in 0 until arr.length()) {
+                                        val prog = arr.getJSONObject(i)
+                                        val start = parseStalkerTimestamp(prog.optString("time", "")) ?: prog.optLong("start_timestamp", 0L)
+                                        val stop = parseStalkerTimestamp(prog.optString("time_to", "")) ?: prog.optLong("stop_timestamp", 0L)
+                                        if (start > 0 && stop > 0) {
+                                            if (nowSec in start..stop) {
+                                                currentTitle = prog.optString("name", "")
+                                                if (i + 1 < arr.length()) nextTitle = arr.getJSONObject(i + 1).optString("name", "")
+                                                break
+                                            }
+                                        }
+                                    }
+                                    if (currentTitle.isBlank() && arr.length() > 0) {
+                                        currentTitle = arr.getJSONObject(0).optString("name", "")
+                                        if (arr.length() > 1) nextTitle = arr.getJSONObject(1).optString("name", "")
+                                    }
+                                    if (currentTitle.isNotBlank()) {
+                                        resultMap[chId] = EpgInfo(cleanHtmlIfNeeded(currentTitle), cleanHtmlIfNeeded(nextTitle))
                                     }
                                 }
                             }
                         }
                     }
                 } else if (username.isNotBlank() && password.isNotBlank()) {
-                    // --- MODALITÀ XTREAM ---
                     val cleanServer = server.trimEnd('/')
-                    val epgUrl = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
-
-                    val request = Request.Builder()
-                        .url(epgUrl)
-                        .header("User-Agent", userAgent ?: "PortalStreamPro/1.0")
-                        .build()
-
+                    val url = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
+                    val request = Request.Builder().url(url).header("User-Agent", userAgent ?: "PortalStreamPro/1.0").build()
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
-                        val responseBody = response.body?.string() ?: ""
-                        if (responseBody.isNotBlank()) {
-                            val jsonArray = JSONArray(responseBody)
+                        val body = response.body?.string() ?: ""
+                        if (body.isNotBlank()) {
+                            val jsonArray = JSONArray(body)
                             for (i in 0 until jsonArray.length()) {
                                 val obj = jsonArray.getJSONObject(i)
                                 val streamId = obj.optString("stream_id", "")
-                                val nowPlaying = obj.optJSONObject("epg_now")?.optString("title", null)
-                                val nextPlaying = obj.optJSONObject("epg_next")?.optString("title", null)
-                                val timeshift = obj.optInt("timeshift_available_hours", 0) / 24
+                                val epgNow = obj.optJSONObject("epg_now")
+                                val epgNext = obj.optJSONObject("epg_next")
+                                val nowPlaying = epgNow?.optString("title", null)
+                                val nextPlaying = epgNext?.optString("title", null)
 
-                                if (streamId.isNotBlank() && !nowPlaying.isNullOrBlank()) {
-                                    resultMap[streamId] = EpgInfo(
-                                        currentProgram = cleanHtmlIfNeeded(nowPlaying),
-                                        nextProgram = if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "",
-                                        timeshift = timeshift
-                                    )
+                                val formattedCurrent = if (!nowPlaying.isNullOrBlank()) {
+                                    val startFormatted = formatEpgTime(epgNow.optString("start", ""), epgNow.optLong("start_timestamp", 0L), offsetHours)
+                                    if (startFormatted.isNotBlank()) "[$startFormatted] $nowPlaying" else nowPlaying
+                                } else null
+
+                                if (streamId.isNotBlank() && !formattedCurrent.isNullOrBlank()) {
+                                    resultMap[streamId] = EpgInfo(cleanHtmlIfNeeded(formattedCurrent), if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "")
                                 }
                             }
                         }
                     }
                 }
 
-                // Mappatura extra per collegare gli ID originali salvati agli ID del database (es: ch_0_1234)
                 channels.forEach { ch ->
                     val rawId = extractRawId(ch.id)
                     val info = resultMap[rawId]
-                    if (info != null) {
-                        resultMap[ch.id] = info
-                    }
+                    if (info != null) resultMap[ch.id] = info
                 }
 
                 onUpdate(resultMap)
-            } catch (e: Exception) {
-                Log.w("ChannelsActivity", "Errore nel caricamento EPG: ${e.localizedMessage}")
-            }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun formatEpgTime(timeStr: String, timestampSec: Long, offsetHours: Int): String {
+        return try {
+            val adjustedTimestamp = if (timestampSec > 0) timestampSec + (offsetHours * 3600L) else 0L
+            if (adjustedTimestamp > 0) {
+                val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+                sdf.timeZone = TimeZone.getDefault()
+                sdf.format(Date(adjustedTimestamp * 1000))
+            } else if (timeStr.isNotBlank()) {
+                val inputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                inputFormat.timeZone = TimeZone.getTimeZone("UTC")
+                val date = inputFormat.parse(timeStr)
+                if (date != null) {
+                    val adjustedDate = Date(date.time + (offsetHours * 3600000L))
+                    val outputFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                    outputFormat.timeZone = TimeZone.getDefault()
+                    outputFormat.format(adjustedDate)
+                } else ""
+            } else ""
+        } catch (_: Exception) { "" }
+    }
+
+    private fun parseStalkerTimestamp(timeStr: String): Long? {
+        if (timeStr.isBlank()) return null
+        return try {
+            val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            format.timeZone = TimeZone.getTimeZone("UTC")
+            val date = format.parse(timeStr)
+            date?.time?.div(1000)
+        } catch (_: Exception) {
+            timeStr.toLongOrNull()
         }
     }
 
@@ -854,3 +735,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+      
