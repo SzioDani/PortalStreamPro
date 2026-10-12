@@ -42,26 +42,27 @@ class TorrentStreamManager(private val context: Context) {
                         val handle = (alert as org.libtorrent4j.alerts.AddTorrentAlert).handle()
                         activeTorrentHandle = handle
 
-                        // In libtorrent4j 2.x la gestione dei file avviene via priorità dei pezzi
-                        val fi = handle.torrentFile()
-                        if (fi != null && fi.numFiles() > 0) {
-                            var largestFileIndex = 0
-                            var maxSz = 0L
-                            for (i in 0 until fi.numFiles()) {
-                                val sz = fi.fileSize(i)
-                                if (sz > maxSz) {
-                                    maxSz = sz
-                                    largestFileIndex = i
+                        if (handle.isValid) {
+                            val ti = handle.torrentFile()
+                            if (ti != null && ti.numFiles() > 0) {
+                                var largestFileIndex = 0
+                                var maxSz = 0L
+                                for (i in 0 until ti.numFiles()) {
+                                    val sz = ti.fileSize(i)
+                                    if (sz > maxSz) {
+                                        maxSz = sz
+                                        largestFileIndex = i
+                                    }
                                 }
-                            }
-                            val priorities = arrayOfNulls<Priority>(fi.numFiles())
-                            for (i in priorities.indices) {
-                                priorities[i] = if (i == largestFileIndex) Priority.DEFAULT else Priority.IGNORE
-                            }
-                            handle.prioritizeFiles(priorities)
+                                val priorities = arrayOfNulls<Priority>(ti.numFiles())
+                                for (i in priorities.indices) {
+                                    priorities[i] = if (i == largestFileIndex) Priority.DEFAULT else Priority.IGNORE
+                                }
+                                handle.prioritizeFiles(priorities)
 
-                            val relativePath = fi.filePath(largestFileIndex)
-                            videoFile = File(saveDir, relativePath)
+                                val relativePath = ti.filePath(largestFileIndex)
+                                videoFile = File(saveDir, relativePath)
+                            }
                         }
                     }
 
