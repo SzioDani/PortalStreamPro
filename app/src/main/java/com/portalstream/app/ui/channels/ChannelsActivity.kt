@@ -481,7 +481,7 @@ class ChannelsActivity : ComponentActivity() {
                                                             torrentManager.prepareStream(
                                                                 magnetUri = parsedMagnetUri,
                                                                 onReady = { localStreamUrl ->
-                                                                    withContext(Dispatchers.Main) {
+                                                                    scope.launch(Dispatchers.Main) {
                                                                         val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
                                                                             putExtra(PlayerActivity.EXTRA_STREAM_URL, localStreamUrl)
                                                                             putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
@@ -491,7 +491,7 @@ class ChannelsActivity : ComponentActivity() {
                                                                     }
                                                                 },
                                                                 onError = { errorMsg ->
-                                                                    withContext(Dispatchers.Main) {
+                                                                    scope.launch(Dispatchers.Main) {
                                                                         Toast.makeText(this@ChannelsActivity, "❌ Errore Torrent: $errorMsg", Toast.LENGTH_LONG).show()
                                                                     }
                                                                 }
