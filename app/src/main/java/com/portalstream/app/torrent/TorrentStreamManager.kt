@@ -2,10 +2,7 @@ package com.portalstream.app.torrent
 
 import android.content.Context
 import android.util.Log
-import org.libtorrent4j.AlertListener
 import org.libtorrent4j.SessionManager
-import org.libtorrent4j.TorrentHandle
-import org.libtorrent4j.alerts.Alert
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -14,7 +11,6 @@ class TorrentStreamManager(private val context: Context) {
 
     private val TAG = "TorrentStreamManager"
     private val sessionManager = SessionManager()
-    private var activeTorrentHandle: TorrentHandle? = null
 
     fun startSession() {
         if (!sessionManager.isRunning) {
@@ -32,25 +28,22 @@ class TorrentStreamManager(private val context: Context) {
             val latch = CountDownLatch(1)
             var videoFile: File? = null
 
-            val listener = object : AlertListener {
-                override fun types(): IntArray? = null
+            // Avviamo il download del magnet tramite sessionManager nativo
+            sessionManager.download(magnetUri, saveDir)
 
-                override fun alert(alert: Alert<*>) {
-                    // Controlliamo periodicamente la cartella cache per individuare il file video in scrittura
+            // Thread di monitoraggio della cache per individuare non appena il file video è disponibile e in scrittura
+            Thread {
+                var attempts = 0
+                while (attempts < 70 && latch.count > 0) {
+                    Thread.sleep(500)
                     val found = findLargestVideoFile(saveDir)
                     if (found != null && found.length() > 1024 * 256) {
                         videoFile = found
                         latch.countDown()
+                        break
                     }
+                    attempts++
                 }
-            }
-
-            sessionManager.addListener(listener)
-            sessionManager.download(magnetUri, saveDir)
-
-            Thread {
-                val success = latch.await(35, TimeUnit.SECONDS)
-                sessionManager.removeListener(listener)
 
                 val finalFile = videoFile ?: findLargestVideoFile(saveDir)
 
