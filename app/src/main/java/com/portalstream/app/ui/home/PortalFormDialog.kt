@@ -83,6 +83,12 @@ fun AddPortalTypeDialog(
                 ) {
                     Text("XTREAM CODES PORTAL")
                 }
+                TextButton(
+                    onClick = { onSelect(PortalType.TORRENT) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("TORRENT / MAGNET")
+                }
             }
         },
         confirmButton = {},
