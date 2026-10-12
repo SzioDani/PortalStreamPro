@@ -16,7 +16,7 @@ class TorrentStreamManager(private val context: Context) {
 
     private val TAG = "TorrentStreamManager"
     private val sessionManager = SessionManager()
-    private var activeTorrentHandle: TorrentHandle? = function { null } // se serve tenere traccia
+    private var activeTorrentHandle: TorrentHandle? = null
 
     fun startSession() {
         if (!sessionManager.isRunning) {
@@ -24,10 +24,6 @@ class TorrentStreamManager(private val context: Context) {
         }
     }
 
-    /**
-     * Avvia il download sequenziale e restituisce direttamente il path assoluto del file video
-     * locale in scrittura, che ExoPlayer / VLC può aprire in streaming sequenziale.
-     */
     fun prepareStream(magnetUri: String, onReady: (filePath: String) -> Unit, onError: (String) -> Unit) {
         try {
             startSession()
@@ -47,24 +43,25 @@ class TorrentStreamManager(private val context: Context) {
                         activeTorrentHandle = handle
                         handle.setSequentialDownload(true)
 
-                        val wp = handle.torrentFile()
-                        if (wp != null && wp.numFiles() > 0) {
+                        val ti = handle.torrentFile()
+                        if (ti != null && ti.numFiles() > 0) {
                             var largestFileIndex = 0
                             var maxSz = 0L
-                            for (i in 0 until wp.numFiles()) {
-                                val sz = wp.fileSize(i)
+                            val files = ti.files()
+                            for (i in 0 until files.numFiles()) {
+                                val sz = files.fileSize(i)
                                 if (sz > maxSz) {
                                     maxSz = sz
                                     largestFileIndex = i
                                 }
                             }
-                            val priorities = arrayOfNulls<Priority>(wp.numFiles())
+                            val priorities = arrayOfNulls<Priority>(files.numFiles())
                             for (i in priorities.indices) {
                                 priorities[i] = if (i == largestFileIndex) Priority.DEFAULT else Priority.IGNORE
                             }
                             handle.prioritizeFiles(priorities)
 
-                            val relativePath = wp.filePath(largestFileIndex)
+                            val relativePath = files.filePath(largestFileIndex)
                             videoFile = File(saveDir, relativePath)
                         }
                     }
@@ -85,7 +82,6 @@ class TorrentStreamManager(private val context: Context) {
                 sessionManager.removeListener(listener)
 
                 if (videoFile != null) {
-                    // Restituisce direttamente il path del file locale in scrittura (es. file:///...)
                     onReady(videoFile!!.absolutePath)
                 } else {
                     onError("Timeout nel recupero dei metadati del torrent o peer non trovati.")
