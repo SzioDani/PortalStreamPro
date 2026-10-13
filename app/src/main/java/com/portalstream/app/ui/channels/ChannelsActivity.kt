@@ -141,24 +141,23 @@ class ChannelsActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             channelDao.clearAll()
-                            Log.d(TAG, "Inizio caricamento. Tipo portale: $portalType, URL: $portalUrl")
+                            Log.d(TAG, "Inizio caricamento. Tipo portale: $portalType, URL: $portalUrl, Titolo: $title")
 
-                            // 1. Controlliamo se è un portale Torrent o se l'URL è un Magnet / InfoHash
-                            val parsedTorrent = TorrentUtils.parseToMagnetUri(portalUrl)
-                            
-                            if (portalType.equals("TORRENT", ignoreCase = true) || parsedTorrent != null) {
-                                // Creiamo un canale virtuale fittizio che punta direttamente al magnet/torrent
-                                val magnetUri = parsedTorrent ?: portalUrl
-                                val torrentChannel = Channel(
-                                    id = "torrent_item_1",
-                                    name = title.ifBlank { "Streaming Torrent" },
-                                    url = magnetUri,
-                                    group = "Torrent",
+                            // 1. Controlliamo se è un portale Torrent o se l'URL è un Magnet / InfoHash     
+                            val directMagnet = TorrentUtils.parseToMagnetUri(portalUrl) ?: TorrentUtils.parseToMagnetUri(title)
+                            if (directMagnet != null || portalType.equals("TORRENT", ignoreCase = true)) {
+                                val torrentUrl = directMagnet ?: portalUrl
+                                val directChannel = Channel(
+                                    id = "torrent_direct_${torrentUrl.hashCode()}",
+                                    name = if (title != "Canali" && title.isNotBlank()) title else "Stream Torrent Diretto",
+                                    url = torrentUrl,
+                                    group = "Torrent Diretti",   
                                     logoUrl = null,
                                     epgId = null
                                 )
-                                channelDao.insertChannels(listOf(torrentChannel))
+                                channelDao.insertChannels(listOf(directChannel))
                                 withContext(Dispatchers.Main) {
+                             
                                     isLoading = false
                                 }
                                 return@withContext
