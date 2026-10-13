@@ -1,6 +1,8 @@
 package com.portalstream.app.ui.home
 
 import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,6 +36,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
+import com.portalstream.app.torrent.TorrentUtils
+import com.portalstream.app.torrent.TorrentStreamManager
+import com.portalstream.app.ui.player.PlayerActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 private data class UaPreset(val label: String, val value: String)
@@ -64,7 +72,7 @@ fun AddPortalTypeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Aggiungi playlist") },
+        title = { Text("Aggiungi playlist o flusso") },
         text = {
             Column {
                 TextButton(
@@ -89,11 +97,83 @@ fun AddPortalTypeDialog(
                     onClick = { onSelect(PortalType.TORRENT) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("TORRENT / MAGNET")
+                    Text("TORRENT / MAGNET (DIRETTO)")
                 }
             }
         },
         confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annulla") }
+        }
+    )
+}
+
+/**
+ * Dialog di riproduzione immediata per Torrent e Magnet:
+ * Nessun salvataggio in rubrica/database, avvio diretto del flusso P2P.
+ */
+@Composable
+fun TorrentDirectPlayDialog(
+    onDismiss: () -> Unit
+) {
+    var magnetInput by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Riproduci Torrent / Magnet") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = magnetInput,
+                    onValueChange = { magnetInput = it },
+                    label = { Text("Incolla qui Magnet link o InfoHash") },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(fontSize = 13.sp),
+                    maxLines = 3
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Il flusso partirà immediatamente in streaming sequenziale senza essere salvato.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val rawSource = magnetInput.trim()
+                    if (rawSource.isNotBlank()) {
+                        val parsedMagnetUri = TorrentUtils.parseToMagnetUri(rawSource)
+                        if (parsedMagnetUri != null) {
+                            Toast.makeText(context, "🔄 Avvio streaming torrent...", Toast.LENGTH_SHORT).show()
+                            
+                            val torrentManager = TorrentStreamManager(context)
+                            torrentManager.prepareStream(
+                                magnetUri = parsedMagnetUri,
+                                onReady = { localStreamUrl ->
+                                    val intent = Intent(context, PlayerActivity::class.java).apply {
+                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, localStreamUrl)
+                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, "Streaming Torrent Diretto")
+                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, "PortalStreamPro")
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                onError = { errorMsg ->
+                                    Toast.makeText(context, "❌ Errore Torrent: $errorMsg", Toast.LENGTH_LONG).show()
+                                }
+                            )
+                            onDismiss()
+                        } else {
+                            Toast.makeText(context, "❌ Magnet o InfoHash non valido", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            ) {
+                Text("Riproduci")
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Annulla") }
         }
@@ -127,7 +207,6 @@ fun PortalFormDialog(
         PortalType.M3U -> "File o Link Playlist"
         PortalType.MAG -> "MAG Portale"
         PortalType.XSTREAM -> "Xtream Codes Portal"
-        PortalType.TORRENT -> "Torrent / Magnet"
         else -> "Portale"
     }
 
@@ -139,7 +218,7 @@ fun PortalFormDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nome Elemento (opzionale)") },
+                    label = { Text("Nome Playlist (opzionale)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -159,23 +238,6 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = onPickFile) {
                                 Text("Sfoglia file")
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    PortalType.TORRENT -> {
-                        OutlinedTextField(
-                            value = url,
-                            onValueChange = { url = it },
-                            label = { Text("Magnet link o infohash") },
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
-                            maxLines = 3
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Row {
-                            OutlinedButton(onClick = onPickFile) {
-                                Text("Sfoglia file .torrent")
                             }
                         }
                         Spacer(Modifier.height(4.dp))
