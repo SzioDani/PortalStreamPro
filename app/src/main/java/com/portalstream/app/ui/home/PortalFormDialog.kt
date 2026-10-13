@@ -160,16 +160,21 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    val clipData = clipboardManager.primaryClip
-                                    if (clipData != null && clipData.itemCount > 0) {
-                                        val pastedText = clipData.getItemAt(0).text?.toString()
-                                        if (!pastedText.isNullOrBlank()) {
-                                            url = pastedText.trim()
+                                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                                    val clipboardManager = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    
+                                    if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
+                                        val clipData = clipboardManager.primaryClip
+                                        if (clipData != null && clipData.itemCount > 0) {
+                                            val item = clipData.getItemAt(0)
+                                            val pastedText = item.coerceToText(ctx)?.toString()
+                                            if (!pastedText.isNullOrBlank()) {
+                                                url = pastedText.trim()
+                                            }
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    Timber.e(e, "Errore lettura appunti nativa")
+                                    Timber.e(e, "Accesso agli appunti non consentito o fallito")
                                 }
                             }) {
                                 Text("Incolla")
@@ -194,16 +199,21 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    val clipData = clipboardManager.primaryClip
-                                    if (clipData != null && clipData.itemCount > 0) {
-                                        val pastedText = clipData.getItemAt(0).text?.toString()
-                                        if (!pastedText.isNullOrBlank()) {
-                                            url = pastedText.trim()
+                                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                                    val clipboardManager = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    
+                                    if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
+                                        val clipData = clipboardManager.primaryClip
+                                        if (clipData != null && clipData.itemCount > 0) {
+                                            val item = clipData.getItemAt(0)
+                                            val pastedText = item.coerceToText(ctx)?.toString()
+                                            if (!pastedText.isNullOrBlank()) {
+                                                url = pastedText.trim()
+                                            }
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    Timber.e(e, "Errore lettura appunti nativa")
+                                    Timber.e(e, "Accesso agli appunti non consentito o fallito")
                                 }
                             }) {
                                 Text("Incolla")
