@@ -122,9 +122,6 @@ fun PortalFormDialog(
     var useCustomUa by remember { mutableStateOf(existing?.useCustomUserAgent ?: false) }
     var userAgent by remember { mutableStateOf(existing?.userAgent ?: "") }
     var uaMenu by remember { mutableStateOf(false) }
-    
-    // Contesto recuperato in modo sicuro all'esterno dei blocchi try-catch e delle lambda dei bottoni
-    val context = LocalContext.current
 
     val title = when (type) {
         PortalType.M3U -> "File o Link Playlist"
@@ -142,7 +139,7 @@ fun PortalFormDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nome Playlist (opzionale)") },
+                    label = { Text("Nome Elemento (opzionale)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -160,26 +157,6 @@ fun PortalFormDialog(
                         )
                         Spacer(Modifier.height(4.dp))
                         Row {
-                            OutlinedButton(onClick = {
-                                try {
-                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                    if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
-                                        val clipData = clipboardManager.primaryClip
-                                        if (clipData != null && clipData.itemCount > 0) {
-                                            val item = clipData.getItemAt(0)
-                                            val pastedText = item.coerceToText(context)?.toString()
-                                            if (!pastedText.isNullOrBlank()) {
-                                                url = pastedText.trim()
-                                            }
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Timber.e(e, "Accesso agli appunti non consentito o fallito")
-                                }
-                            }) {
-                                Text("Incolla")
-                            }
-                            Spacer(Modifier.width(8.dp))
                             OutlinedButton(onClick = onPickFile) {
                                 Text("Sfoglia file")
                             }
@@ -197,26 +174,6 @@ fun PortalFormDialog(
                         )
                         Spacer(Modifier.height(4.dp))
                         Row {
-                            OutlinedButton(onClick = {
-                                try {
-                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                    if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
-                                        val clipData = clipboardManager.primaryClip
-                                        if (clipData != null && clipData.itemCount > 0) {
-                                            val item = clipData.getItemAt(0)
-                                            val pastedText = item.coerceToText(context)?.toString()
-                                            if (!pastedText.isNullOrBlank()) {
-                                                url = pastedText.trim()
-                                            }
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Timber.e(e, "Accesso agli appunti non consentito o fallito")
-                                }
-                            }) {
-                                Text("Incolla")
-                            }
-                            Spacer(Modifier.width(8.dp))
                             OutlinedButton(onClick = onPickFile) {
                                 Text("Sfoglia file .torrent")
                             }
