@@ -142,25 +142,29 @@ class ChannelsActivity : ComponentActivity() {
                         try {
                             channelDao.clearAll()
                             Log.d(TAG, "Inizio caricamento. Tipo portale: $portalType, URL: $portalUrl")
-                            
 
-                           val parsedTorrent = TorrentUtils.parseToMagnetUri(portalUrl)
-                             if (portalType.equals("TORRENT", ignoreCase = true) || parsedTorrent != null) {
-                                 val magnetUri = parsedTorrent ?: portalUrl
-                                 val torrentChannel = Channel(
-                                     id = "torrent_item_1",
-                                     name = title.ifBlank { "Streaming Torrent" },
-                                     url = magnetUri,
-                                     group = "Torrent",
-                                     logoUrl = null,
-                                     epgId = null
-                                   )
-                                   channelDao.insertChannels(listOf(torrentChannel))
-                                   withContext(Dispatchers.Main) {
-                                       isLoading = false
-                                    }
-                                    return@withContext
+                            // 1. Controlliamo se è un portale Torrent o se l'URL è un Magnet / InfoHash
+                            val parsedTorrent = TorrentUtils.parseToMagnetUri(portalUrl)
+                            
+                            if (portalType.equals("TORRENT", ignoreCase = true) || parsedTorrent != null) {
+                                // Creiamo un canale virtuale fittizio che punta direttamente al magnet/torrent
+                                val magnetUri = parsedTorrent ?: portalUrl
+                                val torrentChannel = Channel(
+                                    id = "torrent_item_1",
+                                    name = title.ifBlank { "Streaming Torrent" },
+                                    url = magnetUri,
+                                    group = "Torrent",
+                                    logoUrl = null,
+                                    epgId = null
+                                )
+                                channelDao.insertChannels(listOf(torrentChannel))
+                                withContext(Dispatchers.Main) {
+                                    isLoading = false
+                                }
+                                return@withContext
                             }
+
+                            // 2. LOGICA ESISTENTE PER GLI ALTRI PORTALI (M3U, Xtream, Stalker)
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
@@ -327,7 +331,7 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
                                     placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodyMedium) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                    trailingIcon = {
+                                     trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
                                             IconButton(onClick = { groupSearchQuery = "" }) {
                                                 Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
@@ -614,7 +618,8 @@ class ChannelsActivity : ComponentActivity() {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 } else {
-                    Icon(
+                    IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(40.dp)) {
+                        Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
