@@ -1,5 +1,6 @@
 package com.portalstream.app.ui.home
 
+import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -121,7 +122,7 @@ fun PortalFormDialog(
     var useCustomUa by remember { mutableStateOf(existing?.useCustomUserAgent ?: false) }
     var userAgent by remember { mutableStateOf(existing?.userAgent ?: "") }
     var uaMenu by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
     val title = when (type) {
         PortalType.M3U -> "File o Link Playlist"
@@ -159,12 +160,16 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val clipText = clipboard.getText()?.text
-                                    if (!clipText.isNullOrBlank()) {
-                                        url = clipText
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clipData = clipboardManager.primaryClip
+                                    if (clipData != null && clipData.itemCount > 0) {
+                                        val pastedText = clipData.getItemAt(0).text?.toString()
+                                        if (!pastedText.isNullOrBlank()) {
+                                            url = pastedText.trim()
+                                        }
                                     }
                                 } catch (e: Exception) {
-                                    Timber.e(e, "Impossibile leggere dagli appunti")
+                                    Timber.e(e, "Errore lettura appunti nativa")
                                 }
                             }) {
                                 Text("Incolla")
@@ -189,12 +194,16 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val clipText = clipboard.getText()?.text
-                                    if (!clipText.isNullOrBlank()) {
-                                        url = clipText
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clipData = clipboardManager.primaryClip
+                                    if (clipData != null && clipData.itemCount > 0) {
+                                        val pastedText = clipData.getItemAt(0).text?.toString()
+                                        if (!pastedText.isNullOrBlank()) {
+                                            url = pastedText.trim()
+                                        }
                                     }
                                 } catch (e: Exception) {
-                                    Timber.e(e, "Impossibile leggere dagli appunti")
+                                    Timber.e(e, "Errore lettura appunti nativa")
                                 }
                             }) {
                                 Text("Incolla")
