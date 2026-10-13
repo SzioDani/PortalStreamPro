@@ -3,6 +3,8 @@ package com.portalstream.app.ui.home
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,10 +41,7 @@ import com.portalstream.app.data.PortalType
 import com.portalstream.app.torrent.TorrentUtils
 import com.portalstream.app.torrent.TorrentStreamManager
 import com.portalstream.app.ui.player.PlayerActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import timber.log.Timber
+import java.io.File
 
 private data class UaPreset(val label: String, val value: String)
 
@@ -110,7 +109,7 @@ fun AddPortalTypeDialog(
 
 /**
  * Dialog di riproduzione immediata per Torrent e Magnet:
- * Nessun salvataggio in rubrica/database, avvio diretto del flusso P2P.
+ * Protetto contro i crash, con supporto per incolla manuale e selezione file .torrent locale.
  */
 @Composable
 fun TorrentDirectPlayDialog(
@@ -119,19 +118,48 @@ fun TorrentDirectPlayDialog(
     var magnetInput by remember { mutableStateOf("") }
     val context = LocalContext.current
 
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bytes = inputStream?.readBytes()
+                inputStream?.close()
+
+                if (bytes != null) {
+                    val tempFile = File(context.cacheDir, "imported.torrent")
+                    tempFile.writeBytes(bytes)
+                    magnetInput = tempFile.absolutePath
+                    Toast.makeText(context, "📁 File .torrent caricato", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "❌ Errore lettura file: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Riproduci Torrent / Magnet") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = magnetInput,
                     onValueChange = { magnetInput = it },
-                    label = { Text("Incolla qui Magnet link o InfoHash") },
+                    label = { Text("Magnet link o InfoHash") },
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = TextStyle(fontSize = 13.sp),
-                    maxLines = 3
+                    maxLines = 3,
+                    singleLine = false
                 )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { filePickerLauncher.launch("*/*") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("📂 Sfoglia file .torrent locale")
+                }
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Il flusso partirà immediatamente in streaming sequenziale senza essere salvato.",
@@ -143,31 +171,35 @@ fun TorrentDirectPlayDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val rawSource = magnetInput.trim()
-                    if (rawSource.isNotBlank()) {
-                        val parsedMagnetUri = TorrentUtils.parseToMagnetUri(rawSource)
-                        if (parsedMagnetUri != null) {
-                            Toast.makeText(context, "🔄 Avvio streaming torrent...", Toast.LENGTH_SHORT).show()
-                            
-                            val torrentManager = TorrentStreamManager(context)
-                            torrentManager.prepareStream(
-                                magnetUri = parsedMagnetUri,
-                                onReady = { localStreamUrl ->
-                                    val intent = Intent(context, PlayerActivity::class.java).apply {
-                                        putExtra(PlayerActivity.EXTRA_STREAM_URL, localStreamUrl)
-                                        putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, "Streaming Torrent Diretto")
-                                        putExtra(PlayerActivity.EXTRA_USER_AGENT, "PortalStreamPro")
+                    try {
+                        val rawSource = magnetInput.trim()
+                        if (rawSource.isNotBlank()) {
+                            val parsedMagnetUri = TorrentUtils.parseToMagnetUri(rawSource)
+                            if (parsedMagnetUri != null) {
+                                Toast.makeText(context, "🔄 Avvio streaming torrent...", Toast.LENGTH_SHORT).show()
+                                
+                                val torrentManager = TorrentStreamManager(context)
+                                torrentManager.prepareStream(
+                                    magnetUri = parsedMagnetUri,
+                                    onReady = { localStreamUrl ->
+                                        val intent = Intent(context, PlayerActivity::class.java).apply {
+                                            putExtra(PlayerActivity.EXTRA_STREAM_URL, localStreamUrl)
+                                            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, "Streaming Torrent Diretto")
+                                            putExtra(PlayerActivity.EXTRA_USER_AGENT, "PortalStreamPro")
+                                        }
+                                        context.startActivity(intent)
+                                    },
+                                    onError = { errorMsg ->
+                                        Toast.makeText(context, "❌ Errore Torrent: $errorMsg", Toast.LENGTH_LONG).show()
                                     }
-                                    context.startActivity(intent)
-                                },
-                                onError = { errorMsg ->
-                                    Toast.makeText(context, "❌ Errore Torrent: $errorMsg", Toast.LENGTH_LONG).show()
-                                }
-                            )
-                            onDismiss()
-                        } else {
-                            Toast.makeText(context, "❌ Magnet o InfoHash non valido", Toast.LENGTH_SHORT).show()
+                                )
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "❌ Magnet o InfoHash non valido", Toast.LENGTH_SHORT).show()
+                            }
                         }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "❌ Errore input: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                     }
                 }
             ) {
