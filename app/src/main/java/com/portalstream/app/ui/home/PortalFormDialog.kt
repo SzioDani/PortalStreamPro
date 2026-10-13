@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
+import timber.log.Timber
 
 private data class UaPreset(val label: String, val value: String)
 
@@ -157,7 +158,14 @@ fun PortalFormDialog(
                         Spacer(Modifier.height(4.dp))
                         Row {
                             OutlinedButton(onClick = {
-                                clipboard.getText()?.text?.let { url = it }
+                                try {
+                                    val clipText = clipboard.getText()?.text
+                                    if (!clipText.isNullOrBlank()) {
+                                        url = clipText
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.e(e, "Impossibile leggere dagli appunti")
+                                }
                             }) {
                                 Text("Incolla")
                             }
@@ -180,7 +188,14 @@ fun PortalFormDialog(
                         Spacer(Modifier.height(4.dp))
                         Row {
                             OutlinedButton(onClick = {
-                                clipboard.getText()?.text?.let { url = it }
+                                try {
+                                    val clipText = clipboard.getText()?.text
+                                    if (!clipText.isNullOrBlank()) {
+                                        url = clipText
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.e(e, "Impossibile leggere dagli appunti")
+                                }
                             }) {
                                 Text("Incolla")
                             }
