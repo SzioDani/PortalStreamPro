@@ -141,8 +141,26 @@ class ChannelsActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             channelDao.clearAll()
-                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
+                            Log.d(TAG, "Inizio caricamento. Tipo portale: $portalType, URL: $portalUrl")
+                            
 
+                           val parsedTorrent = TorrentUtils.parseToMagnetUri(portalUrl)
+                             if (portalType.equals("TORRENT", ignoreCase = true) || parsedTorrent != null) {
+                                 val magnetUri = parsedTorrent ?: portalUrl
+                                 val torrentChannel = Channel(
+                                     id = "torrent_item_1",
+                                     name = title.ifBlank { "Streaming Torrent" },
+                                     url = magnetUri,
+                                     group = "Torrent",
+                                     logoUrl = null,
+                                     epgId = null
+                                   )
+                                   channelDao.insertChannels(listOf(torrentChannel))
+                                   withContext(Dispatchers.Main) {
+                                       isLoading = false
+                                    }
+                                    return@withContext
+                            }
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
@@ -596,8 +614,7 @@ class ChannelsActivity : ComponentActivity() {
                 if (isLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 } else {
-                    IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(40.dp)) {
-                        Icon(
+                    Icon(
                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
