@@ -122,6 +122,8 @@ fun PortalFormDialog(
     var useCustomUa by remember { mutableStateOf(existing?.useCustomUserAgent ?: false) }
     var userAgent by remember { mutableStateOf(existing?.userAgent ?: "") }
     var uaMenu by remember { mutableStateOf(false) }
+    
+    // Contesto recuperato in modo sicuro all'esterno dei blocchi try-catch e delle lambda dei bottoni
     val context = LocalContext.current
 
     val title = when (type) {
@@ -160,14 +162,12 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val ctx = androidx.compose.ui.platform.LocalContext.current
-                                    val clipboardManager = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                    
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                     if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
                                         val clipData = clipboardManager.primaryClip
                                         if (clipData != null && clipData.itemCount > 0) {
                                             val item = clipData.getItemAt(0)
-                                            val pastedText = item.coerceToText(ctx)?.toString()
+                                            val pastedText = item.coerceToText(context)?.toString()
                                             if (!pastedText.isNullOrBlank()) {
                                                 url = pastedText.trim()
                                             }
@@ -199,14 +199,12 @@ fun PortalFormDialog(
                         Row {
                             OutlinedButton(onClick = {
                                 try {
-                                    val ctx = androidx.compose.ui.platform.LocalContext.current
-                                    val clipboardManager = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                    
+                                    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                     if (clipboardManager != null && clipboardManager.hasPrimaryClip()) {
                                         val clipData = clipboardManager.primaryClip
                                         if (clipData != null && clipData.itemCount > 0) {
                                             val item = clipData.getItemAt(0)
-                                            val pastedText = item.coerceToText(ctx)?.toString()
+                                            val pastedText = item.coerceToText(context)?.toString()
                                             if (!pastedText.isNullOrBlank()) {
                                                 url = pastedText.trim()
                                             }
