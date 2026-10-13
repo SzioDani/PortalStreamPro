@@ -39,6 +39,7 @@ class PortalsActivity : ComponentActivity() {
         var portals by remember { mutableStateOf(store.load()) }
         var showTypeChooser by remember { mutableStateOf(false) }
         var formType by remember { mutableStateOf<PortalType?>(null) }
+        var showTorrentDialog by remember { mutableStateOf(false) } // <-- Stato per il dialog diretto Torrent
         var editing by remember { mutableStateOf<Portal?>(null) }
 
         Column(
@@ -61,7 +62,7 @@ class PortalsActivity : ComponentActivity() {
                 onClick = { showTypeChooser = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("AGGIUNGI PLAYLIST")
+                Text("AGGIUNGI PLAYLIST / FLUSSO")
             }
 
             Spacer(Modifier.height(12.dp))
@@ -133,10 +134,23 @@ class PortalsActivity : ComponentActivity() {
         if (showTypeChooser) {
             AddPortalTypeDialog(
                 onSelect = { type ->
-                    formType = type
                     showTypeChooser = false
+                    if (type == PortalType.TORRENT) {
+                        // Se è Torrent, apriamo direttamente il dialogo di streaming immediato
+                        showTorrentDialog = true
+                    } else {
+                        // Altrimenti apriamo la form classica di salvataggio portale
+                        formType = type
+                    }
                 },
                 onDismiss = { showTypeChooser = false }
+            )
+        }
+
+        // Mostra il dialogo diretto per i Torrent (senza salvare nulla)
+        if (showTorrentDialog) {
+            TorrentDirectPlayDialog(
+                onDismiss = { showTorrentDialog = false }
             )
         }
 
@@ -146,9 +160,7 @@ class PortalsActivity : ComponentActivity() {
                 type = type,
                 onDismiss = { formType = null },
                 onSave = { draft ->
-                    // Mantiene il tipo esplicito scelto dall'utente se non è UNKNOWN
                     val finalType = if (type != PortalType.UNKNOWN) type else PortalType.detect(draft.url)
-
                     store.add(draft.copy(type = finalType))
                     portals = store.load()
                     formType = null
@@ -164,7 +176,6 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { editing = null },
                 onSave = { updated ->
                     val finalType = if (portal.type != PortalType.UNKNOWN) portal.type else PortalType.detect(updated.url)
-
                     store.update(updated.copy(type = finalType))
                     portals = store.load()
                     editing = null
