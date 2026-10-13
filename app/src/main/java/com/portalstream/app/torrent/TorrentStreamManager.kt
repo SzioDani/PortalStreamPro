@@ -25,25 +25,19 @@ class TorrentStreamManager(private val context: Context) {
             val saveDir = File(context.cacheDir, "torrent_cache")
             if (!saveDir.exists()) saveDir.mkdirs()
 
-            // Aggiungiamo il torrent e otteniamo l'handle per configurare il download sequenziale
-            val th = sessionManager.download(magnetUri, saveDir, torrent_flags_t())
-            
-            // Abilita esplicitamente il download sequenziale per lo streaming video
-            if (th != null && th.isValid) {
-                th.setSequentialDownload(true)
-            }
+            // Avvio del download tramite SessionManager standard
+            sessionManager.download(magnetUri, saveDir, torrent_flags_t())
 
             val latch = CountDownLatch(1)
             var videoFile: File? = null
 
-            // Thread di monitoraggio per individuare non appena il file video è disponibile e ha ricevuto i primi byte
+            // Thread di monitoraggio della cache per individuare il file video
             Thread {
                 var attempts = 0
                 while (attempts < 80 && latch.count > 0) {
                     Thread.sleep(500)
                     val found = findLargestVideoFile(saveDir)
-                    // Attendiamo che il file abbia accumulato almeno 1 MB di dati iniziali per garantire la lettura dell'header
-                    if (found != null && found.length() > 1024 * 1024) {
+                    if (found != null && found.length() > 512 * 1024) { // Ridotto a 512 KB per reattività iniziale
                         videoFile = found
                         latch.countDown()
                         break
@@ -56,7 +50,7 @@ class TorrentStreamManager(private val context: Context) {
                 if (finalFile != null && finalFile.length() > 0) {
                     onReady(finalFile.absolutePath)
                 } else {
-                    onError("Timeout nel recupero dei metadati o nessun peer disponibile per il download.")
+                    onError("Timeout nel recupero dei metadati o nessun peer disponibile.")
                 }
             }.start()
 
