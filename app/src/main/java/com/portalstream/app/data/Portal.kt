@@ -4,14 +4,10 @@ enum class PortalType(val label: String) {
     M3U("M3U"),
     XSTREAM("XStream"),
     MAG("MAG/MAC"),
-    TORRENT("Torrent / Magnet"),
     UNKNOWN("Sconosciuto");
 
     companion object {
         fun detect(url: String): PortalType = when {
-            url.startsWith("magnet:?", ignoreCase = true) ||
-                url.endsWith(".torrent") ||
-                (url.length == 32 || url.length == 40) -> TORRENT // Riconosce magnet, file o infohash
             url.contains("player_api.php", ignoreCase = true) ||
                 (url.contains("get.php", ignoreCase = true) && url.contains("username=", ignoreCase = true)) -> XSTREAM
             url.contains("stalker_portal", ignoreCase = true) ||
