@@ -168,6 +168,29 @@ fun PortalFormDialog(
                         }
                         Spacer(Modifier.height(4.dp))
                     }
+                    PortalType.TORRENT -> {
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text("Magnet link o infohash") },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(fontSize = 13.sp),
+                            maxLines = 3
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row {
+                            OutlinedButton(onClick = {
+                                clipboard.getText()?.text?.let { url = it }
+                            }) {
+                                Text("Incolla")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            OutlinedButton(onClick = onPickFile) {
+                                Text("Sfoglia file .torrent")
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
                     PortalType.MAG -> {
                         OutlinedTextField(
                             value = url,
