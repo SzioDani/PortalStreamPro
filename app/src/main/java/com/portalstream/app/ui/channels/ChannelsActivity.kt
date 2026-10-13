@@ -141,29 +141,8 @@ class ChannelsActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             channelDao.clearAll()
-                            Log.d(TAG, "Inizio caricamento. Tipo portale: $portalType, URL: $portalUrl, Titolo: $title")
+                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
 
-                            // 1. Controlliamo se è un portale Torrent o se l'URL è un Magnet / InfoHash     
-                            val directMagnet = TorrentUtils.parseToMagnetUri(portalUrl) ?: TorrentUtils.parseToMagnetUri(title)
-                            if (directMagnet != null || portalType.equals("TORRENT", ignoreCase = true)) {
-                                val torrentUrl = directMagnet ?: portalUrl
-                                val directChannel = Channel(
-                                    id = "torrent_direct_${torrentUrl.hashCode()}",
-                                    name = if (title != "Canali" && title.isNotBlank()) title else "Stream Torrent Diretto",
-                                    url = torrentUrl,
-                                    group = "Torrent Diretti",   
-                                    logoUrl = null,
-                                    epgId = null
-                                )
-                                channelDao.insertChannels(listOf(directChannel))
-                                withContext(Dispatchers.Main) {
-                             
-                                    isLoading = false
-                                }
-                                return@withContext
-                            }
-
-                            // 2. LOGICA ESISTENTE PER GLI ALTRI PORTALI (M3U, Xtream, Stalker)
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
@@ -330,7 +309,7 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
                                     placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodyMedium) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                     trailingIcon = {
+                                    trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
                                             IconButton(onClick = { groupSearchQuery = "" }) {
                                                 Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
