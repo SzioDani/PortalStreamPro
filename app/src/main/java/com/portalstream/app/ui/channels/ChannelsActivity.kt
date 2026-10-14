@@ -37,8 +37,6 @@ import com.portalstream.app.network.PortalException
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
-import com.portalstream.app.torrent.TorrentStreamManager
-import com.portalstream.app.torrent.TorrentUtils
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
@@ -262,6 +260,7 @@ class ChannelsActivity : ComponentActivity() {
                                     Button(onClick = {
                                         epgOffsetHours -= 1
                                         prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
+                                        // Ricarica EPG con il nuovo offset
                                         scope.launch(Dispatchers.IO) {
                                             fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
                                         }
@@ -406,7 +405,7 @@ class ChannelsActivity : ComponentActivity() {
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
 
-                            // Riga dei bottoni di filtro
+                            // Riga dei bottoni di filtro (Preferiti, Gruppi e Pulsante EPG Time a destra)
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -428,6 +427,7 @@ class ChannelsActivity : ComponentActivity() {
                                     leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                 )
 
+                                // Pulsante Fuso Orario EPG posizionato esattamente a destra di Gruppi
                                 FilterChip(
                                     selected = false,
                                     onClick = { showSettingsDialog = true },
@@ -468,68 +468,37 @@ class ChannelsActivity : ComponentActivity() {
                                                 loadingChannelId = channel.id
                                                 scope.launch(Dispatchers.IO) {
                                                     try {
-                                                        // Controllo se il canale/link corrisponde a un Torrent / Magnet / InfoHash
-                                                        val rawSource = channel.url.ifBlank { channel.id }
-                                                        val parsedMagnetUri = TorrentUtils.parseToMagnetUri(rawSource)
+                                                        val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                        val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
 
-                                                        if (parsedMagnetUri != null) {
-                                                            withContext(Dispatchers.Main) {
-                                                                Toast.makeText(this@ChannelsActivity, "🔄 Avvio download sequenziale torrent...", Toast.LENGTH_SHORT).show()
+                                                        val playUrl = when {
+                                                            isStalker || macAddress.isNotBlank() -> {
+                                                                val portalDraft = Portal(
+                                                                    id = 0, server = server, macAddress = macAddress,
+                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                                                )
+                                                                StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
                                                             }
-
-                                                            val torrentManager = TorrentStreamManager(this@ChannelsActivity)
-                                                            torrentManager.prepareStream(
-                                                                magnetUri = parsedMagnetUri,
-                                                                onReady = { localStreamUrl ->
-                                                                    scope.launch(Dispatchers.Main) {
-                                                                        val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                                                            putExtra(PlayerActivity.EXTRA_STREAM_URL, localStreamUrl)
-                                                                            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                                            putExtra(PlayerActivity.EXTRA_USER_AGENT, "PortalStreamPro")
-                                                                        }
-                                                                        startActivity(intent)
-                                                                    }
-                                                                },
-                                                                onError = { errorMsg ->
-                                                                    scope.launch(Dispatchers.Main) {
-                                                                        Toast.makeText(this@ChannelsActivity, "❌ Errore Torrent: $errorMsg", Toast.LENGTH_LONG).show()
-                                                                    }
+                                                            isXtream -> {
+                                                                if (channel.url.startsWith("http")) channel.url
+                                                                else {
+                                                                    val cleanServer = server.trimEnd('/')
+                                                                    val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                    val rawId = extractRawId(channel.id)
+                                                                    "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
                                                                 }
-                                                            )
-                                                        } else {
-                                                            // Logica standard per Stalker, Xtream o M3U
-                                                            val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
-                                                            val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
-
-                                                            val playUrl = when {
-                                                                isStalker || macAddress.isNotBlank() -> {
-                                                                    val portalDraft = Portal(
-                                                                        id = 0, server = server, macAddress = macAddress,
-                                                                        useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                                                    )
-                                                                    StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
-                                                                }
-                                                                isXtream -> {
-                                                                    if (channel.url.startsWith("http")) channel.url
-                                                                    else {
-                                                                        val cleanServer = server.trimEnd('/')
-                                                                        val cleanFormat = if (format.isBlank()) "m3u8" else format
-                                                                        val rawId = extractRawId(channel.id)
-                                                                        "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
-                                                                    }
-                                                                }
-                                                                else -> channel.url
                                                             }
+                                                            else -> channel.url
+                                                        }
 
-                                                            withContext(Dispatchers.Main) {
-                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
-                                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
-                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
-                                                                }
-                                                                startActivity(intent)
+                                                        withContext(Dispatchers.Main) {
+                                                            val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                            val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                                putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                                putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                                putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
                                                             }
+                                                            startActivity(intent)
                                                         }
                                                     } catch (e: Exception) {
                                                         withContext(Dispatchers.Main) {
@@ -766,3 +735,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+            
