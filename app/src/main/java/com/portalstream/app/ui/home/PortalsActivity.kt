@@ -3,19 +3,36 @@ package com.portalstream.app.ui.home
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalStore
 import com.portalstream.app.data.PortalType
+import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.channels.ChannelsActivity
 import timber.log.Timber
 
@@ -26,12 +43,13 @@ class PortalsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PortalStore(this)
-
-        setContent {
-            MaterialTheme {
-                PortalsScreen()
+        setContentView(ComposeView(this).apply {
+            setContent {
+                MaterialTheme {
+                    PortalsScreen()
+                }
             }
-        }
+        })
     }
 
     @Composable
@@ -39,7 +57,6 @@ class PortalsActivity : ComponentActivity() {
         var portals by remember { mutableStateOf(store.load()) }
         var showTypeChooser by remember { mutableStateOf(false) }
         var formType by remember { mutableStateOf<PortalType?>(null) }
-        var showTorrentDialog by remember { mutableStateOf(false) } // <-- Stato per il dialog diretto Torrent
         var editing by remember { mutableStateOf<Portal?>(null) }
 
         Column(
@@ -47,10 +64,7 @@ class PortalsActivity : ComponentActivity() {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(
-                "PortalStream Pro",
-                style = MaterialTheme.typography.headlineSmall
-            )
+            Text("PortalStream Pro", style = MaterialTheme.typography.headlineSmall)
             Text(
                 text = "${portals.size} portali salvati",
                 style = MaterialTheme.typography.bodySmall,
@@ -62,19 +76,18 @@ class PortalsActivity : ComponentActivity() {
                 onClick = { showTypeChooser = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("AGGIUNGI PLAYLIST / FLUSSO")
+                Text("AGGIUNGI PLAYLIST")
             }
-
             Spacer(Modifier.height(12.dp))
 
             if (portals.isEmpty()) {
                 Column {
                     Text(
-                        "Nessun portale salvato.",
+                        text = "Nessun portale salvato.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        "Premi AGGIUNGI PLAYLIST per iniziare.",
+                        text = "Premi AGGIUNGI PLAYLIST per iniziare.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -89,37 +102,33 @@ class PortalsActivity : ComponentActivity() {
                                 .clickable { openChannels(portal) }
                         ) {
                             Column(Modifier.padding(12.dp)) {
+                                // FIX: senza nome mostra SOLO il numero, mai l'URL
                                 Text(
-                                    text = "[${portal.id}] " + portal.name.ifBlank { "Portale ${portal.id}" },
+                                    text = "[${portal.id}]" +
+                                        if (portal.name.isBlank()) "" else " ${portal.name}",
                                     style = MaterialTheme.typography.titleMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-
-                                val displayAddress = portal.server.ifBlank { portal.url }
                                 Text(
-                                    text = "${portal.type.label} - $displayAddress",
+                                    text = portal.type.label + " - " +
+                                        if (portal.url.isBlank()) portal.server else portal.url,
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-
                                 Row {
                                     TextButton(onClick = { editing = portal }) {
                                         Text("Modifica")
                                     }
-
                                     Spacer(Modifier.width(4.dp))
-
-                                    TextButton(
-                                        onClick = {
-                                            store.delete(portal.id)
-                                            portals = store.load()
-                                        }
-                                    ) {
+                                    TextButton(onClick = {
+                                        store.delete(portal.id)
+                                        portals = store.load()
+                                    }) {
                                         Text(
-                                            "Elimina",
+                                            text = "Elimina",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
@@ -134,23 +143,10 @@ class PortalsActivity : ComponentActivity() {
         if (showTypeChooser) {
             AddPortalTypeDialog(
                 onSelect = { type ->
+                    formType = type
                     showTypeChooser = false
-                    if (type == PortalType.TORRENT) {
-                        // Se è Torrent, apriamo direttamente il dialogo di streaming immediato
-                        showTorrentDialog = true
-                    } else {
-                        // Altrimenti apriamo la form classica di salvataggio portale
-                        formType = type
-                    }
                 },
                 onDismiss = { showTypeChooser = false }
-            )
-        }
-
-        // Mostra il dialogo diretto per i Torrent (senza salvare nulla)
-        if (showTorrentDialog) {
-            TorrentDirectPlayDialog(
-                onDismiss = { showTorrentDialog = false }
             )
         }
 
@@ -160,7 +156,8 @@ class PortalsActivity : ComponentActivity() {
                 type = type,
                 onDismiss = { formType = null },
                 onSave = { draft ->
-                    val finalType = if (type != PortalType.UNKNOWN) type else PortalType.detect(draft.url)
+                    val detected = PortalType.detect(draft.url)
+                    val finalType = if (detected != PortalType.UNKNOWN) detected else type
                     store.add(draft.copy(type = finalType))
                     portals = store.load()
                     formType = null
@@ -175,7 +172,8 @@ class PortalsActivity : ComponentActivity() {
                 type = portal.type,
                 onDismiss = { editing = null },
                 onSave = { updated ->
-                    val finalType = if (portal.type != PortalType.UNKNOWN) portal.type else PortalType.detect(updated.url)
+                    val detected = PortalType.detect(updated.url)
+                    val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
                     store.update(updated.copy(type = finalType))
                     portals = store.load()
                     editing = null
@@ -187,18 +185,10 @@ class PortalsActivity : ComponentActivity() {
 
     private fun openChannels(portal: Portal) {
         val ua = if (portal.useCustomUserAgent) portal.userAgent else null
-        val effectiveServer = portal.server.ifBlank { portal.url }
-
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
                 putExtra(ChannelsActivity.EXTRA_TITLE, portal.name.ifBlank { "Portale ${portal.id}" })
-                putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
-                putExtra(ChannelsActivity.EXTRA_SERVER, effectiveServer)
-                putExtra(ChannelsActivity.EXTRA_MAC, portal.macAddress)
-                putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
-                putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
-                putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
-                putExtra(ChannelsActivity.EXTRA_URL, portal.url.ifBlank { effectiveServer })
+                putExtra(ChannelsActivity.EXTRA_URL, portal.url)
                 putExtra(ChannelsActivity.EXTRA_USER_AGENT, ua)
             }
         )
@@ -213,53 +203,16 @@ class PortalsActivity : ComponentActivity() {
     }
 
     @Deprecated("Usato per il picker file senza activity-compose")
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
         if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 try {
-                    val content = contentResolver.openInputStream(uri)
-                        ?.bufferedReader()
-                        ?.readText()
+                    val content = contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
                         ?: return@let
-
-                    val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
-
-                    var currentName = ""
-                    var currentGroup = ""
-                    var currentLogo = ""
-
-                    content.lines().forEach { line ->
-                        if (line.startsWith("#EXTINF:")) {
-                            currentName = line.substringAfterLast(",").trim()
-                            currentGroup = Regex("group-title=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
-                            currentLogo = Regex("tvg-logo=\"([^\"]+)\"").find(line)?.groupValues?.get(1) ?: ""
-                        } else if (line.isNotBlank() && !line.startsWith("#")) {
-                            channels.add(
-                                com.portalstream.app.domain.model.Channel(
-                                    id = line.hashCode().toString(),
-                                    name = currentName,
-                                    url = line.trim(),
-                                    group = currentGroup,
-                                    logoUrl = currentLogo,
-                                    epgId = null
-                                )
-                            )
-
-                            currentName = ""
-                            currentGroup = ""
-                            currentLogo = ""
-                        }
-                    }
-
+                    val channels = M3UParser.parse(content)
                     if (channels.isNotEmpty()) {
                         ChannelCache.hold(channels)
-
                         startActivity(
                             Intent(this, ChannelsActivity::class.java).apply {
                                 putExtra(
@@ -281,6 +234,7 @@ class PortalsActivity : ComponentActivity() {
     }
 }
 
+// Cache per passare la lista canali senza superare i limiti degli intent
 object ChannelCache {
     private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
 
