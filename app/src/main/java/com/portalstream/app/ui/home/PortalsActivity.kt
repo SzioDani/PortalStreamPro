@@ -102,7 +102,6 @@ class PortalsActivity : ComponentActivity() {
                                 .clickable { openChannels(portal) }
                         ) {
                             Column(Modifier.padding(12.dp)) {
-                                // FIX: senza nome mostra SOLO il numero, mai l'URL
                                 Text(
                                     text = "[${portal.id}]" +
                                         if (portal.name.isBlank()) "" else " ${portal.name}",
@@ -208,19 +207,21 @@ class PortalsActivity : ComponentActivity() {
         if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 try {
-                    val content = contentResolver.openInputStream(uri)?.bufferedReader()?.readText()
-                        ?: return@let
-                    val channels = M3UParser.parse(content)
-                    if (channels.isNotEmpty()) {
-                        ChannelCache.hold(channels)
-                        startActivity(
-                            Intent(this, ChannelsActivity::class.java).apply {
-                                putExtra(
-                                    ChannelsActivity.EXTRA_TITLE,
-                                    uri.lastPathSegment ?: "Playlist locale"
-                                )
-                            }
-                        )
+                    contentResolver.openInputStream(uri)?.let { inputStream ->
+                        val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
+                        M3UParser.parseStreaming(inputStream) { channels.add(it) }
+                        
+                        if (channels.isNotEmpty()) {
+                            ChannelCache.hold(channels)
+                            startActivity(
+                                Intent(this, ChannelsActivity::class.java).apply {
+                                    putExtra(
+                                        ChannelsActivity.EXTRA_TITLE,
+                                        uri.lastPathSegment ?: "Playlist locale"
+                                    )
+                                }
+                            )
+                        }
                     }
                 } catch (e: Exception) {
                     Timber.e(e, "Lettura file locale fallita")
