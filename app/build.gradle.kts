@@ -81,11 +81,11 @@ dependencies {
     implementation("androidx.window:window:1.2.0")
     
     // Torrent
-    // implementation("org.libtorrent4j:libtorrent4j:2.1.0-39")
-    // implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39")
-    // implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39")
-    // implementation("org.libtorrent4j:libtorrent4j-android-x86:2.1.0-39")
-    // implementation("org.libtorrent4j:libtorrent4j-android-x86_64:2.1.0-39")
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-39")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39")
+    implementation("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39")
+    implementation("org.libtorrent4j:libtorrent4j-android-x86:2.1.0-39")
+    implementation("org.libtorrent4j:libtorrent4j-android-x86_64:2.1.0-39")
     
     // Room
     implementation("androidx.room:room-runtime:2.6.1")
