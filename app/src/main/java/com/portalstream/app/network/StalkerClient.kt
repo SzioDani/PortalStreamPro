@@ -18,6 +18,7 @@ object StalkerClient {
 
     private const val TAG = "StalkerClient"
 
+    // OkHttp configurato con timeout e supporto Gzip nativo (aggiungiamo esplicitamente l'header globale se desiderato)
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -25,9 +26,13 @@ object StalkerClient {
 
     private const val DEFAULT_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
 
-    suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
+    // Funzione di supporto unificata per ricavare l'indirizzo del portale MAG da server o url
+    private fun getPortalBaseUrl(portal: Portal): String? {
         var rawServer = portal.server.trim()
-        if (rawServer.isBlank()) return@withContext emptyList()
+        if (rawServer.isBlank()) {
+            rawServer = portal.url.trim()
+        }
+        if (rawServer.isBlank()) return null
 
         if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
             rawServer = "http://$rawServer"
@@ -37,6 +42,11 @@ object StalkerClient {
         if (!baseUrl.endsWith("portal.php")) {
             baseUrl = if (baseUrl.endsWith("/c")) "$baseUrl/portal.php" else "$baseUrl/portal.php"
         }
+        return baseUrl
+    }
+
+    suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
+        val baseUrl = getPortalBaseUrl(portal) ?: return@withContext emptyList()
 
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext emptyList()
@@ -52,10 +62,12 @@ object StalkerClient {
         try {
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
 
+            // Aggiungiamo esplicitamente l'header Accept-Encoding: gzip per velocizzare le risposte pesanti
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("X-User-Agent", Model: MAG250; Link: WiFi)
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -85,6 +97,7 @@ object StalkerClient {
             val channelsRequest = Request.Builder()
                 .url(channelsUrl)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -114,17 +127,7 @@ object StalkerClient {
     }
 
     suspend fun getStreamUrl(portal: Portal, cmd: String): String? = withContext(Dispatchers.IO) {
-        var rawServer = portal.server.trim()
-        if (rawServer.isBlank()) return@withContext null
-
-        if (!rawServer.startsWith("http://") && !rawServer.startsWith("https://")) {
-            rawServer = "http://$rawServer"
-        }
-
-        var baseUrl = rawServer.trimEnd('/')
-        if (!baseUrl.endsWith("portal.php")) {
-            baseUrl = if (baseUrl.endsWith("/c")) "$baseUrl/portal.php" else "$baseUrl/portal.php"
-        }
+        val baseUrl = getPortalBaseUrl(portal) ?: return@withContext null
 
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext null
@@ -143,6 +146,7 @@ object StalkerClient {
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -171,6 +175,7 @@ object StalkerClient {
             val request = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -243,6 +248,7 @@ object StalkerClient {
             val reqBuilder = Request.Builder()
                 .url(genresUrl)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
 
             val response = client.newCall(reqBuilder.build()).execute()
@@ -277,6 +283,7 @@ object StalkerClient {
             val reqBuilder = Request.Builder()
                 .url(url)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
 
             val response = client.newCall(reqBuilder.build()).execute()
@@ -295,7 +302,7 @@ object StalkerClient {
             val dataArray = extractDataArray(jsonStr) ?: return emptyList()
 
             for (i in 0 until dataArray.length()) {
-                val item = dataArray.optJSONObject(i) ?: continue
+                val item = dataArray.optJSONObject(i) = continue
                 val id = item.optString("id", i.toString())
                 val name = item.optString("name", "Canale $id")
                 val genreId = item.optString("tv_genre_id", "")
