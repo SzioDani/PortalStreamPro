@@ -66,7 +66,7 @@ object StalkerClient {
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("X-User-Agent", Model: MAG250; Link: WiFi)
+                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
