@@ -143,7 +143,11 @@ class PlayerActivity : ComponentActivity() {
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
-                add("--network-caching=1500")
+                add("--network-caching=3000") // Aumentato a 3 secondi di buffer di rete (puoi metterlo a 5000 se la linea balla molto)
+                add("--live-caching=3000") // Ottimizzato specificamente per i flussi live IPTV
+                add("--disc-caching=3000") // Cache su disco/memoria per stabilizzare lo stream
+                add("--clock-jitter=0") // Riduce la sincronizzazione aggressiva che causa micro-interruzioni
+                add("--clock-synchro=0")  // Evita saltelli superflui del frame rate
             }
 
             val vlc = LibVLC(this@PlayerActivity, options)
