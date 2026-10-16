@@ -139,7 +139,7 @@ class ChannelsActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             channelDao.clearAll()
-                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server")
+                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server, URL: $portalUrl")
 
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
@@ -148,14 +148,15 @@ class ChannelsActivity : ComponentActivity() {
 
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
-                                    if (server.isBlank() || macAddress.isBlank()) {
+                                    val portalServer = if (server.isNotBlank()) server else portalUrl
+                                    if (portalServer.isBlank() || macAddress.isBlank()) {
                                         withContext(Dispatchers.Main) {
                                             Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
                                         }
                                         emptyList()
                                     } else {
                                         val portalDraft = Portal(
-                                            id = 0, server = server, macAddress = macAddress,
+                                            id = 0, server = portalServer, macAddress = macAddress,
                                             useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                         )
                                         StalkerClient.fetchChannels(portalDraft)
@@ -219,8 +220,9 @@ class ChannelsActivity : ComponentActivity() {
                                           (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
 
                             if (isXtream || isStalker) {
+                                val portalServer = if (server.isNotBlank()) server else portalUrl
                                 fetchUnifiedEpgData(
-                                    server = server, username = username, password = password,
+                                    server = portalServer, username = username, password = password,
                                     macAddress = macAddress, isStalker = isStalker, userAgent = userAgent,
                                     channels = dbChannels, offsetHours = epgOffsetHours
                                 ) { newEpgMap ->
@@ -262,7 +264,8 @@ class ChannelsActivity : ComponentActivity() {
                                         prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
                                         // Ricarica EPG con il nuovo offset
                                         scope.launch(Dispatchers.IO) {
-                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
+                                            val portalServer = if (server.isNotBlank()) server else portalUrl
+                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
                                         }
                                     }) {
                                         Text("-1 Ora")
@@ -271,7 +274,8 @@ class ChannelsActivity : ComponentActivity() {
                                         epgOffsetHours = 0
                                         prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
                                         scope.launch(Dispatchers.IO) {
-                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
+                                            val portalServer = if (server.isNotBlank()) server else portalUrl
+                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
                                         }
                                     }) {
                                         Text("Reset")
@@ -280,7 +284,8 @@ class ChannelsActivity : ComponentActivity() {
                                         epgOffsetHours += 1
                                         prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
                                         scope.launch(Dispatchers.IO) {
-                                            fetchUnifiedEpgData(server, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
+                                            val portalServer = if (server.isNotBlank()) server else portalUrl
+                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
                                         }
                                     }) {
                                         Text("+1 Ora")
@@ -427,7 +432,6 @@ class ChannelsActivity : ComponentActivity() {
                                     leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                 )
 
-                                // Pulsante Fuso Orario EPG posizionato esattamente a destra di Gruppi
                                 FilterChip(
                                     selected = false,
                                     onClick = { showSettingsDialog = true },
@@ -473,8 +477,9 @@ class ChannelsActivity : ComponentActivity() {
 
                                                         val playUrl = when {
                                                             isStalker || macAddress.isNotBlank() -> {
+                                                                val portalServer = if (server.isNotBlank()) server else portalUrl
                                                                 val portalDraft = Portal(
-                                                                    id = 0, server = server, macAddress = macAddress,
+                                                                    id = 0, server = portalServer, macAddress = macAddress,
                                                                     useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                                                 )
                                                                 StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
