@@ -50,6 +50,14 @@ android {
 }
 
 dependencies {
+    val composeBom = platform("androidx.compose:compose-bom:2024.02.02")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+ 
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+
     // ADAPTIVE BITRATE
     implementation("androidx.media3:media3-datasource-okhttp:1.2.0")
 
