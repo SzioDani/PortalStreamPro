@@ -302,7 +302,7 @@ object StalkerClient {
             val dataArray = extractDataArray(jsonStr) ?: return emptyList()
 
             for (i in 0 until dataArray.length()) {
-                val item = dataArray.optJSONObject(i) = continue
+                val item = dataArray.optJSONObject(i) ?: continue
                 val id = item.optString("id", i.toString())
                 val name = item.optString("name", "Canale $id")
                 val genreId = item.optString("tv_genre_id", "")
