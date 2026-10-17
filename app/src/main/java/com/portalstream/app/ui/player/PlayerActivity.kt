@@ -56,9 +56,9 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
-    
-    private val INITIAL_BUFFER_THRESHOLD = 85f // Percentuale minima di buffer prima del play
-    
+
+    private val INITIAL_BUFFER_THRESHOLD = 85f
+
     private val prefs by lazy {
         getSharedPreferences("player_settings", Context.MODE_PRIVATE)
     }
@@ -67,9 +67,9 @@ class PlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) 
+        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
             ?: intent.getStringExtra("STREAM_URL") ?: ""
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) 
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
@@ -89,10 +89,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Gestisce i cambiamenti di configurazione (rotazione, ecc.)
-     * Le impostazioni verranno riapplicate automaticamente
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
@@ -118,14 +114,12 @@ class PlayerActivity : ComponentActivity() {
         var currentScale by remember { mutableStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
-        
+
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-        
-        // MIGLIORAMENTO: Traccia se le impostazioni sono state applicate almeno una volta
+
         var settingsApplied by remember { mutableStateOf(false) }
 
-        // Debug logging
         LaunchedEffect(currentAspectRatio, currentScale) {
             Log.d("PlayerDebug", """
                 AspectRatio: $currentAspectRatio
@@ -135,7 +129,6 @@ class PlayerActivity : ComponentActivity() {
             """.trimIndent())
         }
 
-        // Auto-nascondi i controlli
         LaunchedEffect(showControls, isPlaying) {
             if (showControls && isPlaying) {
                 delay(4000)
@@ -143,15 +136,13 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // MIGLIORAMENTO: Separa la logica di applicazione dal cambio di orientamento
-        // Applica le impostazioni SOLO quando il media player è pronto
         LaunchedEffect(composeMediaPlayer, currentAspectRatio, currentScale) {
             composeMediaPlayer?.let { mp ->
                 if (!settingsApplied || currentAspectRatio != null || currentScale > 0f) {
-                    delay(200) // Piccolo delay per evitare race conditions
-                    
+                    delay(200)
+
                     Log.d("PlayerDebug", "Applicando impostazioni: AspectRatio=$currentAspectRatio, Scale=$currentScale")
-                    
+
                     when {
                         currentScale > 0f -> {
                             mp.aspectRatio = null
@@ -175,27 +166,23 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // MIGLIORAMENTO: Setup del media player con opzioni ottimizzate
         DisposableEffect(vlcVideoLayout) {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
-            // MIGLIORAMENTO: Opzioni VLC ottimizzate per ridurre buffering
             val options = ArrayList<String>().apply {
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
-                
-                // Aumenta i valori di caching per stream più stabili
-                add("--network-caching=8000")        // 8 sec invece di 5
-                add("--live-caching=8000")           // 8 sec invece di 5
-                add("--disc-caching=8000")           // 8 sec invece di 5
-                add("--file-caching=8000")           // Aggiunto
-                
+
+                add("--network-caching=8000")
+                add("--live-caching=8000")
+                add("--disc-caching=8000")
+                add("--file-caching=8000")
+
                 add("--clock-jitter=-1")
                 add("--clock-synchro=0")
-                
-                // Nuove opzioni per stabilità
+
                 add("--udp-timeout=40000")
                 add("--http-continuous")
                 add("--access-filter=http_proxy")
@@ -218,7 +205,7 @@ class PlayerActivity : ComponentActivity() {
                 addOption(":clock-jitter=0")
                 addOption(":network-caching=8000")
                 addOption(":live-caching=8000")
-                
+
                 if (!userAgent.isNullOrBlank()) {
                     addOption(":http-user-agent=$userAgent")
                 }
@@ -251,24 +238,22 @@ class PlayerActivity : ComponentActivity() {
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
-                        // MIGLIORAMENTO: Controllo del buffering iniziale
                         if (!initialBufferingStarted) {
                             initialBufferingStarted = true
                             Log.d("PlayerDebug", "Buffering iniziato")
                         }
-                        
-                        // Mostra il loading finché non raggiunge la soglia
+
                         val bufferingPercent = event.buffering
                         isBuffering = bufferingPercent < INITIAL_BUFFER_THRESHOLD
                         Log.d("PlayerDebug", "Buffering: $bufferingPercent%")
                     }
-                    
+
                     MediaPlayer.Event.Playing -> {
                         isBuffering = false
                         isPlaying = true
                         errorMessage = null
                         Log.d("PlayerDebug", "Media in riproduzione")
-                        
+
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             composeMediaPlayer?.let { player ->
@@ -283,24 +268,24 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        
+
                         refreshAudioState()
                     }
-                    
+
                     MediaPlayer.Event.Paused -> {
                         isPlaying = false
                         Log.d("PlayerDebug", "Media in pausa")
                     }
-                    
+
                     MediaPlayer.Event.Stopped -> {
                         isPlaying = false
                         Log.d("PlayerDebug", "Media fermato")
                     }
-                    
+
                     MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                         refreshAudioState()
                     }
-                    
+
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
                         isPlaying = false
@@ -312,9 +297,8 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // MIGLIORAMENTO: Aggiungi un delay prima del play per pre-buffering
             lifecycleScope.launch {
-                delay(500) // Aspetta 500ms per inizializzazione
+                delay(500)
                 mp.play()
                 Log.d("PlayerDebug", "Play richiesto")
             }
@@ -331,7 +315,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // UI principale
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -350,7 +333,6 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Controlli video
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
@@ -362,7 +344,6 @@ class PlayerActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.45f))
                 ) {
-                    // Top bar con titolo e info audio
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -392,7 +373,6 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // Controlli al centro
                     Row(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -480,7 +460,6 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
-                    // Bottom bar con impostazioni
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -503,7 +482,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Indicatore di buffering
             if (isBuffering && errorMessage == null) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
@@ -511,7 +489,6 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
 
-            // Errore
             errorMessage?.let { msg ->
                 Surface(
                     color = Color.Black.copy(alpha = 0.90f),
@@ -547,7 +524,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            // Bottom sheet impostazioni
             if (showSettingsSheet) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.95f),
@@ -620,8 +596,7 @@ class PlayerActivity : ComponentActivity() {
                                 onAspectRatioChange = { newRatio ->
                                     Log.d("PlayerDebug", "Cambiamento aspect ratio richiesto: $newRatio")
                                     currentAspectRatio = newRatio
-                                    
-                                    // Salva SEMPRE le impostazioni
+
                                     prefs.edit().apply {
                                         if (newRatio != null) {
                                             putString("aspect_ratio", newRatio)
@@ -630,7 +605,7 @@ class PlayerActivity : ComponentActivity() {
                                         }
                                         apply()
                                     }
-                                    
+
                                     composeMediaPlayer?.let { mp ->
                                         when (newRatio) {
                                             "FILL" -> {
@@ -663,7 +638,6 @@ class PlayerActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    // Force re-apply dopo un piccolo delay
                                     settingsApplied = false
                                 }
                             )
@@ -682,7 +656,7 @@ class PlayerActivity : ComponentActivity() {
         formatAudioInfo: (Int) -> String
     ) {
         val validTracks = audioTracks.filter { it.id != -1 }
-        
+
         if (validTracks.isEmpty()) {
             Text(
                 text = "🔇 Nessuna traccia audio disponibile",
