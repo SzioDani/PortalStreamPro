@@ -689,7 +689,7 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    @Composable
+        @Composable
     private fun AspectRatioTabContent(
         currentAspectRatio: String?,
         currentScale: Float,
@@ -725,22 +725,30 @@ class PlayerActivity : ComponentActivity() {
                             else -> false
                         }
 
+                        val buttonColor = if (isSelected) {
+                            Color.White.copy(alpha = 0.25f)
+                        } else {
+                            Color.White.copy(alpha = 0.08f)
+                        }
+
+                        val buttonText = if (isSelected) {
+                            "✓ $label"
+                        } else {
+                            label
+                        }
+
                         Button(
                             onClick = { onAspectRatioChange(ratio) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) {
-                                    Color.White.copy(alpha = 0.25f)
-                                } else {
-                                    Color.White.copy(alpha = 0.08f)
-                                }
+                                containerColor = buttonColor
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                text = if (isSelected) "✓ $label" else label,
+                                text = buttonText,
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                                 textAlign = TextAlign.Center
