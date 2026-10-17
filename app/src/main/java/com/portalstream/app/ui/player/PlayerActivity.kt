@@ -402,8 +402,10 @@ class PlayerActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = {
-                            audioTrackDescriptions = mediaPlayer?.audioTracks?.toList() ?: emptyList()
-                            currentAudioTrackId = mediaPlayer?.audioTrack ?: -1
+                            composeMediaPlayer?.let { mp ->
+                                audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
+                                currentAudioTrackId = mp.audioTrack
+                            }
                             showSettingsSheet = true
                         }) {
                             Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
