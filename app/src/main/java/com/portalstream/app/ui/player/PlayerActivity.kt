@@ -118,16 +118,20 @@ class PlayerActivity : ComponentActivity() {
 
         LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
-                delay(150)
-                if (currentScale > 0f) {
-                    mp.aspectRatio = null
-                    mp.scale = currentScale
-                } else if (currentAspectRatio != null) {
-                    mp.scale = 0f
-                    mp.aspectRatio = currentAspectRatio
-                } else {
-                    mp.scale = 0f
-                    mp.aspectRatio = null
+                delay(300)
+                when {
+                    currentScale > 0f -> {
+                        mp.aspectRatio = null
+                        mp.scale = currentScale
+                    }
+                    currentAspectRatio != null -> {
+                        mp.scale = 0f
+                        mp.aspectRatio = currentAspectRatio
+                    }
+                    else -> {
+                        mp.scale = 0f
+                        mp.aspectRatio = null
+                    }  
                 }
             }
         }
