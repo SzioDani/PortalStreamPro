@@ -147,7 +147,7 @@ class PlayerActivity : ComponentActivity() {
                 add("--network-caching=5000")
                 add("--live-caching=5000")
                 add("--disc-caching=5000")
-                add("--clock-jitter=0")
+                add("--clock-jitter=-1")
                 add("--clock-synchro=0")
             }
 
@@ -537,11 +537,10 @@ class PlayerActivity : ComponentActivity() {
                                     composeMediaPlayer?.let { mp ->
                                         when (newRatio) {
                                             "FILL" -> {
-                                                mp.scale = 0f
-                                                val displayMetrics = resources.displayMetrics
-                                                val screenRatio = "${displayMetrics.widthPixels}:${displayMetrics.heightPixels}"
-                                                mp.aspectRatio = screenRatio
-                                                currentScale = 0f
+                                                mp.aspectRatio = null
+                                                mp.scale = 1.3f
+                                                currentScale = 1.3f
+                                                prefs.edit().putFloat("scale", 1.3f).apply()
                                             }
                                             "ZOOM125" -> {
                                                 mp.aspectRatio = null
