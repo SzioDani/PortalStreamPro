@@ -104,10 +104,10 @@ class PlayerActivity : ComponentActivity() {
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
-        var activeTab by remember { mutableIntStateOf(0) }
+        var activeTab by remember { mutableStateOf(0) }
 
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
-        var currentAudioTrackId by remember { mutableIntStateOf(-1) }
+        var currentAudioTrackId by remember { mutableStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
