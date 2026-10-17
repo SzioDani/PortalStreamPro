@@ -8,6 +8,8 @@ plugins {
 android {
     namespace = "com.portalstream.app"
     compileSdk = 34
+    
+    // ⚠️ NON specificare ndkVersion - usa il default
 
     defaultConfig {
         applicationId = "com.portalstream.app"
@@ -17,6 +19,9 @@ android {
         versionName = "1.0.0-beta"
         
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Forza build tools version
+        buildToolsVersion = "34.0.0"
     }
     
     buildFeatures {
@@ -36,7 +41,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isDebuggable = true
@@ -52,7 +56,6 @@ android {
         jvmTarget = "17"
     }
     
-    // IMPORTANTE: Disabilita il simbolo stripping che causa errori NDK
     packagingOptions {
         pickFirst("lib/arm64-v8a/libc++_shared.so")
         pickFirst("lib/armeabi-v7a/libc++_shared.so")
@@ -60,8 +63,15 @@ android {
         pickFirst("lib/x86_64/libc++_shared.so")
     }
     
-    // Rimuovi la linea ndkVersion se causa problemi
-    // ndkVersion "26.1.10909125"  <- COMMENTA O RIMUOVI QUESTA RIGA
+    // Disabilita C++ compilation nel build
+    externalNativeBuild {
+        ndkBuild {
+            path = null
+        }
+        cmake {
+            path = null
+        }
+    }
 }
 
 dependencies {
