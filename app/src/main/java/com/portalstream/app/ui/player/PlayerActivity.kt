@@ -121,7 +121,7 @@ class PlayerActivity : ComponentActivity() {
         LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
                 // Aspetta 200ms che VLC abbia finito di ridisegnare la finestra nativa
-                delay(200) 
+                delay(150) 
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
                     mp.scale = currentScale
