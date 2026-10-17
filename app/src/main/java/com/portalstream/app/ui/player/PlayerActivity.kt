@@ -783,12 +783,13 @@ class PlayerActivity : ComponentActivity() {
                             "AAC", "MP4A" -> "AAC"
                             else -> t.codec?.uppercase()
                         }
-                        val channels = when (t.channels) {
-                            1 -> "Mono"
-                            2 -> "Stereo 2.0"
-                            6 -> "5.1"
-                            8 -> "7.1"
-                            else -> if (t.channels > 0) "${t.channels}ch" else null
+                        val channels = when {
+                            t.channels == 1 -> "Mono"
+                            t.channels == 2 -> "Stereo 2.0"
+                            t.channels == 6 -> "5.1"
+                            t.channels == 8 -> "7.1"
+                            t.channels > 0 -> "${t.channels}ch"
+                            else -> null
                         }
                         val details = listOfNotNull(codec, channels).joinToString(" • ")
                         if (details.isNotBlank()) {
