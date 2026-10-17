@@ -58,7 +58,6 @@
             android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:screenOrientation="sensor"
-            android:theme="@style/Theme.PortalStream"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
