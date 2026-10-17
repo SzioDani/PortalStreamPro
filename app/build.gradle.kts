@@ -8,7 +8,6 @@ plugins {
 android {
     namespace = "com.portalstream.app"
     compileSdk = 34
-    ndkVersion "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.portalstream.app"
@@ -37,6 +36,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            isDebuggable = true
         }
     }
     
@@ -48,6 +51,17 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    
+    // IMPORTANTE: Disabilita il simbolo stripping che causa errori NDK
+    packagingOptions {
+        pickFirst("lib/arm64-v8a/libc++_shared.so")
+        pickFirst("lib/armeabi-v7a/libc++_shared.so")
+        pickFirst("lib/x86/libc++_shared.so")
+        pickFirst("lib/x86_64/libc++_shared.so")
+    }
+    
+    // Rimuovi la linea ndkVersion se causa problemi
+    // ndkVersion "26.1.10909125"  <- COMMENTA O RIMUOVI QUESTA RIGA
 }
 
 dependencies {
@@ -76,7 +90,7 @@ dependencies {
     // FIRESTORE TV DEVICE DETECTION
     implementation("androidx.tvprovider:tvprovider:1.0.0")
 
-     // Motore multimediale nativo LibVLC
+    // Motore multimediale nativo LibVLC
     implementation("org.videolan.android:libvlc-all:3.5.1")
 
     // NETWORK MONITORING
