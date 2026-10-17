@@ -48,6 +48,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -82,6 +83,7 @@ class ChannelsActivity : ComponentActivity() {
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
+        val epgCacheFile = File(filesDir, "epg_cache.json")
 
         setContent {
             MaterialTheme {
@@ -116,7 +118,25 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                var epgMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
+                // Caricamento immediato EPG da cache locale se esiste
+                var epgMap by remember {
+                    mutableStateOf<Map<String, EpgInfo>>(
+                        try {
+                            if (epgCacheFile.exists()) {
+                                val map = mutableMapOf<String, EpgInfo>()
+                                val jsonObj = JSONObject(epgCacheFile.readText())
+                                jsonObj.keys().forEach { key ->
+                                    val itemObj = jsonObj.getJSONObject(key)
+                                    map[key] = EpgInfo(
+                                        currentProgram = itemObj.optString("current", ""),
+                                        nextProgram = itemObj.optString("next", "")
+                                    )
+                                }
+                                map
+                            } else emptyMap()
+                        } catch (_: Exception) { emptyMap() }
+                    )
+                }
                 var lastEpgUpdate by remember { mutableStateOf(0L) }
 
                 val allGroups = remember(allChannels) {
@@ -210,7 +230,7 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
-                    // Caricamento EPG in background
+                    // Caricamento EPG in background con Gzip e Cache Locale
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
@@ -226,8 +246,23 @@ class ChannelsActivity : ComponentActivity() {
                                     macAddress = macAddress, isStalker = isStalker, userAgent = userAgent,
                                     channels = dbChannels, offsetHours = epgOffsetHours
                                 ) { newEpgMap ->
-                                    epgMap = newEpgMap
-                                    lastEpgUpdate = System.currentTimeMillis()
+                                    if (newEpgMap.isNotEmpty()) {
+                                        epgMap = newEpgMap
+                                        lastEpgUpdate = System.currentTimeMillis()
+
+                                        // Salvataggio in cache su file JSON locale in background
+                                        try {
+                                            val rootObj = JSONObject()
+                                            newEpgMap.forEach { (key, info) ->
+                                                val itemObj = JSONObject().apply {
+                                                    put("current", info.currentProgram)
+                                                    put("next", info.nextProgram)
+                                                }
+                                                rootObj.put(key, itemObj)
+                                            }
+                                            epgCacheFile.writeText(rootObj.toString())
+                                        } catch (_: Exception) {}
+                                    }
                                 }
                             }
                         } catch (_: Exception) {}
@@ -262,7 +297,6 @@ class ChannelsActivity : ComponentActivity() {
                                     Button(onClick = {
                                         epgOffsetHours -= 1
                                         prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
-                                        // Ricarica EPG con il nuovo offset
                                         scope.launch(Dispatchers.IO) {
                                             val portalServer = if (server.isNotBlank()) server else portalUrl
                                             fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
@@ -410,7 +444,6 @@ class ChannelsActivity : ComponentActivity() {
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
 
-                            // Riga dei bottoni di filtro (Preferiti, Gruppi e Pulsante EPG Time a destra)
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -591,6 +624,7 @@ class ChannelsActivity : ComponentActivity() {
         return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
 
+    // 🚀 Funzione EPG aggiornata con supporto Gzip ed header corretti
     private suspend fun fetchUnifiedEpgData(
         server: String,
         username: String,
@@ -608,7 +642,13 @@ class ChannelsActivity : ComponentActivity() {
                 if (isStalker && macAddress.isNotBlank()) {
                     val cleanServer = server.trimEnd('/')
                     val url = "$cleanServer/server/load.php?type=itv&action=get_epg_info&mac=$macAddress"
-                    val request = Request.Builder().url(url).header("User-Agent", userAgent ?: "MAG250").header("Cookie", "mac=$macAddress").build()
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", userAgent ?: "MAG250")
+                        .header("Accept-Encoding", "gzip, deflate")
+                        .header("Cookie", "mac=$macAddress")
+                        .build()
+
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
                         val body = response.body?.string() ?: ""
@@ -649,7 +689,12 @@ class ChannelsActivity : ComponentActivity() {
                 } else if (username.isNotBlank() && password.isNotBlank()) {
                     val cleanServer = server.trimEnd('/')
                     val url = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
-                    val request = Request.Builder().url(url).header("User-Agent", userAgent ?: "PortalStreamPro/1.0").build()
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", userAgent ?: "PortalStreamPro/1.0")
+                        .header("Accept-Encoding", "gzip, deflate")
+                        .build()
+
                     val response = client.newCall(request).execute()
                     if (response.isSuccessful) {
                         val body = response.body?.string() ?: ""
