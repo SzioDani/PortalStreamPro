@@ -265,6 +265,10 @@ class PlayerActivity : ComponentActivity() {
                                     player.scale = 0f
                                     player.aspectRatio = currentAspectRatio
                                     Log.d("PlayerDebug", "AspectRatio applicato al play: $currentAspectRatio")
+                                } else {
+                                    // Fallback di sicurezza obbligatorio per il compilatore
+                                    player.scale = 0f
+                                    player.aspectRatio = null
                                 }
                             }
                         }
