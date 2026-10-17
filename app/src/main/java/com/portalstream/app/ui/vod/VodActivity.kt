@@ -42,11 +42,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import java.net.HttpURLConnection
-import java.net.URL
+import org.json.JSONObject
+import java.io.File
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Divider
+import java.util.concurrent.TimeUnit
 
 data class VodItem(
     val id: String,
@@ -73,6 +74,7 @@ class VodActivity : ComponentActivity() {
         val format = intent.getStringExtra(EXTRA_FORMAT) ?: "mp4"
 
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
+        val cacheFile = File(filesDir, "vod_cache.json")
 
         setContent {
             MaterialTheme {
@@ -112,38 +114,77 @@ class VodActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             val fetched = mutableListOf<VodItem>()
+                            
+                            // 1. PROVIAMO A CARICARE PRIMA DALLA CACHE LOCALE (per zero attese)
+                            if (cacheFile.exists()) {
+                                try {
+                                    val cachedJson = JSONArray(cacheFile.readText())
+                                    for (i in 0 until cachedJson.length()) {
+                                        val obj = cachedJson.getJSONObject(i)
+                                        fetched.add(
+                                            VodItem(
+                                                id = obj.getString("id"),
+                                                name = obj.getString("name"),
+                                                streamUrl = obj.getString("streamUrl"),
+                                                coverUrl = obj.optString("coverUrl", null),
+                                                category = obj.getString("category"),
+                                                rating = obj.optString("rating", null),
+                                                year = obj.optString("year", null)
+                                            )
+                                        )
+                                    }
+                                    if (fetched.isNotEmpty()) {
+                                        withContext(Dispatchers.Main) {
+                                            vodList = fetched
+                                            isLoading = false // Mostra subito i dati salvati!
+                                        }
+                                    }
+                                } catch (_: Exception) {}
+                            }
+
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true) || (username.isNotBlank() && password.isNotBlank())
 
                             if (isXtream && server.isNotBlank()) {
                                 val cleanServer = server.trimEnd('/')
                                 val apiUrl = "$cleanServer/player_api.php?username=$username&password=$password&action=get_vod_streams"
-                                val url = URL(apiUrl)
-                                val conn = url.openConnection() as HttpURLConnection
-                                conn.requestMethod = "GET"
-                                conn.connectTimeout = 10000
-                                conn.readTimeout = 10000
+                                
+                                // Usiamo OkHttp con supporto Gzip ed header personalizzati
+                                val client = okhttp3.OkHttpClient.Builder()
+                                    .connectTimeout(15, TimeUnit.SECONDS)
+                                    .readTimeout(30, TimeUnit.SECONDS)
+                                    .build()
+
+                                val reqBuilder = okhttp3.Request.Builder()
+                                    .url(apiUrl)
+                                    .addHeader("Accept-Encoding", "gzip, deflate")
+
                                 if (!userAgent.isNullOrBlank()) {
-                                    conn.setRequestProperty("User-Agent", userAgent)
+                                    reqBuilder.addHeader("User-Agent", userAgent)
+                                } else {
+                                    reqBuilder.addHeader("User-Agent", "PortalStreamPro/1.0")
                                 }
 
-                                if (conn.responseCode == 200) {
-                                    val responseString = conn.inputStream.bufferedReader().use { it.readText() }
-                                    if (responseString.trim().startsWith("[")) {
-                                        val jsonArray = JSONArray(responseString)
-                                        for (i in 0 until jsonArray.length()) {
-                                            val obj = jsonArray.getJSONObject(i)
-                                            val streamId = obj.optString("stream_id", "")
-                                            val name = obj.optString("name", "Sconosciuto")
-                                            val cover = obj.optString("stream_icon", null)
-                                            val category = obj.optString("category_name", "Generale")
-                                            val rating = obj.optString("rating", null)
-                                            val year = obj.optString("year", null)
-                                            val container = obj.optString("container_extension", format.ifBlank { "mp4" })
+                                client.newCall(reqBuilder.build()).execute().use { response ->
+                                    if (response.isSuccessful) {
+                                        val responseString = response.body?.string() ?: ""
+                                        if (responseString.trim().startsWith("[")) {
+                                            val freshFetched = mutableListOf<VodItem>()
+                                            val jsonArray = JSONArray(responseString)
+                                            val jsonCacheArray = JSONArray()
 
-                                            val streamUrl = "$cleanServer/movie/$username/$password/$streamId.$container"
-                                            if (streamId.isNotBlank()) {
-                                                fetched.add(
-                                                    VodItem(
+                                            for (i in 0 until jsonArray.length()) {
+                                                val obj = jsonArray.getJSONObject(i)
+                                                val streamId = obj.optString("stream_id", "")
+                                                val name = obj.optString("name", "Sconosciuto")
+                                                val cover = obj.optString("stream_icon", null)
+                                                val category = obj.optString("category_name", "Generale")
+                                                val rating = obj.optString("rating", null)
+                                                val year = obj.optString("year", null)
+                                                val container = obj.optString("container_extension", format.ifBlank { "mp4" })
+
+                                                val streamUrl = "$cleanServer/movie/$username/$password/$streamId.$container"
+                                                if (streamId.isNotBlank()) {
+                                                    val vodItem = VodItem(
                                                         id = streamId,
                                                         name = name,
                                                         streamUrl = streamUrl,
@@ -152,25 +193,49 @@ class VodActivity : ComponentActivity() {
                                                         rating = rating?.takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
                                                         year = year?.takeIf { it.isNotBlank() && it != "0" }
                                                     )
-                                                )
+                                                    freshFetched.add(vodItem)
+
+                                                    // Salviamo anche nel JSON di cache
+                                                    jsonCacheArray.put(
+                                                        JSONObject().apply {
+                                                            put("id", vodItem.id)
+                                                            put("name", vodItem.name)
+                                                            put("streamUrl", vodItem.streamUrl)
+                                                            put("coverUrl", vodItem.coverUrl ?: "")
+                                                            put("category", vodItem.category)
+                                                            put("rating", vodItem.rating ?: "")
+                                                            put("year", vodItem.year ?: "")
+                                                        }
+                                                    )
+                                                }
+                                            }
+
+                                            if (freshFetched.isNotEmpty()) {
+                                                // Aggiorniamo la cache sul file locale in background
+                                                try {
+                                                    cacheFile.writeText(jsonCacheArray.toString())
+                                                } catch (_: Exception) {}
+
+                                                withContext(Dispatchers.Main) {
+                                                    vodList = freshFetched
+                                                }
                                             }
                                         }
                                     }
                                 }
-                                conn.disconnect()
-                            } else {
+                            } else if (fetched.isEmpty()) {
                                 statusMessage = "Supporto VOD attivo solo per portali Xtream Codes."
                             }
 
-                            if (fetched.isNotEmpty()) {
-                                vodList = fetched
-                            } else if (statusMessage.isBlank()) {
+                            if (vodList.isEmpty() && statusMessage.isBlank()) {
                                 statusMessage = "Nessun VOD trovato sul server."
                             }
                         } catch (e: Exception) {
-                            statusMessage = "Errore di connessione."
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@VodActivity, "Errore: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            if (vodList.isEmpty()) {
+                                statusMessage = "Errore di connessione."
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(this@VodActivity, "Errore: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                                }
                             }
                         } finally {
                             withContext(Dispatchers.Main) {
@@ -313,9 +378,8 @@ class VodActivity : ComponentActivity() {
                                     )
                                 }
                             } else {
-                                // ✅ LAZY GRID OTTIMIZZATA PER LE LOCANDINE
                                 LazyVerticalGrid(
-                                    columns = GridCells.Adaptive(minSize = 120.dp), // Si adatta alla dimensione dello schermo
+                                    columns = GridCells.Adaptive(minSize = 120.dp),
                                     modifier = Modifier.fillMaxSize(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -327,7 +391,7 @@ class VodActivity : ComponentActivity() {
                                         Card(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .aspectRatio(0.66f) // ✅ Proporzione perfetta per locandine (2:3)
+                                                .aspectRatio(0.66f)
                                                 .clickable(enabled = loadingVodId == null) {
                                                     loadingVodId = vod.id
                                                     val finalUserAgent = if (userAgent.isNullOrBlank()) "PortalStreamPro/1.0" else userAgent
@@ -343,17 +407,14 @@ class VodActivity : ComponentActivity() {
                                             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                                         ) {
                                             Box(modifier = Modifier.fillMaxSize()) {
-                                                
-                                                // ✅ CARICAMENTO IMMAGINE CON COIL
                                                 if (vod.coverUrl != null) {
                                                     AsyncImage(
                                                         model = vod.coverUrl,
                                                         contentDescription = "Locandina ${vod.name}",
-                                                        contentScale = ContentScale.Crop, // Riempie tutta la card
+                                                        contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxSize()
                                                     )
                                                 } else {
-                                                    // Fallback se l'immagine manca
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxSize()
@@ -364,7 +425,6 @@ class VodActivity : ComponentActivity() {
                                                     }
                                                 }
 
-                                                // ✅ GRADIENTE NERO IN BASSO PER LEGGERE IL TESTO
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
@@ -376,7 +436,6 @@ class VodActivity : ComponentActivity() {
                                                         )
                                                 )
 
-                                                // RATING (Stellina)
                                                 if (vod.rating != null) {
                                                     Row(
                                                         modifier = Modifier
@@ -393,7 +452,6 @@ class VodActivity : ComponentActivity() {
                                                     }
                                                 }
 
-                                                // PREFERITI
                                                 IconButton(
                                                     onClick = {
                                                         val newFavs = if (isFav) favoriteVodIds - vod.id else favoriteVodIds + vod.id
@@ -414,7 +472,6 @@ class VodActivity : ComponentActivity() {
                                                     )
                                                 }
 
-                                                // TESTO E CARICAMENTO IN BASSO
                                                 Column(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomStart)
@@ -453,8 +510,6 @@ class VodActivity : ComponentActivity() {
         }
     }
 
-    //... [Lascia qui companion object e la funzione CompactSearchBar invariati] ...
-    
     companion object {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
