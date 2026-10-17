@@ -205,6 +205,7 @@ class PlayerActivity : ComponentActivity() {
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             
+                            composeMediaPlayer?.let { mp ->
                             // Applica alla prima riproduzione
                             if (currentScale > 0f) {
                                 mp.aspectRatio = null
