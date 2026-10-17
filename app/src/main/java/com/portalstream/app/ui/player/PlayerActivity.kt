@@ -766,7 +766,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        var trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
             .replace("main - ", "")
 
         try {
