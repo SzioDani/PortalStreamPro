@@ -160,7 +160,11 @@ class PlayerActivity : ComponentActivity() {
             mp.attachViews(layout, null, false, true)
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
-                setHWDecoderEnabled(true, false)
+                setHWDecoderEnabled(true, true) 
+                addOption(":http-continuous")
+                addOption(":http-reconnect")
+                addOption(":clock-jitter=0")
+                
                 if (!userAgent.isNullOrBlank()) {
                     addOption(":http-user-agent=$userAgent")
                 }
