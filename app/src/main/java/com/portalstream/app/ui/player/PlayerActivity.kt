@@ -757,10 +757,11 @@ class PlayerActivity : ComponentActivity() {
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) 
+                                containerColor = if (isSelected) {
                                     Color.White.copy(alpha = 0.25f)
-                                else
+                                } else {
                                     Color.White.copy(alpha = 0.08f)
+                                }
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -822,7 +823,9 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            Log.e("PlayerDebug", "Errore nel parsing audio info")
+        }
 
         return trackName
     }
