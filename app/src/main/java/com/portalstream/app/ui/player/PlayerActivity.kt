@@ -534,29 +534,36 @@ class PlayerActivity : ComponentActivity() {
                                         else remove("aspect_ratio")
                                         apply()
                                     }
-                                    
-                                    when (newRatio) {
-                                        "FILL" -> {
-                                            mediaPlayer?.aspectRatio = null
-                                            mediaPlayer?.scale = 1.3f
-                                            currentScale = 1.3f
-                                            prefs.edit().putFloat("scale", 1.3f).apply()
-                                        }
-                                        "ZOOM125" -> {
-                                            mediaPlayer?.aspectRatio = null
-                                            mediaPlayer?.scale = 1.25f
-                                            currentScale = 1.25f
-                                            prefs.edit().putFloat("scale", 1.25f).apply()
-                                        }
+                                    composeMediaPlayer?.let { mp ->
+                                        when (newRatio) {
+                                            "FILL" -> {
+                                                mp.scale = 0f
+                                                // Imposta l'aspect ratio al rapporto reale dello schermo del telefono
+                                                val displayMetrics = resources.displayMetrics
+                                                val screenRatio = "${displayMetrics.widthPixels}:${displayMetrics.heightPixels}"
+                                                mp.aspectRatio = screenRatio
+                                                currentScale = 0f
+                                            }
+                                            "ZOOM125" -> {
+                                                mp.aspectRatio = null
+                                                mp.scale = 1.25f
+                                                currentScale = 1.25f
+                                                prefs.edit().putFloat("scale", 1.25f).apply()
+                                            }
+                                            null -> {
+                                                mp.aspectRatio = null
+                                                mp.scale = 0f
+                                                currentScale = 0f
+                                                prefs.edit().putFloat("scale", 0f).apply()
+                                            }
+                                            else -> {
+                                                mp.scale = 0f
+                                                mp.aspectRatio = newRatio
+                                                currentScale = 0f
+                                                prefs.edit().putFloat("scale", 0f).apply()
                                         null -> {
                                             mediaPlayer?.aspectRatio = null
                                             mediaPlayer?.scale = 0f
-                                            currentScale = 0f
-                                            prefs.edit().putFloat("scale", 0f).apply()
-                                        }
-                                        else -> {
-                                            mediaPlayer?.scale = 0f
-                                            mediaPlayer?.aspectRatio = newRatio
                                             currentScale = 0f
                                             prefs.edit().putFloat("scale", 0f).apply()
                                         }
