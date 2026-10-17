@@ -28,7 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration // ✅ NUOVO IMPORT FONDAMENTALE
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,7 +106,6 @@ class PlayerActivity : ComponentActivity() {
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
         
-        // ✅ STATI PER INTERCETTARE ROTAZIONE E PLAYER IN COMPOSE
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
@@ -117,10 +116,9 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // ✅ QUESTO FORZA VLC A RIAPPLICARE IL FORMATO QUANDO RUOTI LO SCHERMO
+        // Forza VLC a riapplicare il formato quando ruoti lo schermo
         LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
-                // Aspetta 200ms che VLC abbia finito di ridisegnare la finestra nativa
                 delay(150) 
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
@@ -143,11 +141,11 @@ class PlayerActivity : ComponentActivity() {
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
-                add("--network-caching=3000") // Aumentato a 3 secondi di buffer di rete (puoi metterlo a 5000 se la linea balla molto)
-                add("--live-caching=3000") // Ottimizzato specificamente per i flussi live IPTV
-                add("--disc-caching=3000") // Cache su disco/memoria per stabilizzare lo stream
-                add("--clock-jitter=0") // Riduce la sincronizzazione aggressiva che causa micro-interruzioni
-                add("--clock-synchro=0")  // Evita saltelli superflui del frame rate
+                add("--network-caching=3000")
+                add("--live-caching=3000")
+                add("--disc-caching=3000")
+                add("--clock-jitter=0")
+                add("--clock-synchro=0")
             }
 
             val vlc = LibVLC(this@PlayerActivity, options)
@@ -155,7 +153,7 @@ class PlayerActivity : ComponentActivity() {
 
             libVLC = vlc
             mediaPlayer = mp
-            composeMediaPlayer = mp // ✅ Salviamo per intercettarlo in LaunchedEffect
+            composeMediaPlayer = mp
 
             mp.attachViews(layout, null, false, true)
 
@@ -205,14 +203,14 @@ class PlayerActivity : ComponentActivity() {
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             
-                            composeMediaPlayer?.let { mp ->
-                            // Applica alla prima riproduzione
-                            if (currentScale > 0f) {
-                                mp.aspectRatio = null
-                                mp.scale = currentScale
-                            } else if (currentAspectRatio != null) {
-                                mp.scale = 0f
-                                mp.aspectRatio = currentAspectRatio
+                            composeMediaPlayer?.let { player ->
+                                if (currentScale > 0f) {
+                                    player.aspectRatio = null
+                                    player.scale = currentScale
+                                } else if (currentAspectRatio != null) {
+                                    player.scale = 0f
+                                    player.aspectRatio = currentAspectRatio
+                                }
                             }
                         }
                         
@@ -738,8 +736,8 @@ class PlayerActivity : ComponentActivity() {
                     200 -> "❌ Impossibile decodificare il flusso video."
                     401, 403 -> "🔐 Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
                     404 -> "🔍 Canale non trovato (HTTP 404)."
-                    456 -> "🚫 IP rifiutato (HTTP 456)."
-                    459 -> "📊 Troppi utenti collegati (HTTP 459)."
+                    456 -> "🚫 IP rifiutato (HTTP 456) Errore geolocalizzazione (VPN)."
+                    459 -> "📊 Troppi utenti collegati (HTTP $responseCode)."
                     429, 458, 462 -> "⏱️ Limite raggiunto (HTTP $responseCode)."
                     in 500..504 -> "🔧 Server non disponibile (HTTP $responseCode)."
                     else -> "❌ Errore HTTP $responseCode."
