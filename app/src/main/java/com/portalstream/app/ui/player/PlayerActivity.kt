@@ -68,11 +68,21 @@ class PlayerActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
-            ?: intent.getStringExtra("STREAM_URL") ?: ""
+             ?: intent.getStringExtra("STREAM_URL")
+             ?: intent.getStringExtra("url")
+             ?: intent.getStringExtra("stream")
+             ?: intent.getStringExtra("path")
+             ?: ""
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
-            ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
+             ?: intent.getStringExtra("CHANNEL_NAME")
+             ?: intent.getStringExtra("name")
+             ?: "Canale Live"
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
-
+             ?: intent.getStringExtra("USER_AGENT")
+             
+        // Aggiungiamo temporaneamente il log dell'URL per vedere cosa riceve
+        Log.d("PlayerDebug", "URL ricevuto: '$streamUrl' | UserAgent: '$userAgent'")
+        
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "URL dello stream non valido", Toast.LENGTH_SHORT).show()
             finish()
