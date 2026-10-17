@@ -87,7 +87,6 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
-        // Leggiamo istantaneamente le preferenze salvate
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
 
@@ -117,10 +116,9 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // 🔄 APPLICAZIONE AUTOMATICA DEL FORMATO ALLA ROTAZIONE O CAMBIO CONFIGURAZIONE
         LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
-                delay(150) // Attende che la vista nativa sia pronta
+                delay(150)
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
                     mp.scale = currentScale
@@ -142,9 +140,9 @@ class PlayerActivity : ComponentActivity() {
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
-                add("--network-caching=3000") // Buffer 3 secondi per eliminare i blocchi
-                add("--live-caching=3000")
-                add("--disc-caching=3000")
+                add("--network-caching=5000")
+                add("--live-caching=5000")
+                add("--disc-caching=5000")
                 add("--clock-jitter=0")
                 add("--clock-synchro=0")
             }
@@ -159,7 +157,7 @@ class PlayerActivity : ComponentActivity() {
             mp.attachViews(layout, null, false, true)
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
-                setHWDecoderEnabled(true, true) // Fallback automatico su CPU per evitare freeze
+                setHWDecoderEnabled(true, true)
                 addOption(":http-continuous")
                 addOption(":http-reconnect")
                 addOption(":clock-jitter=0")
@@ -491,12 +489,12 @@ class PlayerActivity : ComponentActivity() {
                         ) {
                             Tab(
                                 selected = activeTab == 0,
-                                onClick = { activeTab == 0 },
+                                onClick = { activeTab = 0 },
                                 text = { Text("🔊 Audio") }
                             )
                             Tab(
                                 selected = activeTab == 1,
-                                onClick = { activeTab == 1 },
+                                onClick = { activeTab = 1 },
                                 text = { Text("🎬 Formato") }
                             )
                         }
@@ -508,16 +506,16 @@ class PlayerActivity : ComponentActivity() {
                                 audioTracks = audioTrackDescriptions,
                                 currentTrackId = currentAudioTrackId,
                                 onTrackSelected = { trackId ->
-                                    mediaPlayer?.setAudioTrack(trackId)
+                                    composeMediaPlayer?.setAudioTrack(trackId)
                                     currentAudioTrackId = trackId
-                                    mediaPlayer?.let { mp ->
+                                    composeMediaPlayer?.let { mp ->
                                         currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
                                     }
                                 },
-                                formatAudioInfo = { trackId -> 
-                                    mediaPlayer?.let { mp ->
+                                formatAudioInfo = { trackId ->
+                                    composeMediaPlayer?.let { mp ->
                                         formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
-                                    } ?: "Disattivato"
+                                    } ?: "Traccia $trackId"
                                 }
                             )
 
@@ -527,7 +525,6 @@ class PlayerActivity : ComponentActivity() {
                                 onAspectRatioChange = { newRatio ->
                                     currentAspectRatio = newRatio
                                     
-                                    // SALVATAGGIO IMMEDIATO NELLE PREFERENCES (Infallibile)
                                     prefs.edit().apply {
                                         if (newRatio != null) putString("aspect_ratio", newRatio)
                                         else remove("aspect_ratio")
