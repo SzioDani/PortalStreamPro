@@ -118,7 +118,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // ✅ QUESTO FORZA VLC A RIAPPLICARE IL FORMATO QUANDO RUOTI LO SCHERMO
-        LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer) {
+        LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
                 // Aspetta 200ms che VLC abbia finito di ridisegnare la finestra nativa
                 delay(200) 
