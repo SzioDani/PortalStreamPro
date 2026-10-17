@@ -538,7 +538,6 @@ class PlayerActivity : ComponentActivity() {
                                         when (newRatio) {
                                             "FILL" -> {
                                                 mp.scale = 0f
-                                                // Imposta l'aspect ratio al rapporto reale dello schermo del telefono
                                                 val displayMetrics = resources.displayMetrics
                                                 val screenRatio = "${displayMetrics.widthPixels}:${displayMetrics.heightPixels}"
                                                 mp.aspectRatio = screenRatio
@@ -561,11 +560,7 @@ class PlayerActivity : ComponentActivity() {
                                                 mp.aspectRatio = newRatio
                                                 currentScale = 0f
                                                 prefs.edit().putFloat("scale", 0f).apply()
-                                        null -> {
-                                            mediaPlayer?.aspectRatio = null
-                                            mediaPlayer?.scale = 0f
-                                            currentScale = 0f
-                                            prefs.edit().putFloat("scale", 0f).apply()
+                                            }
                                         }
                                     }
                                 }
