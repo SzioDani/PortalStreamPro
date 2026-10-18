@@ -70,7 +70,6 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // FIX 1: RISOLVE LA BANDA NERA (MARGINE) SU SCHERMO ORIZZONTALE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -89,6 +88,17 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
+        // ✅ INIZIALIZZA LibVLC QUI, NEL onCreate(), PRIMA DI setContent()
+        try {
+            initializeLibVLC()
+            Log.d("PlayerDebug", "LibVLC inizializzato con successo")
+        } catch (e: Exception) {
+            Log.e("PlayerDebug", "Errore nell'inizializzazione di LibVLC", e)
+            Toast.makeText(this, "Errore LibVLC: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
         setContent {
             MaterialTheme {
                 PlayerScreen(
@@ -97,6 +107,37 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    // ✅ NUOVO METODO: Inizializza LibVLC FUORI da Compose
+    private fun initializeLibVLC() {
+        val options = ArrayList<String>().apply {
+            add("--no-drop-late-frames")
+            add("--no-skip-frames")
+            add("--rtsp-tcp")
+            add("--http-reconnect")
+            add("--network-caching=8000")
+            add("--live-caching=8000")
+            add("--disc-caching=8000")
+            add("--file-caching=8000")
+            add("--clock-jitter=-1")
+            add("--clock-synchro=0")
+            add("--udp-timeout=40000")
+            add("--http-continuous")
+            add("--access-filter=http_proxy")
+            add("--plugins-cache-expiration=-1")
+        }
+
+        libVLC = LibVLC(this, options)
+        mediaPlayer = MediaPlayer(libVLC)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaPlayer?.release()
+        libVLC?.release()
+        mediaPlayer = null
+        libVLC = null
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -135,7 +176,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // FIX 2: RISOLVE LA PERDITA DELLE PROPORZIONI QUANDO SI RUOTA LO SCHERMO
         LaunchedEffect(configuration.orientation, currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
             if (mp != null) {
@@ -158,35 +198,15 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // ✅ SEMPLIFICATO: Non crea più LibVLC, usa quello già inizializzato
         DisposableEffect(vlcVideoLayout) {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
-            val options = ArrayList<String>().apply {
-                add("--no-drop-late-frames")
-                add("--no-skip-frames")
-                add("--rtsp-tcp")
-                add("--http-reconnect")
-                add("--network-caching=8000")
-                add("--live-caching=8000")
-                add("--disc-caching=8000")
-                add("--file-caching=8000")
-                add("--clock-jitter=-1")
-                add("--clock-synchro=0")
-                add("--udp-timeout=40000")
-                add("--http-continuous")
-                add("--access-filter=http_proxy")
-                add("--plugins-cache-expiration=-1")
-            }
-
             try {
-                // ✅ Try-catch per catturare l'errore LibVLC
-                val vlc = LibVLC(this@PlayerActivity, options)
-                val mp = MediaPlayer(vlc)
+                val vlc = libVLC ?: throw Exception("LibVLC non inizializzato")
+                val mp = mediaPlayer ?: throw Exception("MediaPlayer non inizializzato")
 
-                libVLC = vlc
-                mediaPlayer = mp
                 composeMediaPlayer = mp
-
                 mp.attachViews(layout, null, false, true)
 
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
@@ -239,15 +259,12 @@ class PlayerActivity : ComponentActivity() {
 
                             if (isFirstPlay) {
                                 isFirstPlay = false
-                                val player = composeMediaPlayer
-                                if (player != null) {
-                                    if (currentScale > 0f) {
-                                        player.aspectRatio = null
-                                        player.scale = currentScale
-                                    } else if (currentAspectRatio != null) {
-                                        player.scale = 0f
-                                        player.aspectRatio = currentAspectRatio
-                                    }
+                                if (currentScale > 0f) {
+                                    mp.aspectRatio = null
+                                    mp.scale = currentScale
+                                } else if (currentAspectRatio != null) {
+                                    mp.scale = 0f
+                                    mp.aspectRatio = currentAspectRatio
                                 }
                             }
                             refreshAudioState()
@@ -275,25 +292,11 @@ class PlayerActivity : ComponentActivity() {
                 onDispose {
                     mp.stop()
                     mp.detachViews()
-                    mp.release()
-                    vlc.release()
-                    mediaPlayer = null
-                    composeMediaPlayer = null
-                    libVLC = null
                 }
 
             } catch (e: Exception) {
-                // ✅ Se LibVLC fallisce, mostra l'errore
-                Log.e("PlayerDebug", "Errore nella creazione di LibVLC", e)
-                errorMessage = "❌ Errore: Non è possibile inizializzare il player VLC\n${e.message}"
-                
-                onDispose {
-                    libVLC?.release()
-                    mediaPlayer?.release()
-                    mediaPlayer = null
-                    composeMediaPlayer = null
-                    libVLC = null
-                }
+                Log.e("PlayerDebug", "Errore nel setup del player", e)
+                errorMessage = "Errore: ${e.message}"
             }
         }
 
