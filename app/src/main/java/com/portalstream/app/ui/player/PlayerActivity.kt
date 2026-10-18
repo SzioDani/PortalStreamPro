@@ -136,17 +136,13 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // FIX 2: RISOLVE LA PERDITA DELLE PROPORZIONI QUANDO SI RUOTA LO SCHERMO
-        // Questo blocco sente quando giri il telefono (configuration.orientation)
-        // aspetta che VLC abbia finito il suo stupido reset interno, e riapplica la tua scelta.
         LaunchedEffect(configuration.orientation, currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
             if (mp != null) {
-                // Aspettiamo mezzo secondo per essere sicuri che la rotazione Android sia completata
                 delay(400) 
                 
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
-                    // TRUCCO VLC: a volte rifiuta di prendere lo stesso valore, lo resettiamo a 0 un attimo prima
                     mp.scale = 0f 
                     delay(50)
                     mp.scale = currentScale
@@ -182,107 +178,122 @@ class PlayerActivity : ComponentActivity() {
                 add("--plugins-cache-expiration=-1")
             }
 
-            val vlc = LibVLC(this@PlayerActivity, options)
-            val mp = MediaPlayer(vlc)
+            try {
+                // ✅ Try-catch per catturare l'errore LibVLC
+                val vlc = LibVLC(this@PlayerActivity, options)
+                val mp = MediaPlayer(vlc)
 
-            libVLC = vlc
-            mediaPlayer = mp
-            composeMediaPlayer = mp
+                libVLC = vlc
+                mediaPlayer = mp
+                composeMediaPlayer = mp
 
-            mp.attachViews(layout, null, false, true)
+                mp.attachViews(layout, null, false, true)
 
-            val media = Media(vlc, Uri.parse(streamUrl)).apply {
-                setHWDecoderEnabled(true, true)
-                addOption(":http-continuous")
-                addOption(":http-reconnect")
-                addOption(":clock-jitter=0")
-                addOption(":network-caching=8000")
-                addOption(":live-caching=8000")
+                val media = Media(vlc, Uri.parse(streamUrl)).apply {
+                    setHWDecoderEnabled(true, true)
+                    addOption(":http-continuous")
+                    addOption(":http-reconnect")
+                    addOption(":clock-jitter=0")
+                    addOption(":network-caching=8000")
+                    addOption(":live-caching=8000")
 
-                if (!userAgent.isNullOrBlank()) {
-                    addOption(":http-user-agent=$userAgent")
-                }
-            }
-
-            mp.media = media
-            media.release()
-
-            fun refreshAudioState() {
-                val tracks = mp.audioTracks?.toList() ?: emptyList()
-                audioTrackDescriptions = tracks
-                var currentId = mp.audioTrack
-                val validTracks = tracks.filter { it.id != -1 }
-
-                if (currentId == -1 && validTracks.isNotEmpty()) {
-                    val defaultTrackId = validTracks.first().id
-                    mp.audioTrack = defaultTrackId
-                    currentId = defaultTrackId
-                }
-
-                currentAudioTrackId = currentId
-                currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
-            }
-
-            var initialBufferingStarted = false
-            var isFirstPlay = true
-
-            mp.setEventListener { event ->
-                when (event.type) {
-                    MediaPlayer.Event.Buffering -> {
-                        if (!initialBufferingStarted) {
-                            initialBufferingStarted = true
-                        }
-                        isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
+                    if (!userAgent.isNullOrBlank()) {
+                        addOption(":http-user-agent=$userAgent")
                     }
-                    MediaPlayer.Event.Playing -> {
-                        isBuffering = false
-                        isPlaying = true
-                        errorMessage = null
+                }
 
-                        // Riapplica solo al primissimo avvio
-                        if (isFirstPlay) {
-                            isFirstPlay = false
-                            val player = composeMediaPlayer
-                            if (player != null) {
-                                if (currentScale > 0f) {
-                                    player.aspectRatio = null
-                                    player.scale = currentScale
-                                } else if (currentAspectRatio != null) {
-                                    player.scale = 0f
-                                    player.aspectRatio = currentAspectRatio
+                mp.media = media
+                media.release()
+
+                fun refreshAudioState() {
+                    val tracks = mp.audioTracks?.toList() ?: emptyList()
+                    audioTrackDescriptions = tracks
+                    var currentId = mp.audioTrack
+                    val validTracks = tracks.filter { it.id != -1 }
+
+                    if (currentId == -1 && validTracks.isNotEmpty()) {
+                        val defaultTrackId = validTracks.first().id
+                        mp.audioTrack = defaultTrackId
+                        currentId = defaultTrackId
+                    }
+
+                    currentAudioTrackId = currentId
+                    currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
+                }
+
+                var initialBufferingStarted = false
+                var isFirstPlay = true
+
+                mp.setEventListener { event ->
+                    when (event.type) {
+                        MediaPlayer.Event.Buffering -> {
+                            if (!initialBufferingStarted) {
+                                initialBufferingStarted = true
+                            }
+                            isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
+                        }
+                        MediaPlayer.Event.Playing -> {
+                            isBuffering = false
+                            isPlaying = true
+                            errorMessage = null
+
+                            if (isFirstPlay) {
+                                isFirstPlay = false
+                                val player = composeMediaPlayer
+                                if (player != null) {
+                                    if (currentScale > 0f) {
+                                        player.aspectRatio = null
+                                        player.scale = currentScale
+                                    } else if (currentAspectRatio != null) {
+                                        player.scale = 0f
+                                        player.aspectRatio = currentAspectRatio
+                                    }
                                 }
                             }
+                            refreshAudioState()
                         }
-                        refreshAudioState()
-                    }
-                    MediaPlayer.Event.Paused -> { isPlaying = false }
-                    MediaPlayer.Event.Stopped -> { isPlaying = false }
-                    MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
-                        refreshAudioState()
-                    }
-                    MediaPlayer.Event.EncounteredError -> {
-                        isBuffering = false
-                        isPlaying = false
-                        checkHttpError(streamUrl, userAgent) { mappedMessage ->
-                            errorMessage = mappedMessage
+                        MediaPlayer.Event.Paused -> { isPlaying = false }
+                        MediaPlayer.Event.Stopped -> { isPlaying = false }
+                        MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
+                            refreshAudioState()
+                        }
+                        MediaPlayer.Event.EncounteredError -> {
+                            isBuffering = false
+                            isPlaying = false
+                            checkHttpError(streamUrl, userAgent) { mappedMessage ->
+                                errorMessage = mappedMessage
+                            }
                         }
                     }
                 }
-            }
 
-            lifecycleScope.launch {
-                delay(500)
-                mp.play()
-            }
+                lifecycleScope.launch {
+                    delay(500)
+                    mp.play()
+                }
 
-            onDispose {
-                mp.stop()
-                mp.detachViews()
-                mp.release()
-                vlc.release()
-                mediaPlayer = null
-                composeMediaPlayer = null
-                libVLC = null
+                onDispose {
+                    mp.stop()
+                    mp.detachViews()
+                    mp.release()
+                    vlc.release()
+                    mediaPlayer = null
+                    composeMediaPlayer = null
+                    libVLC = null
+                }
+
+            } catch (e: Exception) {
+                // ✅ Se LibVLC fallisce, mostra l'errore
+                Log.e("PlayerDebug", "Errore nella creazione di LibVLC", e)
+                errorMessage = "❌ Errore: Non è possibile inizializzare il player VLC\n${e.message}"
+                
+                onDispose {
+                    libVLC?.release()
+                    mediaPlayer?.release()
+                    mediaPlayer = null
+                    composeMediaPlayer = null
+                    libVLC = null
+                }
             }
         }
 
@@ -296,8 +307,6 @@ class PlayerActivity : ComponentActivity() {
                 ) { showControls = !showControls }
         ) {
             
-            // Ho pulito questa parte togliendo l'addOnLayoutChangeListener che creava problemi, 
-            // ora gestiamo tutto molto meglio con il LaunchedEffect in alto!
             AndroidView(
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
