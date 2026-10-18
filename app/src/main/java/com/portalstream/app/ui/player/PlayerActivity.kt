@@ -297,6 +297,7 @@ class PlayerActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e("PlayerDebug", "Errore nel setup del player", e)
                 errorMessage = "Errore: ${e.message}"
+                onDispose {}
             }
         }
 
