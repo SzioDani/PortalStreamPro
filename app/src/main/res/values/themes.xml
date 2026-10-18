@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- parent nativo (niente AppCompat) - PlayerActivity usa ComponentActivity -->
-    <style name="Theme.PortalStreamPro" parent="android:Theme.Material.NoActionBar">
+    <!-- Theme Jetpack Compose - PlayerActivity compatibile -->
+    <style name="Theme.PortalStreamPro" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Colori di base -->
         <item name="android:windowBackground">@color/surface_dark</item>
+        <item name="android:colorBackground">@color/surface_dark</item>
+        
+        <!-- Barre di sistema -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/surface_dark</item>
         <item name="android:windowLightStatusBar">false</item>
-        <!-- L'app ha il proprio tema scuro: blocca l'inversione automatica di MIUI -->
+        
+        <!-- Importantissimo per Compose -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:fitsSystemWindows">false</item>
+        
+        <!-- Disabilita tema scuro automatico (MIUI, OneUI, etc.) -->
         <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
