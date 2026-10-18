@@ -124,8 +124,6 @@ class PlayerActivity : ComponentActivity() {
             add("--clock-synchro=0")
             add("--udp-timeout=40000")
             add("--http-continuous")
-            add("--access-filter=http_proxy")
-            add("--plugins-cache-expiration=-1")
         }
 
         libVLC = LibVLC(this, options)
