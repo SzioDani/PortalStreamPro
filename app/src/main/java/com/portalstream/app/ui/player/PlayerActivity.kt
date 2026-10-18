@@ -75,7 +75,10 @@ class PlayerActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
-
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
             ?: intent.getStringExtra("STREAM_URL") ?: ""
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
