@@ -8,8 +8,7 @@ plugins {
 android {
     namespace = "com.portalstream.app"
     compileSdk = 34
-    
-    // ⚠️ NON specificare ndkVersion - usa il default
+    ndkVersion "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.portalstream.app"
@@ -19,9 +18,6 @@ android {
         versionName = "1.0.0-beta"
         
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
-        // Forza build tools version
-        buildToolsVersion = "34.0.0"
     }
     
     buildFeatures {
@@ -42,9 +38,6 @@ android {
                 "proguard-rules.pro"
             )
         }
-        debug {
-            isDebuggable = true
-        }
     }
     
     compileOptions {
@@ -54,23 +47,6 @@ android {
     
     kotlinOptions {
         jvmTarget = "17"
-    }
-    
-    packaging {
-        jniLibs.pickFirsts.add("lib/arm64-v8a/libc++_shared.so")
-        jniLibs.pickFirsts.add("lib/armeabi-v7a/libc++_shared.so")
-        jniLibs.pickFirsts.add("lib/x86/libc++_shared.so")
-        jniLibs.pickFirsts.add("lib/x86_64/libc++_shared.so")
-    }
-    
-    // Disabilita C++ compilation nel build
-    externalNativeBuild {
-        ndkBuild {
-            path = null
-        }
-        cmake {
-            path = null
-        }
     }
 }
 
@@ -100,7 +76,7 @@ dependencies {
     // FIRESTORE TV DEVICE DETECTION
     implementation("androidx.tvprovider:tvprovider:1.0.0")
 
-    // Motore multimediale nativo LibVLC
+     // Motore multimediale nativo LibVLC
     implementation("org.videolan.android:libvlc-all:3.5.1")
 
     // NETWORK MONITORING
