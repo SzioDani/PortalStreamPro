@@ -1,10 +1,8 @@
 package com.portalstream.app.ui.player
 
 import android.content.Context
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -56,9 +54,7 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
-
-    private val INITIAL_BUFFER_THRESHOLD = 85f
-
+    
     private val prefs by lazy {
         getSharedPreferences("player_settings", Context.MODE_PRIVATE)
     }
@@ -66,23 +62,17 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
-             ?: intent.getStringExtra("STREAM_URL")
-             ?: intent.getStringExtra("url")
-             ?: intent.getStringExtra("stream")
-             ?: intent.getStringExtra("path")
-             ?: ""
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
-             ?: intent.getStringExtra("CHANNEL_NAME")
-             ?: intent.getStringExtra("name")
-             ?: "Canale Live"
-        userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
-             ?: intent.getStringExtra("USER_AGENT")
-             
-        // Aggiungiamo temporaneamente il log dell'URL per vedere cosa riceve
-        Log.d("PlayerDebug", "URL ricevuto: '$streamUrl' | UserAgent: '$userAgent'")
         
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+        
+        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) 
+            ?: intent.getStringExtra("STREAM_URL") ?: ""
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) 
+            ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
+        userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
+
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "URL dello stream non valido", Toast.LENGTH_SHORT).show()
             finish()
@@ -99,11 +89,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
-    }
-
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
@@ -114,30 +99,19 @@ class PlayerActivity : ComponentActivity() {
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
-        var activeTab by remember { mutableStateOf(0) }
+        var activeTab by remember { mutableIntStateOf(0) }
 
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
-        var currentAudioTrackId by remember { mutableStateOf(-1) }
+        var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
         var currentScale by remember { mutableStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
-
+        
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-
-        var settingsApplied by remember { mutableStateOf(false) }
-
-        LaunchedEffect(currentAspectRatio, currentScale) {
-            Log.d("PlayerDebug", """
-                AspectRatio: $currentAspectRatio
-                Scale: $currentScale
-                Applied: $settingsApplied
-                MediaPlayer: ${composeMediaPlayer != null}
-            """.trimIndent())
-        }
 
         LaunchedEffect(showControls, isPlaying) {
             if (showControls && isPlaying) {
@@ -146,32 +120,21 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(composeMediaPlayer, currentAspectRatio, currentScale) {
+        LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
             composeMediaPlayer?.let { mp ->
-                if (!settingsApplied || currentAspectRatio != null || currentScale > 0f) {
-                    delay(200)
-
-                    Log.d("PlayerDebug", "Applicando impostazioni: AspectRatio=$currentAspectRatio, Scale=$currentScale")
-
-                    when {
-                        currentScale > 0f -> {
-                            mp.aspectRatio = null
-                            mp.scale = currentScale
-                            settingsApplied = true
-                            Log.d("PlayerDebug", "Scale applicato: $currentScale")
-                        }
-                        currentAspectRatio != null -> {
-                            mp.scale = 0f
-                            mp.aspectRatio = currentAspectRatio
-                            settingsApplied = true
-                            Log.d("PlayerDebug", "AspectRatio applicato: $currentAspectRatio")
-                        }
-                        else -> {
-                            mp.scale = 0f
-                            mp.aspectRatio = null
-                            Log.d("PlayerDebug", "Reset a valori di default")
-                        }
+                when {
+                    currentScale > 0f -> {
+                        mp.aspectRatio = null
+                        mp.scale = currentScale
                     }
+                    currentAspectRatio != null -> {
+                        mp.scale = 0f
+                        mp.aspectRatio = currentAspectRatio
+                    }
+                    else -> {
+                        mp.scale = 0f
+                        mp.aspectRatio = null
+                    }  
                 }
             }
         }
@@ -180,23 +143,15 @@ class PlayerActivity : ComponentActivity() {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             val options = ArrayList<String>().apply {
-                add("--no-drop-late-frames")
+                add("--drop-late-frames")
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
-
                 add("--network-caching=8000")
                 add("--live-caching=8000")
                 add("--disc-caching=8000")
-                add("--file-caching=8000")
-
                 add("--clock-jitter=-1")
                 add("--clock-synchro=0")
-
-                add("--udp-timeout=40000")
-                add("--http-continuous")
-                add("--access-filter=http_proxy")
-                add("--plugins-cache-expiration=-1")
             }
 
             val vlc = LibVLC(this@PlayerActivity, options)
@@ -210,12 +165,10 @@ class PlayerActivity : ComponentActivity() {
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
                 setHWDecoderEnabled(true, true)
+                addOption(":network-caching=8000")
+                addOption(":live-caching=8000") 
                 addOption(":http-continuous")
                 addOption(":http-reconnect")
-                addOption(":clock-jitter=0")
-                addOption(":network-caching=8000")
-                addOption(":live-caching=8000")
-
                 if (!userAgent.isNullOrBlank()) {
                     addOption(":http-user-agent=$userAgent")
                 }
@@ -239,71 +192,47 @@ class PlayerActivity : ComponentActivity() {
 
                 currentAudioTrackId = currentId
                 currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
-                Log.d("PlayerDebug", "Audio aggiornato: $currentAudioInfo")
             }
 
             var hasAppliedSettings = false
-            var initialBufferingStarted = false
 
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
-                        if (!initialBufferingStarted) {
-                            initialBufferingStarted = true
-                            Log.d("PlayerDebug", "Buffering iniziato")
-                        }
-
-                        val bufferingPercent = event.buffering
-                        isBuffering = bufferingPercent < INITIAL_BUFFER_THRESHOLD
-                        Log.d("PlayerDebug", "Buffering: $bufferingPercent%")
+                        isBuffering = event.buffering < 100f
                     }
-
                     MediaPlayer.Event.Playing -> {
                         isBuffering = false
                         isPlaying = true
                         errorMessage = null
-                        Log.d("PlayerDebug", "Media in riproduzione")
-
+                        
                         if (!hasAppliedSettings) {
                             hasAppliedSettings = true
                             composeMediaPlayer?.let { player ->
                                 if (currentScale > 0f) {
                                     player.aspectRatio = null
                                     player.scale = currentScale
-                                    Log.d("PlayerDebug", "Scale applicato al play: $currentScale")
                                 } else if (currentAspectRatio != null) {
                                     player.scale = 0f
                                     player.aspectRatio = currentAspectRatio
-                                    Log.d("PlayerDebug", "AspectRatio applicato al play: $currentAspectRatio")
-                                } else {
-                                    // Fallback di sicurezza obbligatorio per il compilatore
-                                    player.scale = 0f
-                                    player.aspectRatio = null
                                 }
                             }
                         }
-
+                        
                         refreshAudioState()
                     }
-
                     MediaPlayer.Event.Paused -> {
                         isPlaying = false
-                        Log.d("PlayerDebug", "Media in pausa")
                     }
-
                     MediaPlayer.Event.Stopped -> {
                         isPlaying = false
-                        Log.d("PlayerDebug", "Media fermato")
                     }
-
                     MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                         refreshAudioState()
                     }
-
                     MediaPlayer.Event.EncounteredError -> {
                         isBuffering = false
                         isPlaying = false
-                        Log.e("PlayerDebug", "Errore nel media player")
                         checkHttpError(streamUrl, userAgent) { mappedMessage ->
                             errorMessage = mappedMessage
                         }
@@ -311,14 +240,9 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            lifecycleScope.launch {
-                delay(500)
-                mp.play()
-                Log.d("PlayerDebug", "Play richiesto")
-            }
+            mp.play()
 
             onDispose {
-                Log.d("PlayerDebug", "Pulizia risorse media player")
                 mp.stop()
                 mp.detachViews()
                 mp.release()
@@ -342,6 +266,23 @@ class PlayerActivity : ComponentActivity() {
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
                         vlcVideoLayout = layout
+                        
+                        layout.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                                composeMediaPlayer?.let { mp ->
+                                    if (currentScale > 0f) {
+                                        mp.aspectRatio = null
+                                        mp.scale = currentScale
+                                    } else if (currentAspectRatio != null) {
+                                        mp.scale = 0f
+                                        mp.aspectRatio = currentAspectRatio
+                                    } else {
+                                        mp.scale = 0f
+                                        mp.aspectRatio = null
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -595,7 +536,6 @@ class PlayerActivity : ComponentActivity() {
                                     composeMediaPlayer?.let { mp ->
                                         currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
                                     }
-                                    Log.d("PlayerDebug", "Audio selezionato: $trackId")
                                 },
                                 formatAudioInfo = { trackId ->
                                     composeMediaPlayer?.let { mp ->
@@ -608,51 +548,41 @@ class PlayerActivity : ComponentActivity() {
                                 currentAspectRatio = currentAspectRatio,
                                 currentScale = currentScale,
                                 onAspectRatioChange = { newRatio ->
-                                    Log.d("PlayerDebug", "Cambiamento aspect ratio richiesto: $newRatio")
                                     currentAspectRatio = newRatio
-
+                                    
                                     prefs.edit().apply {
-                                        if (newRatio != null) {
-                                            putString("aspect_ratio", newRatio)
-                                        } else {
-                                            remove("aspect_ratio")
-                                        }
+                                        if (newRatio != null) putString("aspect_ratio", newRatio)
+                                        else remove("aspect_ratio")
                                         apply()
                                     }
-
                                     composeMediaPlayer?.let { mp ->
                                         when (newRatio) {
                                             "FILL" -> {
-                                                mp.scale = 1.3f
                                                 mp.aspectRatio = null
+                                                mp.scale = 1.3f
                                                 currentScale = 1.3f
                                                 prefs.edit().putFloat("scale", 1.3f).apply()
-                                                Log.d("PlayerDebug", "FILL attivato")
                                             }
                                             "ZOOM125" -> {
-                                                mp.scale = 1.25f
                                                 mp.aspectRatio = null
+                                                mp.scale = 1.25f
                                                 currentScale = 1.25f
                                                 prefs.edit().putFloat("scale", 1.25f).apply()
-                                                Log.d("PlayerDebug", "ZOOM125 attivato")
                                             }
                                             null -> {
-                                                mp.scale = 0f
                                                 mp.aspectRatio = null
+                                                mp.scale = 0f
                                                 currentScale = 0f
                                                 prefs.edit().putFloat("scale", 0f).apply()
-                                                Log.d("PlayerDebug", "Default attivato")
                                             }
                                             else -> {
                                                 mp.scale = 0f
                                                 mp.aspectRatio = newRatio
                                                 currentScale = 0f
                                                 prefs.edit().putFloat("scale", 0f).apply()
-                                                Log.d("PlayerDebug", "AspectRatio $newRatio attivato")
                                             }
                                         }
                                     }
-                                    settingsApplied = false
                                 }
                             )
                         }
@@ -670,7 +600,7 @@ class PlayerActivity : ComponentActivity() {
         formatAudioInfo: (Int) -> String
     ) {
         val validTracks = audioTracks.filter { it.id != -1 }
-
+        
         if (validTracks.isEmpty()) {
             Text(
                 text = "🔇 Nessuna traccia audio disponibile",
@@ -703,7 +633,7 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-        @Composable
+    @Composable
     private fun AspectRatioTabContent(
         currentAspectRatio: String?,
         currentScale: Float,
@@ -739,30 +669,21 @@ class PlayerActivity : ComponentActivity() {
                             else -> false
                         }
 
-                        val buttonColor = if (isSelected) {
-                            Color.White.copy(alpha = 0.25f)
-                        } else {
-                            Color.White.copy(alpha = 0.08f)
-                        }
-
-                        val buttonText = if (isSelected) {
-                            "✓ $label"
-                        } else {
-                            label
-                        }
-
                         Button(
                             onClick = { onAspectRatioChange(ratio) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = buttonColor
+                                containerColor = if (isSelected) 
+                                    Color.White.copy(alpha = 0.25f)
+                                else
+                                    Color.White.copy(alpha = 0.08f)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                text = buttonText,
+                                text = if (isSelected) "✓ $label" else label,
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                                 textAlign = TextAlign.Center
@@ -788,7 +709,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+        var trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
             .replace("main - ", "")
 
         try {
@@ -805,13 +726,12 @@ class PlayerActivity : ComponentActivity() {
                             "AAC", "MP4A" -> "AAC"
                             else -> t.codec?.uppercase()
                         }
-                        val channels = when {
-                            t.channels == 1 -> "Mono"
-                            t.channels == 2 -> "Stereo 2.0"
-                            t.channels == 6 -> "5.1"
-                            t.channels == 8 -> "7.1"
-                            t.channels > 0 -> "${t.channels}ch"
-                            else -> null
+                        val channels = when (t.channels) {
+                            1 -> "Mono"
+                            2 -> "Stereo 2.0"
+                            6 -> "5.1"
+                            8 -> "7.1"
+                            else -> if (t.channels > 0) "${t.channels}ch" else null
                         }
                         val details = listOfNotNull(codec, channels).joinToString(" • ")
                         if (details.isNotBlank()) {
@@ -820,9 +740,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
-        } catch (_: Exception) {
-            Log.e("PlayerDebug", "Errore nel parsing audio info")
-        }
+        } catch (_: Exception) {}
 
         return trackName
     }
@@ -852,7 +770,6 @@ class PlayerActivity : ComponentActivity() {
                 conn.disconnect()
             } catch (e: Exception) {
                 message = "🌐 Impossibile connettersi al server."
-                Log.e("PlayerDebug", "Errore HTTP check", e)
             }
             withContext(Dispatchers.Main) { onResult(message) }
         }
