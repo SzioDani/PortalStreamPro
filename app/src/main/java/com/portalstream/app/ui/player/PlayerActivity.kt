@@ -1,8 +1,11 @@
 package com.portalstream.app.ui.player
 
 import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -34,6 +37,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -46,9 +52,6 @@ import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
 import java.net.HttpURLConnection
 import java.net.URL
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 
 class PlayerActivity : ComponentActivity() {
 
@@ -57,22 +60,26 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
-    
+
+    private val INITIAL_BUFFER_THRESHOLD = 85f
+
     private val prefs by lazy {
         getSharedPreferences("player_settings", Context.MODE_PRIVATE)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // FIX 1: RISOLVE LA BANDA NERA (MARGINE) SU SCHERMO ORIZZONTALE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-        
-        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
+        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
             ?: intent.getStringExtra("STREAM_URL") ?: ""
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) 
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
@@ -90,6 +97,11 @@ class PlayerActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
     }
 
     @Composable
@@ -112,7 +124,7 @@ class PlayerActivity : ComponentActivity() {
         var currentScale by remember { mutableStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
-        
+
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
@@ -123,21 +135,29 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(configuration, currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout) {
-            composeMediaPlayer?.let { mp ->
-                when {
-                    currentScale > 0f -> {
-                        mp.aspectRatio = null
-                        mp.scale = currentScale
-                    }
-                    currentAspectRatio != null -> {
-                        mp.scale = 0f
-                        mp.aspectRatio = currentAspectRatio
-                    }
-                    else -> {
-                        mp.scale = 0f
-                        mp.aspectRatio = null
-                    }  
+        // FIX 2: RISOLVE LA PERDITA DELLE PROPORZIONI QUANDO SI RUOTA LO SCHERMO
+        // Questo blocco sente quando giri il telefono (configuration.orientation)
+        // aspetta che VLC abbia finito il suo stupido reset interno, e riapplica la tua scelta.
+        LaunchedEffect(configuration.orientation, currentAspectRatio, currentScale, composeMediaPlayer) {
+            val mp = composeMediaPlayer
+            if (mp != null) {
+                // Aspettiamo mezzo secondo per essere sicuri che la rotazione Android sia completata
+                delay(400) 
+                
+                if (currentScale > 0f) {
+                    mp.aspectRatio = null
+                    // TRUCCO VLC: a volte rifiuta di prendere lo stesso valore, lo resettiamo a 0 un attimo prima
+                    mp.scale = 0f 
+                    delay(50)
+                    mp.scale = currentScale
+                } else if (currentAspectRatio != null) {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
+                    delay(50)
+                    mp.aspectRatio = currentAspectRatio
+                } else {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
                 }
             }
         }
@@ -146,15 +166,20 @@ class PlayerActivity : ComponentActivity() {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             val options = ArrayList<String>().apply {
-                add("--drop-late-frames")
+                add("--no-drop-late-frames")
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
                 add("--http-reconnect")
                 add("--network-caching=8000")
                 add("--live-caching=8000")
                 add("--disc-caching=8000")
+                add("--file-caching=8000")
                 add("--clock-jitter=-1")
                 add("--clock-synchro=0")
+                add("--udp-timeout=40000")
+                add("--http-continuous")
+                add("--access-filter=http_proxy")
+                add("--plugins-cache-expiration=-1")
             }
 
             val vlc = LibVLC(this@PlayerActivity, options)
@@ -168,10 +193,12 @@ class PlayerActivity : ComponentActivity() {
 
             val media = Media(vlc, Uri.parse(streamUrl)).apply {
                 setHWDecoderEnabled(true, true)
-                addOption(":network-caching=8000")
-                addOption(":live-caching=8000") 
                 addOption(":http-continuous")
                 addOption(":http-reconnect")
+                addOption(":clock-jitter=0")
+                addOption(":network-caching=8000")
+                addOption(":live-caching=8000")
+
                 if (!userAgent.isNullOrBlank()) {
                     addOption(":http-user-agent=$userAgent")
                 }
@@ -183,7 +210,6 @@ class PlayerActivity : ComponentActivity() {
             fun refreshAudioState() {
                 val tracks = mp.audioTracks?.toList() ?: emptyList()
                 audioTrackDescriptions = tracks
-
                 var currentId = mp.audioTrack
                 val validTracks = tracks.filter { it.id != -1 }
 
@@ -197,21 +223,27 @@ class PlayerActivity : ComponentActivity() {
                 currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
             }
 
-            var hasAppliedSettings = false
+            var initialBufferingStarted = false
+            var isFirstPlay = true
 
             mp.setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Buffering -> {
-                        isBuffering = event.buffering < 100f
+                        if (!initialBufferingStarted) {
+                            initialBufferingStarted = true
+                        }
+                        isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
                     }
                     MediaPlayer.Event.Playing -> {
                         isBuffering = false
                         isPlaying = true
                         errorMessage = null
-                        
-                        if (!hasAppliedSettings) {
-                            hasAppliedSettings = true
-                            composeMediaPlayer?.let { player ->
+
+                        // Riapplica solo al primissimo avvio
+                        if (isFirstPlay) {
+                            isFirstPlay = false
+                            val player = composeMediaPlayer
+                            if (player != null) {
                                 if (currentScale > 0f) {
                                     player.aspectRatio = null
                                     player.scale = currentScale
@@ -221,15 +253,10 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        
                         refreshAudioState()
                     }
-                    MediaPlayer.Event.Paused -> {
-                        isPlaying = false
-                    }
-                    MediaPlayer.Event.Stopped -> {
-                        isPlaying = false
-                    }
+                    MediaPlayer.Event.Paused -> { isPlaying = false }
+                    MediaPlayer.Event.Stopped -> { isPlaying = false }
                     MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                         refreshAudioState()
                     }
@@ -243,7 +270,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            mp.play()
+            lifecycleScope.launch {
+                delay(500)
+                mp.play()
+            }
 
             onDispose {
                 mp.stop()
@@ -265,27 +295,13 @@ class PlayerActivity : ComponentActivity() {
                     indication = null
                 ) { showControls = !showControls }
         ) {
+            
+            // Ho pulito questa parte togliendo l'addOnLayoutChangeListener che creava problemi, 
+            // ora gestiamo tutto molto meglio con il LaunchedEffect in alto!
             AndroidView(
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
                         vlcVideoLayout = layout
-                        
-                        layout.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-                            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                                composeMediaPlayer?.let { mp ->
-                                    if (currentScale > 0f) {
-                                        mp.aspectRatio = null
-                                        mp.scale = currentScale
-                                    } else if (currentAspectRatio != null) {
-                                        mp.scale = 0f
-                                        mp.aspectRatio = currentAspectRatio
-                                    } else {
-                                        mp.scale = 0f
-                                        mp.aspectRatio = null
-                                    }
-                                }
-                            }
-                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -338,7 +354,8 @@ class PlayerActivity : ComponentActivity() {
                     ) {
                         IconButton(
                             onClick = {
-                                mediaPlayer?.let { mp ->
+                                val mp = composeMediaPlayer
+                                if (mp != null) {
                                     val target = (mp.time - 10000).coerceAtLeast(0)
                                     mp.time = target
                                 }
@@ -357,7 +374,8 @@ class PlayerActivity : ComponentActivity() {
 
                         IconButton(
                             onClick = {
-                                mediaPlayer?.let { mp ->
+                                val mp = composeMediaPlayer
+                                if (mp != null) {
                                     if (mp.isPlaying) mp.pause() else mp.play()
                                 }
                             },
@@ -400,7 +418,8 @@ class PlayerActivity : ComponentActivity() {
 
                         IconButton(
                             onClick = {
-                                mediaPlayer?.let { mp ->
+                                val mp = composeMediaPlayer
+                                if (mp != null) {
                                     val target = mp.time + 10000
                                     mp.time = target
                                 }
@@ -428,7 +447,8 @@ class PlayerActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = {
-                            composeMediaPlayer?.let { mp ->
+                            val mp = composeMediaPlayer
+                            if (mp != null) {
                                 audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
                                 currentAudioTrackId = mp.audioTrack
                             }
@@ -474,7 +494,10 @@ class PlayerActivity : ComponentActivity() {
                         Button(onClick = {
                             errorMessage = null
                             isBuffering = true
-                            mediaPlayer?.play()
+                            lifecycleScope.launch {
+                                delay(500)
+                                mediaPlayer?.play()
+                            }
                         }) {
                             Text("Riprova")
                         }
@@ -536,14 +559,18 @@ class PlayerActivity : ComponentActivity() {
                                 onTrackSelected = { trackId ->
                                     composeMediaPlayer?.setAudioTrack(trackId)
                                     currentAudioTrackId = trackId
-                                    composeMediaPlayer?.let { mp ->
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
                                         currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
                                     }
                                 },
                                 formatAudioInfo = { trackId ->
-                                    composeMediaPlayer?.let { mp ->
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
                                         formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
-                                    } ?: "Traccia $trackId"
+                                    } else {
+                                        "Traccia $trackId"
+                                    }
                                 }
                             )
 
@@ -552,29 +579,34 @@ class PlayerActivity : ComponentActivity() {
                                 currentScale = currentScale,
                                 onAspectRatioChange = { newRatio ->
                                     currentAspectRatio = newRatio
-                                    
+
                                     prefs.edit().apply {
-                                        if (newRatio != null) putString("aspect_ratio", newRatio)
-                                        else remove("aspect_ratio")
+                                        if (newRatio != null) {
+                                            putString("aspect_ratio", newRatio)
+                                        } else {
+                                            remove("aspect_ratio")
+                                        }
                                         apply()
                                     }
-                                    composeMediaPlayer?.let { mp ->
+
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
                                         when (newRatio) {
                                             "FILL" -> {
-                                                mp.aspectRatio = null
                                                 mp.scale = 1.3f
+                                                mp.aspectRatio = null
                                                 currentScale = 1.3f
                                                 prefs.edit().putFloat("scale", 1.3f).apply()
                                             }
                                             "ZOOM125" -> {
-                                                mp.aspectRatio = null
                                                 mp.scale = 1.25f
+                                                mp.aspectRatio = null
                                                 currentScale = 1.25f
                                                 prefs.edit().putFloat("scale", 1.25f).apply()
                                             }
                                             null -> {
-                                                mp.aspectRatio = null
                                                 mp.scale = 0f
+                                                mp.aspectRatio = null
                                                 currentScale = 0f
                                                 prefs.edit().putFloat("scale", 0f).apply()
                                             }
@@ -603,7 +635,7 @@ class PlayerActivity : ComponentActivity() {
         formatAudioInfo: (Int) -> String
     ) {
         val validTracks = audioTracks.filter { it.id != -1 }
-        
+
         if (validTracks.isEmpty()) {
             Text(
                 text = "🔇 Nessuna traccia audio disponibile",
@@ -678,10 +710,11 @@ class PlayerActivity : ComponentActivity() {
                                 .weight(1f)
                                 .height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) 
+                                containerColor = if (isSelected) {
                                     Color.White.copy(alpha = 0.25f)
-                                else
+                                } else {
                                     Color.White.copy(alpha = 0.08f)
+                                }
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -743,7 +776,9 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            Log.e("PlayerDebug", "Errore nel parsing audio info")
+        }
 
         return trackName
     }
@@ -773,6 +808,7 @@ class PlayerActivity : ComponentActivity() {
                 conn.disconnect()
             } catch (e: Exception) {
                 message = "🌐 Impossibile connettersi al server."
+                Log.e("PlayerDebug", "Errore HTTP check", e)
             }
             withContext(Dispatchers.Main) { onResult(message) }
         }
