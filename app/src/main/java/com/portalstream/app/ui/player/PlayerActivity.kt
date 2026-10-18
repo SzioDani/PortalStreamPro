@@ -31,15 +31,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -70,12 +66,23 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // FIX 1: RISOLVE LA BANDA NERA (MARGINE) SU SCHERMO ORIZZONTALE
+        // 1. Mantiene lo schermo sempre acceso
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // 2. FIX BANDA NERA (Notch) - Modo compatibile con il tuo tema Theme.Material
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
+        
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = (
+            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        )
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
             ?: intent.getStringExtra("STREAM_URL") ?: ""
@@ -99,11 +106,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
-    }
-
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
@@ -124,41 +126,13 @@ class PlayerActivity : ComponentActivity() {
         var currentScale by remember { mutableStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
-
-        val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+        val coroutineScope = rememberCoroutineScope() // Serve per i delay sicuri
 
         LaunchedEffect(showControls, isPlaying) {
             if (showControls && isPlaying) {
                 delay(4000)
                 showControls = false
-            }
-        }
-
-        // FIX 2: RISOLVE LA PERDITA DELLE PROPORZIONI QUANDO SI RUOTA LO SCHERMO
-        // Questo blocco sente quando giri il telefono (configuration.orientation)
-        // aspetta che VLC abbia finito il suo stupido reset interno, e riapplica la tua scelta.
-        LaunchedEffect(configuration.orientation, currentAspectRatio, currentScale, composeMediaPlayer) {
-            val mp = composeMediaPlayer
-            if (mp != null) {
-                // Aspettiamo mezzo secondo per essere sicuri che la rotazione Android sia completata
-                delay(400) 
-                
-                if (currentScale > 0f) {
-                    mp.aspectRatio = null
-                    // TRUCCO VLC: a volte rifiuta di prendere lo stesso valore, lo resettiamo a 0 un attimo prima
-                    mp.scale = 0f 
-                    delay(50)
-                    mp.scale = currentScale
-                } else if (currentAspectRatio != null) {
-                    mp.scale = 0f
-                    mp.aspectRatio = null
-                    delay(50)
-                    mp.aspectRatio = currentAspectRatio
-                } else {
-                    mp.scale = 0f
-                    mp.aspectRatio = null
-                }
             }
         }
 
@@ -239,7 +213,6 @@ class PlayerActivity : ComponentActivity() {
                         isPlaying = true
                         errorMessage = null
 
-                        // Riapplica solo al primissimo avvio
                         if (isFirstPlay) {
                             isFirstPlay = false
                             val player = composeMediaPlayer
@@ -296,12 +269,42 @@ class PlayerActivity : ComponentActivity() {
                 ) { showControls = !showControls }
         ) {
             
-            // Ho pulito questa parte togliendo l'addOnLayoutChangeListener che creava problemi, 
-            // ora gestiamo tutto molto meglio con il LaunchedEffect in alto!
+            // FIX ROTAZIONE PROPORZIONI: Controlliamo fisicamente la View di VLC
             AndroidView(
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
                         vlcVideoLayout = layout
+                        var lastWidth = 0
+                        var lastHeight = 0
+                        
+                        // Quando giri il telefono, la larghezza e l'altezza di questa view cambiano
+                        layout.addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+                            val newWidth = right - left
+                            val newHeight = bottom - top
+                            
+                            if (newWidth != lastWidth || newHeight != lastHeight) {
+                                lastWidth = newWidth
+                                lastHeight = newHeight
+                                
+                                // Lo schermo ha ruotato. VLC farà il suo reset, noi aspettiamo 150ms e applichiamo di nuovo i nostri valori
+                                coroutineScope.launch {
+                                    delay(150)
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
+                                        // Trucco VLC: Azzera a 0 per forzare l'aggiornamento
+                                        mp.scale = 0f
+                                        mp.aspectRatio = null
+                                        delay(50)
+                                        
+                                        if (currentScale > 0f) {
+                                            mp.scale = currentScale
+                                        } else if (currentAspectRatio != null) {
+                                            mp.aspectRatio = currentAspectRatio
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -776,9 +779,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
             }
-        } catch (_: Exception) {
-            Log.e("PlayerDebug", "Errore nel parsing audio info")
-        }
+        } catch (_: Exception) {}
 
         return trackName
     }
@@ -808,7 +809,6 @@ class PlayerActivity : ComponentActivity() {
                 conn.disconnect()
             } catch (e: Exception) {
                 message = "🌐 Impossibile connettersi al server."
-                Log.e("PlayerDebug", "Errore HTTP check", e)
             }
             withContext(Dispatchers.Main) { onResult(message) }
         }
