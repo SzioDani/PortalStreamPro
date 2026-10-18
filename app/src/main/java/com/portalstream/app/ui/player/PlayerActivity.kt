@@ -316,6 +316,7 @@ class PlayerActivity : ComponentActivity() {
                 factory = { ctx ->
                     VLCVideoLayout(ctx).also { layout ->
                         vlcVideoLayout = layout
+                        layout.fitsSystemWindows = false
                     }
                 },
                 modifier = Modifier.fillMaxSize()
