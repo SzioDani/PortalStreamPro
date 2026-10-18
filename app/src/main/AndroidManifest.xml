@@ -51,11 +51,12 @@
             android:name="com.portalstream.app.ui.channels.ChannelsActivity"
             android:exported="false" />
 
-        <!-- Player -->
+        <!-- Player - Jetpack Compose -->
         <activity
             android:name="com.portalstream.app.ui.player.PlayerActivity"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
+            android:theme="@style/Theme.PortalStreamPro"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:screenOrientation="sensor"
             android:exported="true">
