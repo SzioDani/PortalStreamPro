@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.portalstream.app"
     compileSdk = 34
-    ndkVersion "26.1.10909125"
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.portalstream.app"
