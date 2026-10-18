@@ -623,16 +623,16 @@ class PlayerActivity : ComponentActivity() {
                                     if (mp != null) {
                                         when (newRatio) {
                                             "FILL" -> {
-                                                mp.scale = 1.3f
+                                                mp.scale = 1.45f
                                                 mp.aspectRatio = null
-                                                currentScale = 1.3f
-                                                prefs.edit().putFloat("scale", 1.3f).apply()
+                                                currentScale = 1.45f
+                                                prefs.edit().putFloat("scale", 1.45f).apply()
                                             }
                                             "ZOOM125" -> {
-                                                mp.scale = 1.25f
+                                                mp.scale = 1.35f
                                                 mp.aspectRatio = null
-                                                currentScale = 1.25f
-                                                prefs.edit().putFloat("scale", 1.25f).apply()
+                                                currentScale = 1.35f
+                                                prefs.edit().putFloat("scale", 1.35f).apply()
                                             }
                                             null -> {
                                                 mp.scale = 0f
