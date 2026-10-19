@@ -1,5 +1,4 @@
 package com.portalstream.app.ui.player
-import android.app.app.PipManager
 
 import android.content.Context
 import android.content.res.Configuration
@@ -61,6 +60,7 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
+    private lateinit var pipManager: PipManager
 
     private val INITIAL_BUFFER_THRESHOLD = 85f
 
@@ -70,6 +70,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pipManager = PipManager(this)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
@@ -160,6 +161,22 @@ class PlayerActivity : ComponentActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
+    }
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (mediaPlayer?.isPlaying == true) {
+            pipManager.enterPipMode()
+        }
+    }
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ){
+        super.onPictureInPictureModeChanged(
+            isInPictureInPictureMode,
+            newConfig
+        )
+        Log.d("PlayerPip", "PiP = $isInPictureInPictureMode")
     }
 
     @Composable
