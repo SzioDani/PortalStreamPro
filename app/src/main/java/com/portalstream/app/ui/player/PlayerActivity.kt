@@ -688,10 +688,10 @@ class PlayerActivity : ComponentActivity() {
                                                 prefs.edit().putFloat("scale", 1.20f).apply()
                                             }
                                             "ZOOM125" -> {
-                                                mp.scale = 1.35f
+                                                mp.scale = 1.25f
                                                 mp.aspectRatio = null
-                                                currentScale = 1.35f
-                                                prefs.edit().putFloat("scale", 1.35f).apply()
+                                                currentScale = 1.25f
+                                                prefs.edit().putFloat("scale", 1.25f).apply()
                                             }
                                             "ZOOM130" -> {
                                                 mp.scale = 1.30f
@@ -916,7 +916,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     companion object {
-        const valEXTRA_STREAM_URL = "extra_stream_url"
+        const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
