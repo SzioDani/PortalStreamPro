@@ -62,6 +62,9 @@ class PlayerActivity : ComponentActivity() {
     private var userAgent: String? = null
     private lateinit var pipManager: PipManager
 
+    // Stato PiP per Compose
+    private var isInPipMode by mutableStateOf(false)
+
     private val INITIAL_BUFFER_THRESHOLD = 85f
 
     private val prefs by lazy {
@@ -84,7 +87,6 @@ class PlayerActivity : ComponentActivity() {
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
-            // Per versioni più vecchie
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
                 android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -108,7 +110,6 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        // ✅ INIZIALIZZA LibVLC QUI, NEL onCreate(), PRIMA DI setContent()
         try {
             initializeLibVLC()
             Log.d("PlayerDebug", "LibVLC inizializzato con successo")
@@ -129,7 +130,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    // ✅ NUOVO METODO: Inizializza LibVLC FUORI da Compose
     private fun initializeLibVLC() {
         val options = ArrayList<String>().apply {
             add("--no-drop-late-frames")
@@ -162,20 +162,21 @@ class PlayerActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
     }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (mediaPlayer?.isPlaying == true) {
+        // Per versioni < Android 12 (API 31), invochiamo manualmente l'ingresso in PiP se sta suonando
+        if (mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
     }
+
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
-    ){
-        super.onPictureInPictureModeChanged(
-            isInPictureInPictureMode,
-            newConfig
-        )
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipMode = isInPictureInPictureMode
         Log.d("PlayerPip", "PiP = $isInPictureInPictureMode")
     }
 
@@ -203,8 +204,16 @@ class PlayerActivity : ComponentActivity() {
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
+        // Nascondi automaticamente controlli e menu se entriamo in modalità PiP
+        LaunchedEffect(isInPipMode) {
+            if (isInPipMode) {
+                showControls = false
+                showSettingsSheet = false
+            }
+        }
+
         LaunchedEffect(showControls, isPlaying) {
-            if (showControls && isPlaying) {
+            if (showControls && isPlaying && !isInPipMode) {
                 delay(4000)
                 showControls = false
             }
@@ -232,7 +241,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // ✅ SEMPLIFICATO: Non crea più LibVLC, usa quello già inizializzato
         DisposableEffect(vlcVideoLayout) {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
@@ -290,6 +298,8 @@ class PlayerActivity : ComponentActivity() {
                             isBuffering = false
                             isPlaying = true
                             errorMessage = null
+                            // Aggiorna i parametri PiP segnalando che ora è in riproduzione (abilita auto-enter su Android 12+)
+                            pipManager.updatePipParams(true)
 
                             if (isFirstPlay) {
                                 isFirstPlay = false
@@ -303,14 +313,22 @@ class PlayerActivity : ComponentActivity() {
                             }
                             refreshAudioState()
                         }
-                        MediaPlayer.Event.Paused -> { isPlaying = false }
-                        MediaPlayer.Event.Stopped -> { isPlaying = false }
+                        MediaPlayer.Event.Paused -> {
+                            isPlaying = false
+                            // Disabilita auto-enter in pausa (stile YouTube)
+                            pipManager.updatePipParams(false)
+                        }
+                        MediaPlayer.Event.Stopped -> {
+                            isPlaying = false
+                            pipManager.updatePipParams(false)
+                        }
                         MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                             refreshAudioState()
                         }
                         MediaPlayer.Event.EncounteredError -> {
                             isBuffering = false
                             isPlaying = false
+                            pipManager.updatePipParams(false)
                             checkHttpError(streamUrl, userAgent) { mappedMessage ->
                                 errorMessage = mappedMessage
                             }
@@ -342,7 +360,12 @@ class PlayerActivity : ComponentActivity() {
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
-                ) { showControls = !showControls }
+                ) { 
+                    // Non mostrare i controlli se siamo in modalità PiP
+                    if (!isInPipMode) {
+                        showControls = !showControls
+                    }
+                }
         ) {
             
             AndroidView(
@@ -355,8 +378,9 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             )
 
+            // Mostra i controlli solo se NON siamo in modalità PiP
             AnimatedVisibility(
-                visible = showControls,
+                visible = showControls && !isInPipMode,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.fillMaxSize()
@@ -508,7 +532,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
 
-            if (isBuffering && errorMessage == null) {
+            if (isBuffering && errorMessage == null && !isInPipMode) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = Color.White
@@ -516,44 +540,46 @@ class PlayerActivity : ComponentActivity() {
             }
 
             errorMessage?.let { msg ->
-                Surface(
-                    color = Color.Black.copy(alpha = 0.90f),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(24.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
+                if (!isInPipMode) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.90f),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(24.dp)
                     ) {
-                        Text(
-                            text = "⚠️ Errore di Riproduzione",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Text(
-                            text = msg,
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(onClick = {
-                            errorMessage = null
-                            isBuffering = true
-                            lifecycleScope.launch {
-                                delay(500)
-                                mediaPlayer?.play()
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ Errore di Riproduzione",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = msg,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(onClick = {
+                                errorMessage = null
+                                isBuffering = true
+                                lifecycleScope.launch {
+                                    delay(500)
+                                    mediaPlayer?.play()
+                                }
+                            }) {
+                                Text("Riprova")
                             }
-                        }) {
-                            Text("Riprova")
                         }
                     }
                 }
             }
 
-            if (showSettingsSheet) {
+            if (showSettingsSheet && !isInPipMode) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.95f),
                     modifier = Modifier
@@ -646,7 +672,31 @@ class PlayerActivity : ComponentActivity() {
                                                 currentScale = 1.45f
                                                 prefs.edit().putFloat("scale", 1.45f).apply()
                                             }
+                                            "ZOOM110" -> {
+                                                mp.scale = 1.10f
+                                                mp.aspectRatio = null
+                                                currentScale = 1.10f
+                                                prefs.edit().putFloat("scale", 1.10f).apply()
+                                            }
+                                            "ZOOM120" -> {
+                                                mp.scale = 1.20f
+                                                mp.aspectRatio = null
+                                                currentScale = 1.20f
+                                                prefs.edit().putFloat("scale", 1.20f).apply()
+                                            }
                                             "ZOOM125" -> {
+                                                mp.scale = 1.35f
+                                                mp.aspectRatio = null
+                                                currentScale = 1.35f
+                                                prefs.edit().putFloat("scale", 1.35f).apply()
+                                            }
+                                            "ZOOM130" -> {
+                                                mp.scale = 1.30f
+                                                mp.aspectRatio = null
+                                                currentScale = 1.30f
+                                                prefs.edit().putFloat("scale", 1.30f).apply()
+                                            }
+                                            "ZOOM135" -> {
                                                 mp.scale = 1.35f
                                                 mp.aspectRatio = null
                                                 currentScale = 1.35f
@@ -723,10 +773,13 @@ class PlayerActivity : ComponentActivity() {
         onAspectRatioChange: (String?) -> Unit
     ) {
         val ratios = listOf(
-            "📦 Originale (Default)" to null,
             "📺 16:9 (Standard HD)" to "16:9",
             "📺 4:3 (TV Classica)" to "4:3",
+            "🔍 Zoom 110%" to "ZOOM110",
+            "🔍 Zoom 120%" to "ZOOM120",
             "🔍 Zoom 125%" to "ZOOM125",
+            "🔍 Zoom 130%" to "ZOOM130",
+            "🔍 Zoom 135%" to "ZOOM135",
             "🎬 21:9 (Cinematic)" to "21:9",
             "🎬 1.85:1 (Movie)" to "1.85:1",
             "🎬 2.35:1 (CinemaScope)" to "2.35:1",
@@ -734,49 +787,46 @@ class PlayerActivity : ComponentActivity() {
             "🔲 Riempi Schermo" to "FILL"
         )
 
-        Column {
-            ratios.chunked(2).forEach { rowItems ->
-                Row(
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 130.dp), // Regola 130.dp in base a quanto desideri larghi i pulsanti
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 280.dp) // Imposta un'altezza massima se dentro un dialog/bottomsheet per consentire lo scroll interno
+        ) {
+            items(ratios) { (label, ratio) ->
+                val isSelected = when (ratio) {
+                    "FILL"    -> currentScale == 1.45f
+                    "ZOOM110" -> currentScale == 1.10f
+                    "ZOOM120" -> currentScale == 1.20f
+                    "ZOOM125" -> currentScale == 1.25f
+                    "ZOOM130" -> currentScale == 1.30f
+                    "ZOOM135" -> currentScale == 1.35f
+                    else      -> currentAspectRatio == ratio && currentScale == 0f
+                }
+
+                Button(
+                    onClick = { onAspectRatioChange(ratio) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) {
+                            Color.White.copy(alpha = 0.25f)
+                        } else {
+                            Color.White.copy(alpha = 0.08f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    rowItems.forEach { (label, ratio) ->
-                        val isSelected = when {
-                            ratio == "FILL" && currentScale == 1.3f -> true
-                            ratio == "ZOOM125" && currentScale == 1.25f -> true
-                            ratio == null && currentAspectRatio == null && currentScale == 0f -> true
-                            ratio != null && ratio != "FILL" && ratio != "ZOOM125" && currentAspectRatio == ratio -> true
-                            else -> false
-                        }
-
-                        Button(
-                            onClick = { onAspectRatioChange(ratio) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) {
-                                    Color.White.copy(alpha = 0.25f)
-                                } else {
-                                    Color.White.copy(alpha = 0.08f)
-                                }
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = if (isSelected) "✓ $label" else label,
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                    Text(
+                        text = if (isSelected) "✓ $label" else label,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -863,7 +913,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     companion object {
-        const val EXTRA_STREAM_URL = "extra_stream_url"
+        const valEXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
