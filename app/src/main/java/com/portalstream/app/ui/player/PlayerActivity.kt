@@ -181,6 +181,11 @@ class PlayerActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
         Log.d("PlayerPip", "PiP = $isInPictureInPictureMode")
+        if (!isInPictureInPictureMode) {
+            if (!isChangingConfigurations) {
+                finish()
+            }
+        }
     }
 
     @Composable
