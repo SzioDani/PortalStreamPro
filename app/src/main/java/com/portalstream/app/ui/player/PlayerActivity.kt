@@ -1,4 +1,5 @@
 package com.portalstream.app.ui.player
+import android.app.app.PipManager
 
 import android.content.Context
 import android.content.res.Configuration
