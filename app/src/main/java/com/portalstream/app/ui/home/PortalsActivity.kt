@@ -82,7 +82,7 @@ class PortalsActivity : ComponentActivity() {
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "${portals.size} portali salvati",
+                    text = "portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -366,7 +366,7 @@ fun SettingsBottomSheet(
                         contentColor = if (playerMode == "both") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
-                    Text("Set In-app + PiP")
+                    Text("Set Miniplayer + PiP")
                 }
             }
             Spacer(modifier = Modifier.height(40.dp))
