@@ -185,7 +185,7 @@ class PlayerActivity : ComponentActivity() {
         isInPipMode = isInPictureInPictureMode
         Log.d("PlayerPip", "PiP = $isInPictureInPictureMode")
         if (!isInPictureInPictureMode) {
-            if (!isChangingConfigurations) {
+            if (isFinishing) {
                 finish()
             }
         }
