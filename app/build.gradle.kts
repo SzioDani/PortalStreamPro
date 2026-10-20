@@ -76,6 +76,9 @@ dependencies {
     // FIRESTORE TV DEVICE DETECTION
     implementation("androidx.tvprovider:tvprovider:1.0.0")
 
+    // ICONE ESTESE 
+    implementation "androidx.compose.material:material-icons-extended"
+
      // Motore multimediale nativo LibVLC
     implementation("org.videolan.android:libvlc-all:3.6.0")
 
