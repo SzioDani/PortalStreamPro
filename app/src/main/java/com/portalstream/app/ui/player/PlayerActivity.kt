@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -40,8 +41,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -65,9 +64,7 @@ class PlayerActivity : ComponentActivity() {
     private var userAgent: String? = null
     private lateinit var pipManager: PipManager
 
-    // Stato PiP per Compose
     private var isInPipMode by mutableStateOf(false)
-
     private val INITIAL_BUFFER_THRESHOLD = 85f
 
     private val prefs by lazy {
@@ -168,8 +165,12 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Per versioni < Android 12 (API 31), invochiamo manualmente l'ingresso in PiP se sta suonando
-        if (mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        // Legge la modalità scelta nel menu impostazioni in alto a destra
+        val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val playerMode = appPrefs.getString("player_mode", "miniplayer")
+
+        // Se l'utente ha scelto esplicitamente il PiP di sistema ed esce premendo Home
+        if (playerMode == "pip" && mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
     }
@@ -200,6 +201,9 @@ class PlayerActivity : ComponentActivity() {
         var showSettingsSheet by remember { mutableStateOf(false) }
         var activeTab by remember { mutableIntStateOf(0) }
 
+        // Stato locale per gestire l'attivazione del Miniplayer in-app trascinabile
+        var isMinimized by remember { mutableStateOf(false) }
+
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
@@ -212,7 +216,6 @@ class PlayerActivity : ComponentActivity() {
         val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
 
-        // Nascondi automaticamente controlli e menu se entriamo in modalità PiP
         LaunchedEffect(isInPipMode) {
             if (isInPipMode) {
                 showControls = false
@@ -221,7 +224,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         LaunchedEffect(showControls, isPlaying) {
-            if (showControls && isPlaying && !isInPipMode) {
+            if (showControls && isPlaying && !isInPipMode && !isMinimized) {
                 delay(4000)
                 showControls = false
             }
@@ -306,7 +309,6 @@ class PlayerActivity : ComponentActivity() {
                             isBuffering = false
                             isPlaying = true
                             errorMessage = null
-                            // Aggiorna i parametri PiP segnalando che ora è in riproduzione (abilita auto-enter su Android 12+)
                             pipManager.updatePipParams(true)
 
                             if (isFirstPlay) {
@@ -323,7 +325,6 @@ class PlayerActivity : ComponentActivity() {
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
-                            // Disabilita auto-enter in pausa (stile YouTube)
                             pipManager.updatePipParams(false)
                         }
                         MediaPlayer.Event.Stopped -> {
@@ -361,371 +362,392 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { 
-                    // Non mostrare i controlli se siamo in modalità PiP
-                    if (!isInPipMode) {
-                        showControls = !showControls
-                    }
+        // INTEGRAZIONE MINIPLAYER: Racchiude il player nel contenitore fluttuante definito in PlayerUIs.kt
+        DraggableMiniPlayerContainer(
+            isMinimized = isMinimized,
+            onExpand = { isMinimized = false },
+            onClose = onBackPressed,
+            isPlaying = isPlaying,
+            onTogglePlayPause = {
+                val mp = composeMediaPlayer
+                if (mp != null) {
+                    if (mp.isPlaying) mp.pause() else mp.play()
                 }
+            }
         ) {
-            
-            AndroidView(
-                factory = { ctx ->
-                    VLCVideoLayout(ctx).also { layout ->
-                        vlcVideoLayout = layout
-                        layout.fitsSystemWindows = false
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { 
+                        if (!isInPipMode && !isMinimized) {
+                            showControls = !showControls
+                        }
                     }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Mostra i controlli solo se NON siamo in modalità PiP
-            AnimatedVisibility(
-                visible = showControls && !isInPipMode,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.fillMaxSize()
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
+                
+                AndroidView(
+                    factory = { ctx ->
+                        VLCVideoLayout(ctx).also { layout ->
+                            vlcVideoLayout = layout
+                            layout.fitsSystemWindows = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                AnimatedVisibility(
+                    visible = showControls && !isInPipMode && !isMinimized,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter)
-                            .statusBarsPadding()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
                     ) {
-                        IconButton(onClick = onBackPressed) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Indietro", tint = Color.White)
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = channelName,
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "Audio: $currentAudioInfo",
-                                color = Color.LightGray,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                val mp = composeMediaPlayer
-                                if (mp != null) {
-                                    val target = (mp.time - 10000).coerceAtLeast(0)
-                                    mp.time = target
-                                }
-                            },
+                        Row(
                             modifier = Modifier
-                                .size(48.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "« 10s",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                            IconButton(onClick = onBackPressed) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Indietro", tint = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = channelName,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Audio: $currentAudioInfo",
+                                    color = Color.LightGray,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
 
-                        IconButton(
-                            onClick = {
-                                val mp = composeMediaPlayer
-                                if (mp != null) {
-                                    if (mp.isPlaying) mp.pause() else mp.play()
-                                }
-                            },
-                            modifier = Modifier
-                                .size(56.dp)
-                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                        ) {
-                            if (isPlaying) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
-                                    Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
-                                }
-                            } else {
+                            // Pulsante pulito per ridurre a Miniplayer in-app (stile YouTube)
+                            IconButton(onClick = { isMinimized = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(36.dp)
+                                    imageVector = Icons.Default.FullscreenExit,
+                                    contentDescription = "Miniplayer",
+                                    tint = Color.White
                                 )
                             }
                         }
 
-                        IconButton(
-                            onClick = {
-                                mediaPlayer?.stop()
-                                onBackPressed()
-                            },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(18.dp).background(Color.White, RoundedCornerShape(2.dp))
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                val mp = composeMediaPlayer
-                                if (mp != null) {
-                                    val target = mp.time + 10000
-                                    mp.time = target
-                                }
-                            },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                        ) {
-                            Text(
-                                text = "10s »",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomEnd)
-                            .navigationBarsPadding()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = {
-                            val mp = composeMediaPlayer
-                            if (mp != null) {
-                                audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
-                                currentAudioTrackId = mp.audioTrack
-                            }
-                            showSettingsSheet = true
-                        }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
-                        }
-                    }
-                }
-            }
-
-            if (isBuffering && errorMessage == null && !isInPipMode) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.White
-                )
-            }
-
-            errorMessage?.let { msg ->
-                if (!isInPipMode) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.90f),
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(24.dp)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(24.dp)
-                        ) {
-                            Text(
-                                text = "⚠️ Errore di Riproduzione",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            Text(
-                                text = msg,
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Button(onClick = {
-                                errorMessage = null
-                                isBuffering = true
-                                lifecycleScope.launch {
-                                    delay(500)
-                                    mediaPlayer?.play()
-                                }
-                            }) {
-                                Text("Riprova")
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (showSettingsSheet && !isInPipMode) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.95f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "📺 Opzioni Riproduzione",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                            IconButton(onClick = { showSettingsSheet = false }) {
-                                Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
+                            IconButton(
+                                onClick = {
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
+                                        val target = (mp.time - 10000).coerceAtLeast(0)
+                                        mp.time = target
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Text(
+                                    text = "« 10s",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
+                                        if (mp.isPlaying) mp.pause() else mp.play()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                if (isPlaying) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    mediaPlayer?.stop()
+                                    onBackPressed()
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp).background(Color.White, RoundedCornerShape(2.dp))
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val mp = composeMediaPlayer
+                                    if (mp != null) {
+                                        val target = mp.time + 10000
+                                        mp.time = target
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Text(
+                                    text = "10s »",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
-                        TabRow(
-                            selectedTabIndex = activeTab,
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Tab(
-                                selected = activeTab == 0,
-                                onClick = { activeTab = 0 },
-                                text = { Text("🔊 Audio") }
-                            )
-                            Tab(
-                                selected = activeTab == 1,
-                                onClick = { activeTab = 1 },
-                                text = { Text("🎬 Formato") }
-                            )
+                            IconButton(onClick = {
+                                val mp = composeMediaPlayer
+                                if (mp != null) {
+                                    audioTrackDescriptions = mp.audioTracks?.toList() ?: emptyList()
+                                    currentAudioTrackId = mp.audioTrack
+                                }
+                                showSettingsSheet = true
+                            }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
+                            }
                         }
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = Color.White
+                    )
+                }
 
-                        when (activeTab) {
-                            0 -> AudioTabContent(
-                                audioTracks = audioTrackDescriptions,
-                                currentTrackId = currentAudioTrackId,
-                                onTrackSelected = { trackId ->
-                                    composeMediaPlayer?.setAudioTrack(trackId)
-                                    currentAudioTrackId = trackId
-                                    val mp = composeMediaPlayer
-                                    if (mp != null) {
-                                        currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
+                errorMessage?.let { msg ->
+                    if (!isInPipMode && !isMinimized) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.90f),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(24.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text(
+                                    text = "⚠️ Errore di Riproduzione",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                Text(
+                                    text = msg,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Button(onClick = {
+                                    errorMessage = null
+                                    isBuffering = true
+                                    lifecycleScope.launch {
+                                        delay(500)
+                                        mediaPlayer?.play()
                                     }
-                                },
-                                formatAudioInfo = { trackId ->
-                                    val mp = composeMediaPlayer
-                                    if (mp != null) {
-                                        formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
-                                    } else {
-                                        "Traccia $trackId"
-                                    }
+                                }) {
+                                    Text("Riprova")
                                 }
-                            )
+                            }
+                        }
+                    }
+                }
 
-                            1 -> AspectRatioTabContent(
-                                currentAspectRatio = currentAspectRatio,
-                                currentScale = currentScale,
-                                onAspectRatioChange = { newRatio ->
-                                    currentAspectRatio = newRatio
+                if (showSettingsSheet && !isInPipMode && !isMinimized) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.95f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "📺 Opzioni Riproduzione",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(onClick = { showSettingsSheet = false }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
+                                }
+                            }
 
-                                    prefs.edit().apply {
-                                        if (newRatio != null) {
-                                            putString("aspect_ratio", newRatio)
+                            TabRow(
+                                selectedTabIndex = activeTab,
+                                containerColor = Color.Transparent,
+                                contentColor = Color.White
+                            ) {
+                                Tab(
+                                    selected = activeTab == 0,
+                                    onClick = { activeTab = 0 },
+                                    text = { Text("🔊 Audio") }
+                                )
+                                Tab(
+                                    selected = activeTab == 1,
+                                    onClick = { activeTab = 1 },
+                                    text = { Text("🎬 Formato") }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            when (activeTab) {
+                                0 -> AudioTabContent(
+                                    audioTracks = audioTrackDescriptions,
+                                    currentTrackId = currentAudioTrackId,
+                                    onTrackSelected = { trackId ->
+                                        composeMediaPlayer?.setAudioTrack(trackId)
+                                        currentAudioTrackId = trackId
+                                        val mp = composeMediaPlayer
+                                        if (mp != null) {
+                                            currentAudioInfo = formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
+                                        }
+                                    },
+                                    formatAudioInfo = { trackId ->
+                                        val mp = composeMediaPlayer
+                                        if (mp != null) {
+                                            formatAudioTrackInfo(mp, audioTrackDescriptions, trackId)
                                         } else {
-                                            remove("aspect_ratio")
+                                            "Traccia $trackId"
                                         }
-                                        apply()
                                     }
+                                )
 
-                                    val mp = composeMediaPlayer
-                                    if (mp != null) {
-                                        when (newRatio) {
-                                            "FILL" -> {
-                                                mp.scale = 1.45f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.45f
-                                                prefs.edit().putFloat("scale", 1.45f).apply()
+                                1 -> AspectRatioTabContent(
+                                    currentAspectRatio = currentAspectRatio,
+                                    currentScale = currentScale,
+                                    onAspectRatioChange = { newRatio ->
+                                        currentAspectRatio = newRatio
+
+                                        prefs.edit().apply {
+                                            if (newRatio != null) {
+                                                putString("aspect_ratio", newRatio)
+                                            } else {
+                                                remove("aspect_ratio")
                                             }
-                                            "ZOOM110" -> {
-                                                mp.scale = 1.10f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.10f
-                                                prefs.edit().putFloat("scale", 1.10f).apply()
-                                            }
-                                            "ZOOM120" -> {
-                                                mp.scale = 1.20f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.20f
-                                                prefs.edit().putFloat("scale", 1.20f).apply()
-                                            }
-                                            "ZOOM125" -> {
-                                                mp.scale = 1.25f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.25f
-                                                prefs.edit().putFloat("scale", 1.25f).apply()
-                                            }
-                                            "ZOOM130" -> {
-                                                mp.scale = 1.30f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.30f
-                                                prefs.edit().putFloat("scale", 1.30f).apply()
-                                            }
-                                            "ZOOM135" -> {
-                                                mp.scale = 1.35f
-                                                mp.aspectRatio = null
-                                                currentScale = 1.35f
-                                                prefs.edit().putFloat("scale", 1.35f).apply()
-                                            }
-                                            null -> {
-                                                mp.scale = 0f
-                                                mp.aspectRatio = null
-                                                currentScale = 0f
-                                                prefs.edit().putFloat("scale", 0f).apply()
-                                            }
-                                            else -> {
-                                                mp.scale = 0f
-                                                mp.aspectRatio = newRatio
-                                                currentScale = 0f
-                                                prefs.edit().putFloat("scale", 0f).apply()
+                                            apply()
+                                        }
+
+                                        val mp = composeMediaPlayer
+                                        if (mp != null) {
+                                            when (newRatio) {
+                                                "FILL" -> {
+                                                    mp.scale = 1.45f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.45f
+                                                    prefs.edit().putFloat("scale", 1.45f).apply()
+                                                }
+                                                "ZOOM110" -> {
+                                                    mp.scale = 1.10f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.10f
+                                                    prefs.edit().putFloat("scale", 1.10f).apply()
+                                                }
+                                                "ZOOM120" -> {
+                                                    mp.scale = 1.20f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.20f
+                                                    prefs.edit().putFloat("scale", 1.20f).apply()
+                                                }
+                                                "ZOOM125" -> {
+                                                    mp.scale = 1.25f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.25f
+                                                    prefs.edit().putFloat("scale", 1.25f).apply()
+                                                }
+                                                "ZOOM130" -> {
+                                                    mp.scale = 1.30f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.30f
+                                                    prefs.edit().putFloat("scale", 1.30f).apply()
+                                                }
+                                                "ZOOM135" -> {
+                                                    mp.scale = 1.35f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 1.35f
+                                                    prefs.edit().putFloat("scale", 1.35f).apply()
+                                                }
+                                                null -> {
+                                                    mp.scale = 0f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 0f
+                                                    prefs.edit().putFloat("scale", 0f).apply()
+                                                }
+                                                else -> {
+                                                    mp.scale = 0f
+                                                    mp.aspectRatio = newRatio
+                                                    currentScale = 0f
+                                                    prefs.edit().putFloat("scale", 0f).apply()
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -796,13 +818,13 @@ class PlayerActivity : ComponentActivity() {
         )
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 130.dp), // Regola 130.dp in base a quanto desideri larghi i pulsanti
+            columns = GridCells.Adaptive(minSize = 130.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(vertical = 8.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 280.dp) // Imposta un'altezza massima se dentro un dialog/bottomsheet per consentire lo scroll interno
+                .heightIn(max = 280.dp)
         ) {
             items(ratios) { (label, ratio) ->
                 val isSelected = when (ratio) {
