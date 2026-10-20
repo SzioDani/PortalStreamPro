@@ -45,57 +45,75 @@ fun DraggableMiniPlayerContainer(
             videoContent()
         }
     } else {
-        // Miniplayer In-App Trascinabile (Stile YouTube)
-        var offsetX by remember { mutableFloatStateOf(30f) }
-        var offsetY by remember { mutableFloatStateOf(100f) }
-
-        Box(
+        // Usiamo BoxWithConstraints per conoscere i limiti esatti dello schermo
+        BoxWithConstraints(
             modifier = Modifier
-                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                .width(240.dp)
-                .height(135.dp)
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                    }
-                }
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black)
+                .fillMaxSize()
+                .background(Color.Black) // Sfondo nero pulito per il miniplayer in-app
         ) {
-            // Contenuto Video
-            videoContent()
+            val maxWidthPx = constraints.maxWidth.toFloat()
+            val maxHeightPx = constraints.maxHeight.toFloat()
 
-            // Barra dei controlli sovrapposta in alto al Miniplayer
-            Row(
+            // Dimensioni fisse del miniplayer in pixel (240dp x 135dp convertiti approssimativamente)
+            val playerWidthPx = 240f * androidx.compose.ui.platform.LocalDensity.current.density
+            val playerHeightPx = 135f * androidx.compose.ui.platform.LocalDensity.current.density
+
+            var offsetX by remember { mutableFloatStateOf(30f) }
+            var offsetY by remember { mutableFloatStateOf(100f) }
+
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopEnd)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                    .offset { 
+                        // Blocchiamo il movimento affinché non esca mai dallo schermo (niente tagli o barriere)
+                        val clampedX = offsetX.coerceIn(0f, maxWidthPx - playerWidthPx)
+                        val clampedY = offsetY.coerceIn(0f, maxHeightPx - playerHeightPx)
+                        IntOffset(clampedX.roundToInt(), clampedY.roundToInt())
+                    }
+                    .width(240.dp)
+                    .height(135.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            offsetX += dragAmount.x
+                            offsetY += dragAmount.y
+                        }
+                    }
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
             ) {
-                IconButton(onClick = onTogglePlayPause, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pausa",
-                        tint = Color.White
-                    )
-                }
-                IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Fullscreen,
-                        contentDescription = "Espandi a Schermo Intero",
-                        tint = Color.White
-                    )
-                }
-                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Chiudi",
-                        tint = Color.White
-                    )
+                // Contenuto Video
+                videoContent()
+
+                // Barra dei controlli sovrapposta in alto al Miniplayer
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopEnd)
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onTogglePlayPause, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pausa",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Fullscreen,
+                            contentDescription = "Espandi a Schermo Intero",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Chiudi",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
