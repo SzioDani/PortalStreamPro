@@ -169,10 +169,10 @@ class PlayerActivity : ComponentActivity() {
         super.onUserLeaveHint()
         // Legge la modalità scelta nel menu impostazioni in alto a destra
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val playerMode = appPrefs.getString("player_mode", "miniplayer")
+        val playerMode = appPrefs.getString("player_mode", "both") // Default a "both" o "miniplayer"
 
         // Se l'utente ha scelto esplicitamente il PiP di sistema ed esce premendo Home
-        if (playerMode == "pip" && mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        if ((playerMode == "pip" || playerMode == "both") && mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
     }
