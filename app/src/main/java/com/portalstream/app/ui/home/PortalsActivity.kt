@@ -1,32 +1,21 @@
 package com.portalstream.app.ui.home
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
@@ -45,91 +34,119 @@ class PortalsActivity : ComponentActivity() {
         store = PortalStore(this)
         setContentView(ComposeView(this).apply {
             setContent {
-                MaterialTheme {
-                    PortalsScreen()
+                val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+                var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+
+                MaterialTheme(
+                    colorScheme = if (isDarkMode) darkColorScheme() else lightColorScheme()
+                ) {
+                    PortalsScreen(
+                        onThemeChanged = { darkMode ->
+                            isDarkMode = darkMode
+                        }
+                    )
                 }
             }
         })
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun PortalsScreen() {
+    fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
         var portals by remember { mutableStateOf(store.load()) }
         var showTypeChooser by remember { mutableStateOf(false) }
         var formType by remember { mutableStateOf<PortalType?>(null) }
         var editing by remember { mutableStateOf<Portal?>(null) }
+        var showSettings by remember { mutableStateOf(false) }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Text("PortalStream Pro", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                text = "${portals.size} portali salvati",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-
-            Button(
-                onClick = { showTypeChooser = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("AGGIUNGI PLAYLIST")
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("PortalStream Pro") },
+                    actions = {
+                        // ⚙️ Pulsante Impostazioni in alto a destra
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Impostazioni"
+                            )
+                        }
+                    }
+                )
             }
-            Spacer(Modifier.height(12.dp))
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "${portals.size} portali salvati",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
 
-            if (portals.isEmpty()) {
-                Column {
-                    Text(
-                        text = "Nessun portale salvato.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Premi AGGIUNGI PLAYLIST per iniziare.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Button(
+                    onClick = { showTypeChooser = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("AGGIUNGI PLAYLIST")
                 }
-            } else {
-                LazyColumn {
-                    items(portals, key = { it.id }) { portal ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { openChannels(portal) }
-                        ) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "[${portal.id}]" +
-                                        if (portal.name.isBlank()) "" else " ${portal.name}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = portal.type.label + " - " +
-                                        if (portal.url.isBlank()) portal.server else portal.url,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Row {
-                                    TextButton(onClick = { editing = portal }) {
-                                        Text("Modifica")
-                                    }
-                                    Spacer(Modifier.width(4.dp))
-                                    TextButton(onClick = {
-                                        store.delete(portal.id)
-                                        portals = store.load()
-                                    }) {
-                                        Text(
-                                            text = "Elimina",
-                                            color = MaterialTheme.colorScheme.error
-                                        )
+                Spacer(Modifier.height(12.dp))
+
+                if (portals.isEmpty()) {
+                    Column {
+                        Text(
+                            text = "Nessun portale salvato.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Premi AGGIUNGI PLAYLIST per iniziare.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn {
+                        items(portals, key = { it.id }) { portal ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { openChannels(portal) }
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "[${portal.id}]" +
+                                            if (portal.name.isBlank()) "" else " ${portal.name}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = portal.type.label + " - " +
+                                            if (portal.url.isBlank()) portal.server else portal.url,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Row {
+                                        TextButton(onClick = { editing = portal }) {
+                                            Text("Modifica")
+                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        TextButton(onClick = {
+                                            store.delete(portal.id)
+                                            portals = store.load()
+                                        }) {
+                                            Text(
+                                                text = "Elimina",
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -178,6 +195,14 @@ class PortalsActivity : ComponentActivity() {
                     editing = null
                 },
                 onPickFile = { pickLocalFile() }
+            )
+        }
+
+        if (showSettings) {
+            SettingsBottomSheet(
+                context = this,
+                onDismiss = { showSettings = false },
+                onThemeChanged = onThemeChanged
             )
         }
     }
@@ -238,6 +263,95 @@ class PortalsActivity : ComponentActivity() {
 
     companion object {
         private const val REQ_PICK_FILE = 1001
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsBottomSheet(
+    context: Context,
+    onDismiss: () -> Unit,
+    onThemeChanged: (Boolean) -> Unit
+) {
+    val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+    
+    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+    var playerMode by remember { mutableStateOf(prefs.getString("player_mode", "miniplayer") ?: "miniplayer") }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "⚙️ Impostazioni Generali",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 1. Scelta Tema Scuro / Chiaro
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Tema Scuro", style = MaterialTheme.typography.bodyLarge)
+                Switch(
+                    checked = isDarkMode,
+                    onCheckedChange = { checked ->
+                        isDarkMode = checked
+                        prefs.edit().putBoolean("dark_mode", checked).apply()
+                        onThemeChanged(checked)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. Scelta Modalità Video Ridotto
+            Text("Modalità Video Ridotto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        playerMode = "miniplayer"
+                        prefs.edit().putString("player_mode", "miniplayer").apply()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("Miniplayer In-App")
+                }
+
+                Button(
+                    onClick = {
+                        playerMode = "pip"
+                        prefs.edit().putString("player_mode", "pip").apply()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (playerMode == "pip") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (playerMode == "pip") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text("PiP di Sistema")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
     }
 }
 
