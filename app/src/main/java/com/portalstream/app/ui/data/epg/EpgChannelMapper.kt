@@ -25,12 +25,12 @@ class EpgChannelMapper(private val context: Context) {
     // Carica automaticamente il file XML dagli assets all'avvio
     private fun loadMappingsFromAssets() {
         try {
-            val inputStream = context.assets.open("sky_channels.xml")
+            val inputStream = context.assets.open("channels.xml")
             val xmlString = inputStream.bufferedReader().use { it.readText() }
             allMappings = parseChannelMappings(xmlString)
             Log.d("EpgChannelMapper", "Caricate ${allMappings.size} mappature di canali italiani.")
         } catch (e: Exception) {
-            Log.e("EpgChannelMapper", "Impossibile caricare sky_channels.xml dagli assets", e)
+            Log.e("EpgChannelMapper", "Impossibile caricare channels.xml dagli assets", e)
         }
     }
 
