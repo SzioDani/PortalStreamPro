@@ -16,21 +16,21 @@ data class EpgChannelMapping(
 
 class EpgChannelMapper(private val context: Context) {
 
+    private val TAG = "EpgChannelMapper"
     private var allMappings: List<EpgChannelMapping> = emptyList()
 
     init {
         loadMappingsFromAssets()
     }
 
-    // Carica automaticamente il file XML dagli assets all'avvio
     private fun loadMappingsFromAssets() {
         try {
             val inputStream = context.assets.open("channels.xml")
             val xmlString = inputStream.bufferedReader().use { it.readText() }
             allMappings = parseChannelMappings(xmlString)
-            Log.d("EpgChannelMapper", "Caricate ${allMappings.size} mappature di canali italiani.")
+            Log.d(TAG, "Caricate ${allMappings.size} mappature di canali da channels.xml negli assets.")
         } catch (e: Exception) {
-            Log.e("EpgChannelMapper", "Impossibile caricare channels.xml dagli assets", e)
+            Log.e(TAG, "ERRORE CRITICO: Impossibile aprire channels.xml negli assets!", e)
         }
     }
 
@@ -50,7 +50,6 @@ class EpgChannelMapper(private val context: Context) {
                     val xmltvId = parser.getAttributeValue(null, "xmltv_id") ?: ""
                     val name = parser.nextText().trim()
 
-                    // Filtriamo rigorosamente per la lingua italiana
                     if (lang.lowercase() == "it" && name.isNotBlank()) {
                         mappings.add(EpgChannelMapping(site, siteId, lang, xmltvId, name))
                     }
@@ -58,28 +57,38 @@ class EpgChannelMapper(private val context: Context) {
                 eventType = parser.next()
             }
         } catch (e: Exception) {
-            Log.e("EpgChannelMapper", "Errore nel parsing XML", e)
+            Log.e(TAG, "Errore parsing XML channels.xml", e)
         }
         return mappings
     }
 
-    /**
-     * Trova la corrispondenza esatta o parziale tra il canale del portale 
-     * e la lista sterminata di iptv-org.
-     */
     fun findBestMatch(channelName: String): EpgChannelMapping? {
-        if (allMappings.isEmpty()) return null
+        if (allMappings.isEmpty()) {
+            Log.w(TAG, "Attenzione: allMappings è vuoto! channels.xml non è stato letto correttamente.")
+            return null
+        }
 
         val cleanQuery = sanitizeChannelName(channelName)
 
-        // 1. Cerca per uguaglianza perfetta del nome pulito
-        allMappings.find { sanitizeChannelName(it.name) == cleanQuery }?.let { return it }
+        // 1. Cerca per uguaglianza perfetta
+        allMappings.find { sanitizeChannelName(it.name) == cleanQuery }?.let {
+            Log.d(TAG, "Match esatto trovato: '$channelName' -> '${it.name}' (ID: ${it.xmltvId.ifBlank { it.siteId }})")
+            return it
+        }
 
-        // 2. Cerca se il nome del portale contiene il nome ufficiale o viceversa
-        return allMappings.find { mapping ->
+        // 2. Cerca per contenimento
+        val partialMatch = allMappings.find { mapping ->
             val cleanMappingName = sanitizeChannelName(mapping.name)
             cleanMappingName.isNotBlank() && (cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery))
         }
+
+        if (partialMatch != null) {
+            Log.d(TAG, "Match parziale trovato: '$channelName' -> '${partialMatch.name}'")
+        } else {
+            Log.w(TAG, "Nessun match trovato per il canale del portale: '$channelName' (stringa pulita: '$cleanQuery')")
+        }
+
+        return partialMatch
     }
 
     private fun sanitizeChannelName(name: String): String {
