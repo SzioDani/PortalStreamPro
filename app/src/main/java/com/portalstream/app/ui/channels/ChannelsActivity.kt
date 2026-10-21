@@ -519,7 +519,7 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
-    @Composable
+        @Composable
     private fun ChannelCard(
         channel: Channel,
         epgInfo: EpgInfo,
@@ -552,12 +552,58 @@ class ChannelsActivity : ComponentActivity() {
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = channel.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    
                     if (channel.group.isNotBlank()) {
                         Text(text = channel.group, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+
                     if (epgInfo.currentProgram.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "▶ ${epgInfo.currentProgram}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // Riga con Titolo in onda e Orario
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "▶ ${epgInfo.currentProgram}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (epgInfo.timeRange.isNotBlank()) {
+                                Text(
+                                    text = epgInfo.timeRange,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // 📊 Barra di avanzamento del programma
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { epgInfo.progress },
+                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+
+                        // ⏭ Programma successivo
+                        if (epgInfo.nextProgram.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "⏭ Dopo: ${epgInfo.nextProgram}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
