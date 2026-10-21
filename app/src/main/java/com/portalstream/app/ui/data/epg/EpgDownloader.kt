@@ -7,84 +7,68 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 class EpgDownloader(private val context: Context) {
 
+    private val TAG = "EpgDownloader"
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
-    // URL del CDN (più veloce della repo raw)
     private val EPG_CDN_URL = "https://epg.iptv-org.workers.dev"
-    
-    // EPG locale per paese (fallback se principal fallisce)
     private val EPG_GITHUB_URL = "https://raw.githubusercontent.com/iptv-org/epg/master/guides"
 
     suspend fun downloadEpg(countryCode: String = "it"): Result<String> = withContext(Dispatchers.IO) {
         try {
-            // Prova il CDN prima
+            Log.d(TAG, "Tentativo download EPG per: $countryCode")
             val epgContent = downloadFromCDN(countryCode) ?: downloadFromGithub(countryCode)
             
             if (epgContent != null) {
-                // Salva localmente per non scaricarlo ogni volta
+                Log.d(TAG, "EPG scaricato con successo! Dimensioni: ${epgContent.length} caratteri")
                 saveEpgLocally(epgContent, countryCode)
-                Log.d("EpgDownloader", "EPG scaricato con successo per: $countryCode")
                 Result.success(epgContent)
             } else {
-                // Se entrambi falliscono, usa quello cached
+                Log.w(TAG, "Download fallito da CDN e GitHub. Provo caricamento da cache...")
                 val cachedEpg = loadCachedEpg(countryCode)
                 if (cachedEpg != null) {
-                    Log.w("EpgDownloader", "Usando EPG cached per: $countryCode")
+                    Log.d(TAG, "Usando EPG in cache locale.")
                     Result.success(cachedEpg)
                 } else {
-                    Result.failure(Exception("Impossibile scaricare EPG per: $countryCode"))
+                    Log.e(TAG, "Impossibile scaricare o trovare EPG in cache per: $countryCode")
+                    Result.failure(Exception("EPG non disponibile"))
                 }
             }
         } catch (e: Exception) {
-            Log.e("EpgDownloader", "Errore nel download EPG", e)
+            Log.e(TAG, "Eccezione critica nel download EPG", e)
             Result.failure(e)
         }
     }
 
     private suspend fun downloadFromCDN(countryCode: String): String? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url("$EPG_CDN_URL/$countryCode.xml")
-                .build()
-            
+            val request = Request.Builder().url("$EPG_CDN_URL/$countryCode.xml").build()
             val response = okHttpClient.newCall(request).execute()
-            
-            return@withContext if (response.isSuccessful) {
-                response.body?.string()
-            } else {
-                Log.w("EpgDownloader", "CDN risposte ${response.code} per $countryCode")
+            if (response.isSuccessful) response.body?.string() else {
+                Log.w(TAG, "CDN risposto con codice ${response.code}")
                 null
             }
         } catch (e: Exception) {
-            Log.w("EpgDownloader", "Errore download CDN: ${e.message}")
+            Log.w(TAG, "Errore connessione CDN: ${e.message}")
             null
         }
     }
 
     private suspend fun downloadFromGithub(countryCode: String): String? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url("$EPG_GITHUB_URL/$countryCode.xml")
-                .build()
-            
+            val request = Request.Builder().url("$EPG_GITHUB_URL/$countryCode.xml").build()
             val response = okHttpClient.newCall(request).execute()
-            
-            return@withContext if (response.isSuccessful) {
-                response.body?.string()
-            } else {
-                Log.w("EpgDownloader", "GitHub risposta ${response.code} per $countryCode")
+            if (response.isSuccessful) response.body?.string() else {
+                Log.w(TAG, "GitHub risposto con codice ${response.code}")
                 null
             }
         } catch (e: Exception) {
-            Log.w("EpgDownloader", "Errore download GitHub: ${e.message}")
+            Log.w(TAG, "Errore connessione GitHub: ${e.message}")
             null
         }
     }
@@ -93,52 +77,19 @@ class EpgDownloader(private val context: Context) {
         try {
             val epgDir = File(context.cacheDir, "epg")
             epgDir.mkdirs()
-            
-            val epgFile = File(epgDir, "$countryCode.xml")
-            epgFile.writeText(content)
-            
-            // Salva timestamp per sapere quando è stato scaricato
-            val timestampFile = File(epgDir, "$countryCode.timestamp")
-            timestampFile.writeText(System.currentTimeMillis().toString())
-            
-            Log.d("EpgDownloader", "EPG salvato localmente: ${epgFile.absolutePath}")
+            File(epgDir, "$countryCode.xml").writeText(content)
+            File(epgDir, "$countryCode.timestamp").writeText(System.currentTimeMillis().toString())
         } catch (e: Exception) {
-            Log.e("EpgDownloader", "Errore nel salvataggio EPG locale", e)
+            Log.e(TAG, "Errore salvataggio cache locale", e)
         }
     }
 
     private fun loadCachedEpg(countryCode: String): String? {
         return try {
-            val epgFile = File(context.cacheDir, "epg/$countryCode.xml")
-            
-            if (epgFile.exists()) {
-                val timestamp = File(context.cacheDir, "epg/$countryCode.timestamp")
-                val lastUpdate = timestamp.readText().toLongOrNull() ?: 0L
-                val ageHours = (System.currentTimeMillis() - lastUpdate) / (1000 * 60 * 60)
-                
-                Log.d("EpgDownloader", "EPG cached, age: $ageHours ore")
-                epgFile.readText()
-            } else {
-                null
-            }
+            val file = File(context.cacheDir, "epg/$countryCode.xml")
+            if (file.exists()) file.readText() else null
         } catch (e: Exception) {
-            Log.e("EpgDownloader", "Errore nel caricamento EPG cached", e)
             null
-        }
-    }
-
-    // Controlla se EPG è vecchio (>24 ore) e necessita refresh
-    fun needsRefresh(countryCode: String): Boolean {
-        return try {
-            val timestampFile = File(context.cacheDir, "epg/$countryCode.timestamp")
-            if (!timestampFile.exists()) return true
-            
-            val lastUpdate = timestampFile.readText().toLongOrNull() ?: 0L
-            val ageHours = (System.currentTimeMillis() - lastUpdate) / (1000 * 60 * 60)
-            
-            ageHours > 24 // Refresh se più vecchio di 24 ore
-        } catch (e: Exception) {
-            true
         }
     }
 }
