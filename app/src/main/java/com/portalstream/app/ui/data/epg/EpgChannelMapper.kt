@@ -16,10 +16,25 @@ data class EpgChannelMapping(
 
 class EpgChannelMapper(private val context: Context) {
 
-    /**
-     * Legge una stringa XML contenente i canali e filtra SOLO quelli in italiano (lang="it").
-     */
-    fun parseChannelMappings(xmlString: String): List<EpgChannelMapping> {
+    private var allMappings: List<EpgChannelMapping> = emptyList()
+
+    init {
+        loadMappingsFromAssets()
+    }
+
+    // Carica automaticamente il file XML dagli assets all'avvio
+    private fun loadMappingsFromAssets() {
+        try {
+            val inputStream = context.assets.open("sky_channels.xml")
+            val xmlString = inputStream.bufferedReader().use { it.readText() }
+            allMappings = parseChannelMappings(xmlString)
+            Log.d("EpgChannelMapper", "Caricate ${allMappings.size} mappature di canali italiani.")
+        } catch (e: Exception) {
+            Log.e("EpgChannelMapper", "Impossibile caricare sky_channels.xml dagli assets", e)
+        }
+    }
+
+    private fun parseChannelMappings(xmlString: String): List<EpgChannelMapping> {
         val mappings = mutableListOf<EpgChannelMapping>()
         try {
             val factory = XmlPullParserFactory.newInstance()
@@ -35,35 +50,35 @@ class EpgChannelMapper(private val context: Context) {
                     val xmltvId = parser.getAttributeValue(null, "xmltv_id") ?: ""
                     val name = parser.nextText().trim()
 
-                    // Consideriamo solo la lingua italiana
-                    if (lang.lowercase() == "it") {
+                    // Filtriamo rigorosamente per la lingua italiana
+                    if (lang.lowercase() == "it" && name.isNotBlank()) {
                         mappings.add(EpgChannelMapping(site, siteId, lang, xmltvId, name))
                     }
                 }
                 eventType = parser.next()
             }
         } catch (e: Exception) {
-            Log.e("EpgChannelMapper", "Errore nel parsing dell'XML di mappatura", e)
+            Log.e("EpgChannelMapper", "Errore nel parsing XML", e)
         }
         return mappings
     }
 
     /**
-     * Pulisce il nome del canale del portale (rimuove HD, 4K, HEVC, spazi e simboli)
-     * e trova la migliore corrispondenza nella lista di iptv-org.
+     * Trova la corrispondenza esatta o parziale tra il canale del portale 
+     * e la lista sterminata di iptv-org.
      */
-    fun findBestMatch(channelName: String, mappings: List<EpgChannelMapping>): EpgChannelMapping? {
+    fun findBestMatch(channelName: String): EpgChannelMapping? {
+        if (allMappings.isEmpty()) return null
+
         val cleanQuery = sanitizeChannelName(channelName)
 
-        // 1. Corrispondenza esatta sul nome sanificato
-        mappings.find { mapping ->
-            sanitizeChannelName(mapping.name) == cleanQuery
-        }?.let { return it }
+        // 1. Cerca per uguaglianza perfetta del nome pulito
+        allMappings.find { sanitizeChannelName(it.name) == cleanQuery }?.let { return it }
 
-        // 2. Corrispondenza parziale (es. "RAI 1 FHD" -> "rai1")
-        return mappings.find { mapping ->
+        // 2. Cerca se il nome del portale contiene il nome ufficiale o viceversa
+        return allMappings.find { mapping ->
             val cleanMappingName = sanitizeChannelName(mapping.name)
-            cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery)
+            cleanMappingName.isNotBlank() && (cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery))
         }
     }
 
