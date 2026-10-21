@@ -1,0 +1,524 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channels>
+channel site="sky.com" site_id="IT#118" lang="it" xmltv_id="">Prime Video Sportsbar</channel>
+  <channel site="sky.com" site_id="IT#146" lang="it" xmltv_id="">Sky Primafila</channel>
+  <channel site="sky.com" site_id="IT#181" lang="it" xmltv_id="">Radio Vaticana Europa</channel>
+  <channel site="sky.com" site_id="IT#204" lang="it" xmltv_id="">Western Collection</channel>
+  <channel site="sky.com" site_id="IT#240" lang="it" xmltv_id="">Sky Serie Maratone</channel>
+  <channel site="sky.com" site_id="IT#242" lang="it" xmltv_id="">Calcio Overlay HD</channel>
+  <channel site="sky.com" site_id="IT#311" lang="it" xmltv_id="">Sky Sport Info</channel>
+  <channel site="sky.com" site_id="IT#431" lang="it" xmltv_id="">Sky Collection</channel>
+  <channel site="sky.com" site_id="IT#545" lang="it" xmltv_id="">Radio DeeJay</channel>
+  <channel site="sky.com" site_id="IT#546" lang="it" xmltv_id="">M2O</channel>
+  <channel site="sky.com" site_id="IT#547" lang="it" xmltv_id="">Radio 105</channel>
+  <channel site="sky.com" site_id="IT#548" lang="it" xmltv_id="">Virgin Radio</channel>
+  <channel site="sky.com" site_id="IT#549" lang="it" xmltv_id="">Radio Capital</channel>
+  <channel site="sky.com" site_id="IT#550" lang="it" xmltv_id="">Radio KissKiss</channel>
+  <channel site="sky.com" site_id="IT#551" lang="it" xmltv_id="">RTL 102.5</channel>
+  <channel site="sky.com" site_id="IT#552" lang="it" xmltv_id="">R 101</channel>
+  <channel site="sky.com" site_id="IT#554" lang="it" xmltv_id="">Radio 24</channel>
+  <channel site="sky.com" site_id="IT#555" lang="it" xmltv_id="">RDS</channel>
+  <channel site="sky.com" site_id="IT#556" lang="it" xmltv_id="">Radio Montecarlo</channel>
+  <channel site="sky.com" site_id="IT#561" lang="it" xmltv_id="">Sky Sport Business 1</channel>
+  <channel site="sky.com" site_id="IT#562" lang="it" xmltv_id="">Sky Sport Business 2</channel>
+  <channel site="sky.com" site_id="IT#564" lang="it" xmltv_id="">Sky Cinema Stories</channel>
+  <channel site="sky.com" site_id="IT#565" lang="it" xmltv_id="">Sky Sport Business 3</channel>
+  <channel site="sky.com" site_id="IT#581" lang="it" xmltv_id="">Disney Jr.</channel>
+  <channel site="sky.com" site_id="IT#615" lang="it" xmltv_id="">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#617" lang="it" xmltv_id="">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#624" lang="it" xmltv_id="">Sky Selection</channel>
+  <channel site="sky.com" site_id="IT#669" lang="it" xmltv_id="">Gestione Collegam. Telefonico</channel>
+  <channel site="sky.com" site_id="IT#670" lang="it" xmltv_id="">Connessione internet Primafila</channel>
+  <channel site="sky.com" site_id="IT#846" lang="it" xmltv_id="">People TV-Rete7</channel>
+  <channel site="sky.com" site_id="IT#871" lang="it" xmltv_id="">Napoli Mia</channel>
+  <channel site="sky.com" site_id="IT#926" lang="it" xmltv_id="">Dimensione Suono Soft</channel>
+  <channel site="sky.com" site_id="IT#933" lang="it" xmltv_id="">Sky Investigation Maratone</channel>
+  <channel site="sky.com" site_id="IT#942" lang="it" xmltv_id="">Sky Selection</channel>
+  <channel site="sky.com" site_id="IT#1131" lang="it" xmltv_id="">InBlu</channel>
+  <channel site="sky.com" site_id="IT#1307" lang="it" xmltv_id="">Documentari HD</channel>
+  <channel site="sky.com" site_id="IT#1314" lang="it" xmltv_id="">Bambini HD</channel>
+  <channel site="sky.com" site_id="IT#1325" lang="it" xmltv_id="">News HD</channel>
+  <channel site="sky.com" site_id="IT#1334" lang="it" xmltv_id="">Cinema HD</channel>
+  <channel site="sky.com" site_id="IT#1341" lang="it" xmltv_id="">Primafila HD</channel>
+  <channel site="sky.com" site_id="IT#1346" lang="it" xmltv_id="">Sport HD</channel>
+  <channel site="sky.com" site_id="IT#1371" lang="it" xmltv_id="">Intrattenim. HD</channel>
+  <channel site="sky.com" site_id="IT#1383" lang="it" xmltv_id="">Sky Sport HD</channel>
+  <channel site="sky.com" site_id="IT#1731" lang="it" xmltv_id="">CIAO</channel>
+  <channel site="sky.com" site_id="IT#1732" lang="it" xmltv_id="">Radio Maria</channel>
+  <channel site="sky.com" site_id="IT#1744" lang="it" xmltv_id="">Radio Padre Pio</channel>
+  <channel site="sky.com" site_id="IT#1761" lang="it" xmltv_id="">Radio Radicale</channel>
+  <channel site="sky.com" site_id="IT#3000" lang="it" xmltv_id="">PUSH REF SD 3000</channel>
+  <channel site="sky.com" site_id="IT#3001" lang="it" xmltv_id="">PUSH REF HD 3001</channel>
+  <channel site="sky.com" site_id="IT#3010" lang="it" xmltv_id="">REF 3010</channel>
+  <channel site="sky.com" site_id="IT#3020" lang="it" xmltv_id="">REF 3020</channel>
+  <channel site="sky.com" site_id="IT#3030" lang="it" xmltv_id="">REF 3030</channel>
+  <channel site="sky.com" site_id="IT#3040" lang="it" xmltv_id="">REF 3040</channel>
+  <channel site="sky.com" site_id="IT#3050" lang="it" xmltv_id="">REF 3050</channel>
+  <channel site="sky.com" site_id="IT#3055" lang="it" xmltv_id="">REF 3055</channel>
+  <channel site="sky.com" site_id="IT#3060" lang="it" xmltv_id="">REF 3060</channel>
+  <channel site="sky.com" site_id="IT#3659" lang="it" xmltv_id="">Discovery Turbo HD</channel>
+  <channel site="sky.com" site_id="IT#4039" lang="it" xmltv_id="">Sky Cinema Restart</channel>
+  <channel site="sky.com" site_id="IT#4087" lang="it" xmltv_id="">RFI Francais</channel>
+  <channel site="sky.com" site_id="IT#4314" lang="it" xmltv_id="">Rai Radio Tutta Italiana</channel>
+  <channel site="sky.com" site_id="IT#5197" lang="it" xmltv_id="">Tunis 7</channel>
+  <channel site="sky.com" site_id="IT#5257" lang="it" xmltv_id="">Rai Radio 1</channel>
+  <channel site="sky.com" site_id="IT#5258" lang="it" xmltv_id="">Rai Radio 2</channel>
+  <channel site="sky.com" site_id="IT#5259" lang="it" xmltv_id="">Rai Radio 3</channel>
+  <channel site="sky.com" site_id="IT#5410" lang="it" xmltv_id="">TeleItalia</channel>
+  <channel site="sky.com" site_id="IT#5420" lang="it" xmltv_id="">Radio San Marino</channel>
+  <channel site="sky.com" site_id="IT#5438" lang="it" xmltv_id="">Radio Italia Live</channel>
+  <channel site="sky.com" site_id="IT#5449" lang="it" xmltv_id="">Rai Radio 2 Indie</channel>
+  <channel site="sky.com" site_id="IT#5471" lang="it" xmltv_id="">Rai Radio Kids</channel>
+  <channel site="sky.com" site_id="IT#5472" lang="it" xmltv_id="">Rai Radio Live</channel>
+  <channel site="sky.com" site_id="IT#5473" lang="it" xmltv_id="">Rai Radio Techete</channel>
+  <channel site="sky.com" site_id="IT#5476" lang="it" xmltv_id="">TELERADIOPACE</channel>
+  <channel site="sky.com" site_id="IT#5479" lang="it" xmltv_id="">Rai Radio 1 Sport</channel>
+  <channel site="sky.com" site_id="IT#5486" lang="it" xmltv_id="">GO-TV CHANNEL</channel>
+  <channel site="sky.com" site_id="IT#5494" lang="it" xmltv_id="">INBLU2000</channel>
+  <channel site="sky.com" site_id="IT#5496" lang="it" xmltv_id="">Radio Gamma Stereo</channel>
+  <channel site="sky.com" site_id="IT#5498" lang="it" xmltv_id="">Radio Sintony</channel>
+  <channel site="sky.com" site_id="IT#5499" lang="it" xmltv_id="">Radio Super Sound</channel>
+  <channel site="sky.com" site_id="IT#5504" lang="it" xmltv_id="">Giornale Radio</channel>
+  <channel site="sky.com" site_id="IT#5506" lang="it" xmltv_id="">Canzoni Napoletane</channel>
+  <channel site="sky.com" site_id="IT#5507" lang="it" xmltv_id="">Med.TV</channel>
+  <channel site="sky.com" site_id="IT#5510" lang="it" xmltv_id="">wedotv Movies</channel>
+  <channel site="sky.com" site_id="IT#5511" lang="it" xmltv_id="">wedotv Big Stories</channel>
+  <channel site="sky.com" site_id="IT#5518" lang="it" xmltv_id="">Urania TV</channel>
+  <channel site="sky.com" site_id="IT#5523" lang="it" xmltv_id="">PRIMASET</channel>
+  <channel site="sky.com" site_id="IT#5577" lang="it" xmltv_id="">Canale Italia 2</channel>
+  <channel site="sky.com" site_id="IT#6624" lang="it" xmltv_id="">Discovery Turbo HD</channel>
+  <channel site="sky.com" site_id="IT#7740" lang="it" xmltv_id="">Radio Italia</channel>
+  <channel site="sky.com" site_id="IT#8141" lang="it" xmltv_id="">Sky Primafila Active</channel>
+  <channel site="sky.com" site_id="IT#8820" lang="it" xmltv_id="">BBC English (Europe)</channel>
+  <channel site="sky.com" site_id="IT#8828" lang="it" xmltv_id="">Radio Sportiva</channel>
+  <channel site="sky.com" site_id="IT#8829" lang="it" xmltv_id="">Dimensione Suono Roma</channel>
+  <channel site="sky.com" site_id="IT#8831" lang="it" xmltv_id="">Discoradio</channel>
+  <channel site="sky.com" site_id="IT#8833" lang="it" xmltv_id="">Radio Margherita</channel>
+  <channel site="sky.com" site_id="IT#8835" lang="it" xmltv_id="">Rai Radio3 Classica</channel>
+  <channel site="sky.com" site_id="IT#8838" lang="it" xmltv_id="">Rai GR PARLAMENTO</channel>
+  <channel site="sky.com" site_id="IT#8840" lang="it" xmltv_id="">Rai ISORADIO</channel>
+  <channel site="sky.com" site_id="IT#8856" lang="it" xmltv_id="">Radio Iglesias</channel>
+  <channel site="sky.com" site_id="IT#8858" lang="it" xmltv_id="">Radio Italia Anni &apos;60</channel>
+  <channel site="sky.com" site_id="IT#8864" lang="it" xmltv_id="">Radio Onda d&apos;Urto</channel>
+  <channel site="sky.com" site_id="IT#8865" lang="it" xmltv_id="">Radio Number One</channel>
+  <channel site="sky.com" site_id="IT#8866" lang="it" xmltv_id="">Radio Popolare</channel>
+  <channel site="sky.com" site_id="IT#8868" lang="it" xmltv_id="">Radio Radio</channel>
+  <channel site="sky.com" site_id="IT#8872" lang="it" xmltv_id="">Radio Swiss Classic</channel>
+  <channel site="sky.com" site_id="IT#8873" lang="it" xmltv_id="">Radio Swiss Jazz</channel>
+  <channel site="sky.com" site_id="IT#8874" lang="it" xmltv_id="">Radio Swiss Pop</channel>
+  <channel site="sky.com" site_id="IT#8878" lang="it" xmltv_id="">RADIO ZETA</channel>
+  <channel site="sky.com" site_id="IT#8886" lang="it" xmltv_id="">Rsi Rete 1</channel>
+  <channel site="sky.com" site_id="IT#8887" lang="it" xmltv_id="">Rsi Rete 2</channel>
+  <channel site="sky.com" site_id="IT#8888" lang="it" xmltv_id="">Rsi Rete 3</channel>
+  <channel site="sky.com" site_id="IT#8892" lang="it" xmltv_id="">RADIOFRECCIA</channel>
+  <channel site="sky.com" site_id="IT#9062" lang="it" xmltv_id="">Radio DeeJay</channel>
+  <channel site="sky.com" site_id="IT#9063" lang="it" xmltv_id="">Radio Capital</channel>
+  <channel site="sky.com" site_id="IT#9064" lang="it" xmltv_id="">M2O</channel>
+  <channel site="sky.com" site_id="IT#9065" lang="it" xmltv_id="">Radio Italia</channel>
+  <channel site="sky.com" site_id="IT#9066" lang="it" xmltv_id="">RTL 102.5</channel>
+  <channel site="sky.com" site_id="IT#9073" lang="it" xmltv_id="">Radio Montecarlo</channel>
+  <channel site="sky.com" site_id="IT#9074" lang="it" xmltv_id="">Radio 105</channel>
+  <channel site="sky.com" site_id="IT#9075" lang="it" xmltv_id="">Virgin Radio</channel>
+  <channel site="sky.com" site_id="IT#9076" lang="it" xmltv_id="">R 101</channel>
+  <channel site="sky.com" site_id="IT#5458" lang="it" xmltv_id="20.it@HD">20Mediaset HD</channel>
+  <channel site="sky.com" site_id="IT#9054" lang="it" xmltv_id="20.it@SD">20Mediaset HD</channel>
+  <channel site="sky.com" site_id="IT#5160" lang="it" xmltv_id="AbuDhabiTV.ae@SD">Abu Dhabi TV HD</channel>
+  <channel site="sky.com" site_id="IT#445" lang="it" xmltv_id="ACISportTV.it@SD">ACI SPORT TV</channel>
+  <channel site="sky.com" site_id="IT#5165" lang="it" xmltv_id="AlAlam.ir@SD">Al Alam TV HD</channel>
+  <channel site="sky.com" site_id="IT#5157" lang="it" xmltv_id="Alarabiya.ae@SD">Al Arabiya</channel>
+  <channel site="sky.com" site_id="IT#5171" lang="it" xmltv_id="AlIraqiaNews.iq@SD">Iraqia News HD</channel>
+  <channel site="sky.com" site_id="IT#5114" lang="it" xmltv_id="AlJazeera.qa@ArabicHD">Al Jazeera HD</channel>
+  <channel site="sky.com" site_id="IT#5113" lang="it" xmltv_id="AlJazeera.qa@EnglishHD">Al Jazeera Intl. HD</channel>
+  <channel site="sky.com" site_id="IT#5161" lang="it" xmltv_id="AlJazeeraMubasher.qa@SD">Aljazeera Mubasher</channel>
+  <channel site="sky.com" site_id="IT#5173" lang="it" xmltv_id="AlMaghribia.ma@SD">ALMAGHRIBIA</channel>
+  <channel site="sky.com" site_id="IT#5196" lang="it" xmltv_id="AlMasriyah.eg@SD">ESC - Al Masriyah</channel>
+  <channel site="sky.com" site_id="IT#5298" lang="it" xmltv_id="ArirangTV.kr@HD">Arirang TV</channel>
+  <channel site="sky.com" site_id="IT#5460" lang="it" xmltv_id="ArteInvestimenti.it@SD">ArteIn</channel>
+  <channel site="sky.com" site_id="IT#5193" lang="it" xmltv_id="BBCArabic.uk@SD">BBC Arabic</channel>
+  <channel site="sky.com" site_id="IT#5549" lang="it" xmltv_id="BeJoykids.it@HD">BeJoy.kids</channel>
+  <channel site="sky.com" site_id="IT#5256" lang="it" xmltv_id="BloombergTV.us@Europe">Bloomberg</channel>
+  <channel site="sky.com" site_id="IT#343" lang="it" xmltv_id="Boomerang.it@Plus1">Boomerang +1</channel>
+  <channel site="sky.com" site_id="IT#367" lang="it" xmltv_id="Boomerang.it@SD">Boomerang</channel>
+  <channel site="sky.com" site_id="IT#5491" lang="it" xmltv_id="ByoBlu.it@SD">BYOBLU</channel>
+  <channel site="sky.com" site_id="IT#344" lang="it" xmltv_id="CacciaePesca.it@SD">CACCIA e Pesca</channel>
+  <channel site="sky.com" site_id="IT#826" lang="it" xmltv_id="CameradeiDeputati.it@SD">Camera dei Deputati</channel>
+  <channel site="sky.com" site_id="IT#5435" lang="it" xmltv_id="Canale5.it@HD">Canale 5 HD</channel>
+  <channel site="sky.com" site_id="IT#9001" lang="it" xmltv_id="Canale5.it@HD">Canale 5</channel>
+  <channel site="sky.com" site_id="IT#9035" lang="it" xmltv_id="Canale5.it@HD">Canale 5 HD</channel>
+  <channel site="sky.com" site_id="IT#831" lang="it" xmltv_id="CanaleItalia83.it@SD">Canale Italia 83</channel>
+  <channel site="sky.com" site_id="IT#5108" lang="it" xmltv_id="CanaleItalia84.it@SD">Canale Italia 84</channel>
+  <channel site="sky.com" site_id="IT#5419" lang="it" xmltv_id="CanaleItalia.it@SD">Canale Italia</channel>
+  <channel site="sky.com" site_id="IT#258" lang="it" xmltv_id="CartoonNetwork.it@HD">Cartoon Network</channel>
+  <channel site="sky.com" site_id="IT#355" lang="it" xmltv_id="CartoonNetwork.it@Plus1">Cartoon Network +1</channel>
+  <channel site="sky.com" site_id="IT#5150" lang="it" xmltv_id="CGTN.cn@SD">CGTN</channel>
+  <channel site="sky.com" site_id="IT#120" lang="it" xmltv_id="Cielo.it@HD">cielo</channel>
+  <channel site="sky.com" site_id="IT#121" lang="it" xmltv_id="Cielo.it@HD">cielo</channel>
+  <channel site="sky.com" site_id="IT#9047" lang="it" xmltv_id="Cielo.it@SD">cielo</channel>
+  <channel site="sky.com" site_id="IT#5481" lang="it" xmltv_id="Cine34.it@HD">Cine34 HD</channel>
+  <channel site="sky.com" site_id="IT#9067" lang="it" xmltv_id="Cine34.it@SD">Cine34</channel>
+  <channel site="sky.com" site_id="IT#433" lang="it" xmltv_id="ClassCNBC.it@SD">Class CNBC</channel>
+  <channel site="sky.com" site_id="IT#811" lang="it" xmltv_id="ClassTVModa.it@SD">Class Tv Moda</channel>
+  <channel site="sky.com" site_id="IT#245" lang="it" xmltv_id="CNBCEurope.uk@HD">CNBC HD</channel>
+  <channel site="sky.com" site_id="IT#211" lang="it" xmltv_id="CNNInternational.us@MENA">CNN Intl.</channel>
+  <channel site="sky.com" site_id="IT#533" lang="it" xmltv_id="ComedyCentral.it@Plus1">Comedy +1</channel>
+  <channel site="sky.com" site_id="IT#404" lang="it" xmltv_id="ComedyCentral.it@SD">Comedy Central</channel>
+  <channel site="sky.com" site_id="IT#5238" lang="it" xmltv_id="DaystarTV.us@SD">Daystar Tv HD</channel>
+  <channel site="sky.com" site_id="IT#313" lang="it" xmltv_id="DeAJunior.it@SD">DeAJunior</channel>
+  <channel site="sky.com" site_id="IT#460" lang="it" xmltv_id="DeAKids.it@SD">DeAKids</channel>
+  <channel site="sky.com" site_id="IT#304" lang="it" xmltv_id="DeejayTV.it@SD">Deejay TV</channel>
+  <channel site="sky.com" site_id="IT#117" lang="it" xmltv_id="DiscoveryChannel.it@HD">Discovery HD</channel>
+  <channel site="sky.com" site_id="IT#5522" lang="it" xmltv_id="DiscoveryChannel.it@HD">Discovery HD</channel>
+  <channel site="sky.com" site_id="IT#6621" lang="it" xmltv_id="DiscoveryChannel.it@HD">Discovery HD</channel>
+  <channel site="sky.com" site_id="IT#322" lang="it" xmltv_id="DiscoveryChannel.it@Plus1">Discovery +1</channel>
+  <channel site="sky.com" site_id="IT#5414" lang="it" xmltv_id="DMAX.it@HD">DMAX HD</channel>
+  <channel site="sky.com" site_id="IT#6619" lang="it" xmltv_id="DMAX.it@HD">DMAX HD</channel>
+  <channel site="sky.com" site_id="IT#5158" lang="it" xmltv_id="DubaiSports1.ae@SD">Dubai Sports 1 HD</channel>
+  <channel site="sky.com" site_id="IT#5155" lang="it" xmltv_id="DubaiTV.ae@SD">Dubai TV HD</channel>
+  <channel site="sky.com" site_id="IT#5203" lang="it" xmltv_id="DW.de@English">Deutsche Welle HD</channel>
+  <channel site="sky.com" site_id="IT#5439" lang="it" xmltv_id="EQUtv.it@SD">EQUtv</channel>
+  <channel site="sky.com" site_id="IT#5432" lang="it" xmltv_id="EuronewsEnglish.fr@HD">Euronews English HD</channel>
+  <channel site="sky.com" site_id="IT#801" lang="it" xmltv_id="EuronewsEnglish.fr@SD">Euronews</channel>
+  <channel site="sky.com" site_id="IT#3073" lang="it" xmltv_id="Eurosport1.fr@Italy">Eurosport 1</channel>
+  <channel site="sky.com" site_id="IT#150" lang="it" xmltv_id="Eurosport2.fr@Italy">Eurosport 2</channel>
+  <channel site="sky.com" site_id="IT#5261" lang="it" xmltv_id="EWTN.us@Europe">EWTN</channel>
+  <channel site="sky.com" site_id="IT#5447" lang="it" xmltv_id="Focus.it@HD">Focus HD</channel>
+  <channel site="sky.com" site_id="IT#9057" lang="it" xmltv_id="Focus.it@SD">Focus</channel>
+  <channel site="sky.com" site_id="IT#722" lang="it" xmltv_id="FoodNetwork.it@HD">Food Network HD</channel>
+  <channel site="sky.com" site_id="IT#9059" lang="it" xmltv_id="FoodNetwork.it@HD">Food Network HD</channel>
+  <channel site="sky.com" site_id="IT#544" lang="it" xmltv_id="FoxBusinessNetwork.us@SD">Fox Business</channel>
+  <channel site="sky.com" site_id="IT#103" lang="it" xmltv_id="FoxNewsChannel.us@SD">Fox News</channel>
+  <channel site="sky.com" site_id="IT#5296" lang="it" xmltv_id="France24.fr@EnglishHD">France 24 English HD</channel>
+  <channel site="sky.com" site_id="IT#5119" lang="it" xmltv_id="France24.fr@FrenchHD">France 24 Francais HD</channel>
+  <channel site="sky.com" site_id="IT#418" lang="it" xmltv_id="Frisbee.it@SD">-frisbee-</channel>
+  <channel site="sky.com" site_id="IT#6609" lang="it" xmltv_id="Frisbee.it@SD">-frisbee-</channel>
+  <channel site="sky.com" site_id="IT#228" lang="it" xmltv_id="GamberoRossoChannel.it@HD">Gambero Rosso HD</channel>
+  <channel site="sky.com" site_id="IT#229" lang="it" xmltv_id="GamberoRossoChannel.it@HD">Gambero Rosso HD</channel>
+  <channel site="sky.com" site_id="IT#3655" lang="it" xmltv_id="Giallo.it@HD">GIALLO HD</channel>
+  <channel site="sky.com" site_id="IT#6620" lang="it" xmltv_id="Giallo.it@HD">GIALLO HD</channel>
+  <channel site="sky.com" site_id="IT#4334" lang="it" xmltv_id="HGTV.it@HD">HGTV HD</channel>
+  <channel site="sky.com" site_id="IT#6647" lang="it" xmltv_id="HGTV.it@HD">HGTV HD</channel>
+  <channel site="sky.com" site_id="IT#513" lang="it" xmltv_id="History.it@HD">History</channel>
+  <channel site="sky.com" site_id="IT#522" lang="it" xmltv_id="History.it@HD">History</channel>
+  <channel site="sky.com" site_id="IT#57" lang="it" xmltv_id="History.it@Plus1">History +1</channel>
+  <channel site="sky.com" site_id="IT#5290" lang="it" xmltv_id="HorseTV.it@SD">Horse TV HD</channel>
+  <channel site="sky.com" site_id="IT#487" lang="it" xmltv_id="InterTV.it@HD">Inter TV</channel>
+  <channel site="sky.com" site_id="IT#5436" lang="it" xmltv_id="Iris.it@HD">Iris HD</channel>
+  <channel site="sky.com" site_id="IT#9012" lang="it" xmltv_id="Iris.it@SD">Iris</channel>
+  <channel site="sky.com" site_id="IT#5459" lang="it" xmltv_id="Italia1.it@HD">Italia 1 HD</channel>
+  <channel site="sky.com" site_id="IT#9036" lang="it" xmltv_id="Italia1.it@HD">Italia 1 HD</channel>
+  <channel site="sky.com" site_id="IT#9052" lang="it" xmltv_id="Italia1.it@HD">Italia 1</channel>
+  <channel site="sky.com" site_id="IT#5444" lang="it" xmltv_id="Italia2.it@HD">Mediaset Italia2 HD</channel>
+  <channel site="sky.com" site_id="IT#9039" lang="it" xmltv_id="Italia2.it@SD">Mediaset Italia2</channel>
+  <channel site="sky.com" site_id="IT#5418" lang="it" xmltv_id="ItalianFishingTV.it@SD">Italian Fishing Tv</channel>
+  <channel site="sky.com" site_id="IT#5170" lang="it" xmltv_id="JordanTV.jo@SD">Jordan TV</channel>
+  <channel site="sky.com" site_id="IT#5508" lang="it" xmltv_id="Juwelo.it@SD">JUWELO</channel>
+  <channel site="sky.com" site_id="IT#466" lang="it" xmltv_id="K2.it@SD">K2</channel>
+  <channel site="sky.com" site_id="IT#6608" lang="it" xmltv_id="K2.it@SD">K2</channel>
+  <channel site="sky.com" site_id="IT#976" lang="it" xmltv_id="KissKissTV.it@SD">Kiss Kiss Tv HD</channel>
+  <channel site="sky.com" site_id="IT#5172" lang="it" xmltv_id="KTV1.kw@SD">KTV 1 HD</channel>
+  <channel site="sky.com" site_id="IT#5151" lang="it" xmltv_id="Kurdistan24.iq@SD">Kurdistan 24 HD</channel>
+  <channel site="sky.com" site_id="IT#5437" lang="it" xmltv_id="La5.it@HD">La 5 HD</channel>
+  <channel site="sky.com" site_id="IT#9010" lang="it" xmltv_id="La5.it@SD">La 5</channel>
+  <channel site="sky.com" site_id="IT#407" lang="it" xmltv_id="LA7.it@HD">LA7 HD</channel>
+  <channel site="sky.com" site_id="IT#6600" lang="it" xmltv_id="LA7.it@HD">LA7 HD</channel>
+  <channel site="sky.com" site_id="IT#5503" lang="it" xmltv_id="La7Cinema.it@HD">LA7CINEMA</channel>
+  <channel site="sky.com" site_id="IT#9024" lang="it" xmltv_id="La7Cinema.it@HD">LA7CINEMA</channel>
+  <channel site="sky.com" site_id="IT#5429" lang="it" xmltv_id="LaCTV.it@SD">LaC Sat</channel>
+  <channel site="sky.com" site_id="IT#5500" lang="it" xmltv_id="MarcoPoloTravelTV.it@SD">MARCOPOLO</channel>
+  <channel site="sky.com" site_id="IT#5443" lang="it" xmltv_id="MediasetExtra.it@HD">Mediaset Extra HD</channel>
+  <channel site="sky.com" site_id="IT#9030" lang="it" xmltv_id="MediasetExtra.it@SD">Mediaset Extra</channel>
+  <channel site="sky.com" site_id="IT#261" lang="it" xmltv_id="MilanTV.it@HD">Milan TV</channel>
+  <channel site="sky.com" site_id="IT#763" lang="it" xmltv_id="MTV.it@HD">MTV HD</channel>
+  <channel site="sky.com" site_id="IT#428" lang="it" xmltv_id="MTVMusic.it@SD">MTV Music</channel>
+  <channel site="sky.com" site_id="IT#429" lang="it" xmltv_id="MTVMusic.it@SD">MTV Music</channel>
+  <channel site="sky.com" site_id="IT#5297" lang="it" xmltv_id="NHKWorldJapan.jp@HD">NHK World TV HD</channel>
+  <channel site="sky.com" site_id="IT#320" lang="it" xmltv_id="Nickelodeon.it@SD">Nickelodeon</channel>
+  <channel site="sky.com" site_id="IT#38" lang="it" xmltv_id="NickJr.it@Plus1">Nick Jr. +1</channel>
+  <channel site="sky.com" site_id="IT#424" lang="it" xmltv_id="NickJr.it@SD">Nick Jr</channel>
+  <channel site="sky.com" site_id="IT#227" lang="it" xmltv_id="Nove.it@HD">NOVE HD</channel>
+  <channel site="sky.com" site_id="IT#6602" lang="it" xmltv_id="Nove.it@HD">NOVE HD</channel>
+  <channel site="sky.com" site_id="IT#2213" lang="it" xmltv_id="OrlerTV.it@SD">Orler TV</channel>
+  <channel site="sky.com" site_id="IT#860" lang="it" xmltv_id="PadrePioTV.it@SD">TelePadrePio HD</channel>
+  <channel site="sky.com" site_id="IT#5428" lang="it" xmltv_id="ParolediVita.it@SD">Parole di Vita</channel>
+  <channel site="sky.com" site_id="IT#350" lang="it" xmltv_id="PescaeCaccia.it@SD">Caccia e PESCA</channel>
+  <channel site="sky.com" site_id="IT#6606" lang="it" xmltv_id="QVC.it@SD">QVC</channel>
+  <channel site="sky.com" site_id="IT#5465" lang="it" xmltv_id="Radiofreccia.it@HD">RADIOFRECCIA HD</channel>
+  <channel site="sky.com" site_id="IT#9060" lang="it" xmltv_id="Radiofreccia.it@SD">RADIOFRECCIA HD</channel>
+  <channel site="sky.com" site_id="IT#5454" lang="it" xmltv_id="RadioItaliaTV.it@HD">Radio Italia TV HD</channel>
+  <channel site="sky.com" site_id="IT#9557" lang="it" xmltv_id="RadioItaliaTV.it@SD">Radio Italia TV</channel>
+  <channel site="sky.com" site_id="IT#5415" lang="it" xmltv_id="RadioMonteCarloTV.it@SD">Radio Monte Carlo</channel>
+  <channel site="sky.com" site_id="IT#5430" lang="it" xmltv_id="RadioNorbaTV.it@HD">RADIONORBA TV</channel>
+  <channel site="sky.com" site_id="IT#5457" lang="it" xmltv_id="RadioZeta.it@SD">RADIO ZETA HD</channel>
+  <channel site="sky.com" site_id="IT#9061" lang="it" xmltv_id="RadioZeta.it@SD">RADIO ZETA</channel>
+  <channel site="sky.com" site_id="IT#899" lang="it" xmltv_id="Rai1.it@HD">Rai 1 HD</channel>
+  <channel site="sky.com" site_id="IT#898" lang="it" xmltv_id="Rai2.it@HD">Rai 2 HD</channel>
+  <channel site="sky.com" site_id="IT#897" lang="it" xmltv_id="Rai3.it@HD">Rai 3 HD</channel>
+  <channel site="sky.com" site_id="IT#9008" lang="it" xmltv_id="Rai4.it@SD">RAI 4</channel>
+  <channel site="sky.com" site_id="IT#9019" lang="it" xmltv_id="Rai5.it@SD">RAI 5</channel>
+  <channel site="sky.com" site_id="IT#881" lang="it" xmltv_id="RaiGulp.it@HD">RAI Gulp</channel>
+  <channel site="sky.com" site_id="IT#9018" lang="it" xmltv_id="RaiMovie.it@SD">RAI MOVIE</channel>
+  <channel site="sky.com" site_id="IT#895" lang="it" xmltv_id="RaiNews24.it@HD">Rai News 24</channel>
+  <channel site="sky.com" site_id="IT#9020" lang="it" xmltv_id="RaiPremium.it@SD">RAI PREMIUM</channel>
+  <channel site="sky.com" site_id="IT#805" lang="it" xmltv_id="RaiScuola.it@HD">Rai Scuola</channel>
+  <channel site="sky.com" site_id="IT#807" lang="it" xmltv_id="RaiSport.it@HD">RAI Sport</channel>
+  <channel site="sky.com" site_id="IT#804" lang="it" xmltv_id="RaiStoria.it@HD">Rai Storia</channel>
+  <channel site="sky.com" site_id="IT#9016" lang="it" xmltv_id="RaiYoyo.it@SD">RAI YOYO</channel>
+  <channel site="sky.com" site_id="IT#5480" lang="it" xmltv_id="RDSSocialTV.it@SD">RDS Social TV</channel>
+  <channel site="sky.com" site_id="IT#507" lang="it" xmltv_id="RealTime.it@HD">Real Time HD</channel>
+  <channel site="sky.com" site_id="IT#6605" lang="it" xmltv_id="RealTime.it@HD">Real Time HD</channel>
+  <channel site="sky.com" site_id="IT#5464" lang="it" xmltv_id="Rete4.it@HD">Rete 4 HD</channel>
+  <channel site="sky.com" site_id="IT#9034" lang="it" xmltv_id="Rete4.it@HD">Rete 4 HD</channel>
+  <channel site="sky.com" site_id="IT#9051" lang="it" xmltv_id="Rete4.it@HD">Rete 4</channel>
+  <channel site="sky.com" site_id="IT#5416" lang="it" xmltv_id="RTL1025Caliente.it@SD">RTL 102.5 Caliente</channel>
+  <channel site="sky.com" site_id="IT#812" lang="it" xmltv_id="RTL1025TV.it@HD">RTL 102.5 HD</channel>
+  <channel site="sky.com" site_id="IT#6607" lang="it" xmltv_id="RTL1025TV.it@HD">RTL 102.5 HD</channel>
+  <channel site="sky.com" site_id="IT#5407" lang="it" xmltv_id="SanMarinoRTV.sm@SD">San Marino RTV</channel>
+  <channel site="sky.com" site_id="IT#5427" lang="it" xmltv_id="SanMarinoRTV.sm@SD">San Marino RTV HD</channel>
+  <channel site="sky.com" site_id="IT#5431" lang="it" xmltv_id="SBNTVInternational.us@SD">SonLife Broadcasting Network</channel>
+  <channel site="sky.com" site_id="IT#825" lang="it" xmltv_id="SenatoTV.it@SD">Senato Italiano</channel>
+  <channel site="sky.com" site_id="IT#5240" lang="it" xmltv_id="SenderNeuJerusalem.de@SD">Sender Neu Jerusalem</channel>
+  <channel site="sky.com" site_id="IT#961" lang="it" xmltv_id="SkyAdventure.it@HD">Sky Adventure</channel>
+  <channel site="sky.com" site_id="IT#962" lang="it" xmltv_id="SkyAdventure.it@HD">Sky Adventure</channel>
+  <channel site="sky.com" site_id="IT#74" lang="it" xmltv_id="SkyArte.it@HD">Sky Arte</channel>
+  <channel site="sky.com" site_id="IT#75" lang="it" xmltv_id="SkyArte.it@HD">Sky Arte</channel>
+  <channel site="sky.com" site_id="IT#251" lang="it" xmltv_id="SkyArte.it@Plus1">Sky Arte +1</channel>
+  <channel site="sky.com" site_id="IT#226" lang="it" xmltv_id="SkyAtlantic.it@HD">Sky Atlantic</channel>
+  <channel site="sky.com" site_id="IT#520" lang="it" xmltv_id="SkyAtlantic.it@Plus1">Sky Atlantic +1</channel>
+  <channel site="sky.com" site_id="IT#206" lang="it" xmltv_id="SkyCinemaAction.it@HD">Sky Cinema Action</channel>
+  <channel site="sky.com" site_id="IT#30" lang="it" xmltv_id="SkyCinemaComedy.it@HD">Sky Cinema Comedy</channel>
+  <channel site="sky.com" site_id="IT#769" lang="it" xmltv_id="SkyCinemaDrama.it@HD">Sky Cinema Drama</channel>
+  <channel site="sky.com" site_id="IT#779" lang="it" xmltv_id="SkyCinemaDue.it@Plus24HD">Sky Cinema Due +24</channel>
+  <channel site="sky.com" site_id="IT#255" lang="it" xmltv_id="SkyCinemaFamily.it@HD">Sky Cinema Family</channel>
+  <channel site="sky.com" site_id="IT#231" lang="it" xmltv_id="SkyCinemaRomance.it@HD">Sky Cinema Romance</channel>
+  <channel site="sky.com" site_id="IT#47" lang="it" xmltv_id="SkyCinemaSuspense.it@HD">Sky Cinema Suspense</channel>
+  <channel site="sky.com" site_id="IT#202" lang="it" xmltv_id="SkyCinemaUno.it@HD">Sky Cinema Uno</channel>
+  <channel site="sky.com" site_id="IT#203" lang="it" xmltv_id="SkyCinemaUno.it@HD">Sky Cinema Uno</channel>
+  <channel site="sky.com" site_id="IT#224" lang="it" xmltv_id="SkyCinemaUno.it@Plus24HD">Sky Cinema Uno +24</channel>
+  <channel site="sky.com" site_id="IT#170" lang="it" xmltv_id="SkyClassica.it@SD">Sky Classica</channel>
+  <channel site="sky.com" site_id="IT#250" lang="it" xmltv_id="SkyClassica.it@SD">Classica HD</channel>
+  <channel site="sky.com" site_id="IT#128" lang="it" xmltv_id="SkyCrime.it@HD">Sky Crime</channel>
+  <channel site="sky.com" site_id="IT#249" lang="it" xmltv_id="SkyCrime.it@HD">Sky Crime</channel>
+  <channel site="sky.com" site_id="IT#928" lang="it" xmltv_id="SkyDocumentaries.it@Plus1">Sky Documentaries +1</channel>
+  <channel site="sky.com" site_id="IT#934" lang="it" xmltv_id="SkyDocumentaries.it@Plus1">Sky Documentaries +1</channel>
+  <channel site="sky.com" site_id="IT#697" lang="it" xmltv_id="SkyDocumentaries.it@SD">Sky Documentaries</channel>
+  <channel site="sky.com" site_id="IT#698" lang="it" xmltv_id="SkyDocumentaries.it@SD">Sky Documentaries</channel>
+  <channel site="sky.com" site_id="IT#686" lang="it" xmltv_id="SkyInvestigation.it@SD">Sky Investigation</channel>
+  <channel site="sky.com" site_id="IT#321" lang="it" xmltv_id="SkyMeteo24.it@SD">Sky Meteo24</channel>
+  <channel site="sky.com" site_id="IT#695" lang="it" xmltv_id="SkyNature.it@HD">Sky Nature</channel>
+  <channel site="sky.com" site_id="IT#710" lang="it" xmltv_id="SkyNature.it@HD">Sky Nature</channel>
+  <channel site="sky.com" site_id="IT#108" lang="it" xmltv_id="SkyNews.uk@SD">Sky News</channel>
+  <channel site="sky.com" site_id="IT#5424" lang="it" xmltv_id="SkyNewsArabia.ae@HD">Sky News Arabia HD</channel>
+  <channel site="sky.com" site_id="IT#684" lang="it" xmltv_id="SkySerie.it@SD">Sky Serie</channel>
+  <channel site="sky.com" site_id="IT#628" lang="it" xmltv_id="SkySport4K.it@SD">Sky Sport 4k</channel>
+  <channel site="sky.com" site_id="IT#35" lang="it" xmltv_id="SkySport24.it@HD">Sky Sport24</channel>
+  <channel site="sky.com" site_id="IT#37" lang="it" xmltv_id="SkySport24.it@HD">Sky Sport24</channel>
+  <channel site="sky.com" site_id="IT#40" lang="it" xmltv_id="SkySport24.it@HD">Sky Sport24</channel>
+  <channel site="sky.com" site_id="IT#917" lang="it" xmltv_id="SkySport251.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#951" lang="it" xmltv_id="SkySport252.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#233" lang="it" xmltv_id="SkySport253.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#234" lang="it" xmltv_id="SkySport254.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#910" lang="it" xmltv_id="SkySport255.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#912" lang="it" xmltv_id="SkySport256.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#775" lang="it" xmltv_id="SkySport257.it@HD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#772" lang="it" xmltv_id="SkySport258.it@SD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#613" lang="it" xmltv_id="SkySport259.it@SD">Sky Sport</channel>
+  <channel site="sky.com" site_id="IT#24" lang="it" xmltv_id="SkySportArena.it@HD">Sky Sport Arena</channel>
+  <channel site="sky.com" site_id="IT#764" lang="it" xmltv_id="SkySportBasket.it@HD">Sky Sport Basket</channel>
+  <channel site="sky.com" site_id="IT#209" lang="it" xmltv_id="SkySportCalcio.it@HD">Sky Sport Calcio</channel>
+  <channel site="sky.com" site_id="IT#230" lang="it" xmltv_id="SkySportCalcio.it@HD">Sky Sport Calcio</channel>
+  <channel site="sky.com" site_id="IT#478" lang="it" xmltv_id="SkySportF1.it@HD">Sky Sport F1</channel>
+  <channel site="sky.com" site_id="IT#768" lang="it" xmltv_id="SkySportGolf.it@HD">Sky Sport Golf</channel>
+  <channel site="sky.com" site_id="IT#578" lang="it" xmltv_id="SkySportLegend.it@HD">Sky Sport Legend</channel>
+  <channel site="sky.com" site_id="IT#248" lang="it" xmltv_id="SkySportMax.it@HD">Sky Sport Max</channel>
+  <channel site="sky.com" site_id="IT#579" lang="it" xmltv_id="SkySportMix.it@HD">Sky Sport Mix</channel>
+  <channel site="sky.com" site_id="IT#483" lang="it" xmltv_id="SkySportMotoGP.it@HD">Sky Sport MotoGP</channel>
+  <channel site="sky.com" site_id="IT#559" lang="it" xmltv_id="SkySportTennis.it@HD">Sky Sport Tennis</channel>
+  <channel site="sky.com" site_id="IT#23" lang="it" xmltv_id="SkySportUno.it@HD">Sky Sport Uno</channel>
+  <channel site="sky.com" site_id="IT#6642" lang="it" xmltv_id="SkySportUno.it@HD">Sky Sport Uno</channel>
+  <channel site="sky.com" site_id="IT#519" lang="it" xmltv_id="SkyTG24.it@HD">Sky TG24</channel>
+  <channel site="sky.com" site_id="IT#521" lang="it" xmltv_id="SkyTG24.it@HD">Sky TG24</channel>
+  <channel site="sky.com" site_id="IT#3532" lang="it" xmltv_id="SkyTG24.it@HD">Sky TG24 HD</channel>
+  <channel site="sky.com" site_id="IT#9048" lang="it" xmltv_id="SkyTG24.it@SD">Sky TG24</channel>
+  <channel site="sky.com" site_id="IT#328" lang="it" xmltv_id="SkyTG24PrimoPiano.it@SD">TG24PrimoPiano</channel>
+  <channel site="sky.com" site_id="IT#477" lang="it" xmltv_id="SkyUno.it@HD">Sky Uno</channel>
+  <channel site="sky.com" site_id="IT#266" lang="it" xmltv_id="SkyUno.it@Plus1HD">Sky Uno +1</channel>
+  <channel site="sky.com" site_id="IT#432" lang="it" xmltv_id="SkyUno.it@Plus1HD">Sky Uno +</channel>
+  <channel site="sky.com" site_id="IT#421" lang="it" xmltv_id="Super.it@SD">Super!</channel>
+  <channel site="sky.com" site_id="IT#6610" lang="it" xmltv_id="Super.it@SD">Super!</channel>
+  <channel site="sky.com" site_id="IT#5246" lang="it" xmltv_id="SuperTennis.it@HD">SuperTennis HD</channel>
+  <channel site="sky.com" site_id="IT#6614" lang="it" xmltv_id="SuperTennis.it@HD">SuperTennis HD</channel>
+  <channel site="sky.com" site_id="IT#5492" lang="it" xmltv_id="Telecupole.it@SD">Telecupole</channel>
+  <channel site="sky.com" site_id="IT#5515" lang="it" xmltv_id="Telesardegna.it@SD">TELESARDEGNA</channel>
+  <channel site="sky.com" site_id="IT#5411" lang="it" xmltv_id="TGCom24.it@HD">TgCom24 HD</channel>
+  <channel site="sky.com" site_id="IT#9058" lang="it" xmltv_id="TGCom24.it@SD">TgCom24</channel>
+  <channel site="sky.com" site_id="IT#5275" lang="it" xmltv_id="TheWordNetwork.us@SD">The Word Network</channel>
+  <channel site="sky.com" site_id="IT#5445" lang="it" xmltv_id="TopCrime.it@HD">TOPcrime HD</channel>
+  <channel site="sky.com" site_id="IT#9042" lang="it" xmltv_id="TopCrime.it@SD">TOPcrime</channel>
+  <channel site="sky.com" site_id="IT#5421" lang="it" xmltv_id="TRMh24.it@SD">TRM h24</channel>
+  <channel site="sky.com" site_id="IT#260" lang="it" xmltv_id="TV8.it@HD">TV8 HD</channel>
+  <channel site="sky.com" site_id="IT#270" lang="it" xmltv_id="TV8.it@HD">TV8 HD</channel>
+  <channel site="sky.com" site_id="IT#6601" lang="it" xmltv_id="TV8.it@SD">TV8 HD</channel>
+  <channel site="sky.com" site_id="IT#6611" lang="it" xmltv_id="TV8.it@SD">TV8 HD</channel>
+  <channel site="sky.com" site_id="IT#180" lang="it" xmltv_id="TV2000.it@HD">TV2000 HD</channel>
+  <channel site="sky.com" site_id="IT#984" lang="it" xmltv_id="TVAVicenza.it@SD">TVA Vicenza</channel>
+  <channel site="sky.com" site_id="IT#5190" lang="it" xmltv_id="TVPPolonia.pl@SD">TVP Polonia</channel>
+  <channel site="sky.com" site_id="IT#5192" lang="it" xmltv_id="TVRInternational.ro@SD">TVR Intl.</channel>
+  <channel site="sky.com" site_id="IT#5453" lang="it" xmltv_id="Twentyseven.it@HD">27Twentyseven HD</channel>
+  <channel site="sky.com" site_id="IT#6659" lang="it" xmltv_id="Twentyseven.it@SD">27 Twentyseven</channel>
+  <channel site="sky.com" site_id="IT#823" lang="it" xmltv_id="UniNettunoUniversityTV.it@SD">Uninettuno</channel>
+  <channel site="sky.com" site_id="IT#5524" lang="it" xmltv_id="Value24TV.it@SD">VALUE 24 TV</channel>
+  <channel site="sky.com" site_id="IT#818" lang="it" xmltv_id="VaticanMedia.va@SD">Vatican Media Europa</channel>
+  <channel site="sky.com" site_id="IT#9069" lang="it" xmltv_id="VH1.it@SD">VH1</channel>
+  <channel site="sky.com" site_id="IT#5489" lang="it" xmltv_id="Videolina.it@SD">Videolina</channel>
+  <channel site="sky.com" site_id="IT#5426" lang="it" xmltv_id="VirginRadioTV.it@SD">Virgin Radio</channel>
+  <channel site="sky.com" site_id="IT#5495" lang="it" xmltv_id="WellTV.it@SD">Well Tv</channel>
+  <channel site="sky.com" site_id="IT#535" lang="it" xmltv_id="ZonaDAZN2.it@SD">DAZN 2</channel>
+  <channel site="sky.com" site_id="IT#9078" lang="it" xmltv_id="ZonaDAZN2.it@SD">ZONA DAZN 2</channel>
+  <channel site="sky.com" site_id="IT#566" lang="it" xmltv_id="ZonaDAZN.it@SD">DAZN 1</channel>
+  <channel site="sky.com" site_id="IT#9077" lang="it" xmltv_id="ZonaDAZN.it@SD">DAZN 1</channel>
+  <channel site="pluto.tv" site_id="60940a07d88ba90007b9cb71" lang="it" xmltv_id="">16 Anni e Incinta</channel>
+  <channel site="pluto.tv" site_id="64ec5c6644fe100009d114ae" lang="it" xmltv_id="">Affare Fatto</channel>
+  <channel site="pluto.tv" site_id="66d9aa4315d2c60008d4ac40" lang="it" xmltv_id="">Alice Nevers</channel>
+  <channel site="pluto.tv" site_id="60802d37ee238e0007c94e64" lang="it" xmltv_id="">Andromeda</channel>
+  <channel site="pluto.tv" site_id="6971fc6dca441014e4600f2c" lang="it" xmltv_id="">Automoto</channel>
+  <channel site="pluto.tv" site_id="638f286445264d00084ec6dc" lang="it" xmltv_id="">Autostop per il cielo</channel>
+  <channel site="pluto.tv" site_id="686cfdf894a028da3aac4252" lang="it" xmltv_id="">Barbie &amp; Friends</channel>
+  <channel site="pluto.tv" site_id="62e7fa5ab5062e0007dcf97d" lang="it" xmltv_id="">BBC Series</channel>
+  <channel site="pluto.tv" site_id="66a0eea88561260008b1c5d0" lang="it" xmltv_id="">Carabinieri</channel>
+  <channel site="pluto.tv" site_id="6093f9ed2c75660007322bb7" lang="it" xmltv_id="">Catfish</channel>
+  <channel site="pluto.tv" site_id="6231ec4b62cd1f0007093c7b" lang="it" xmltv_id="">CBS News 24/7</channel>
+  <channel site="pluto.tv" site_id="66a8c7aefe11e500085b1587" lang="it" xmltv_id="">Cherif</channel>
+  <channel site="pluto.tv" site_id="65cb78b83a116800079e2e35" lang="it" xmltv_id="">Cin Cin</channel>
+  <channel site="pluto.tv" site_id="671754d8e482950008962aaf" lang="it" xmltv_id="">Cinema Poliziottesco</channel>
+  <channel site="pluto.tv" site_id="653660b4295b840008a70ba3" lang="it" xmltv_id="">CineThriller</channel>
+  <channel site="pluto.tv" site_id="66c45ba803e3b20008d8c294" lang="it" xmltv_id="">CNN Headlines International</channel>
+  <channel site="pluto.tv" site_id="65f865a62873090008d06382" lang="it" xmltv_id="">Duri a Morire</channel>
+  <channel site="pluto.tv" site_id="65cb76ea11ced70008206b66" lang="it" xmltv_id="">Dynasty</channel>
+  <channel site="pluto.tv" site_id="61b86ea479a4390007c6d5fc" lang="it" xmltv_id="">Euronews</channel>
+  <channel site="pluto.tv" site_id="6661739641af6400080cd8f1" lang="it" xmltv_id="">Extreme Makeover Home Edition</channel>
+  <channel site="pluto.tv" site_id="608014d19a26320007c92ab6" lang="it" xmltv_id="">FailArmy</channel>
+  <channel site="pluto.tv" site_id="660bfc4424e1d000085b5f93" lang="it" xmltv_id="">FIFA+</channel>
+  <channel site="pluto.tv" site_id="66d7120815d2c60008cec006" lang="it" xmltv_id="">Flashpoint</channel>
+  <channel site="pluto.tv" site_id="64ec5cf50f73a800081310a5" lang="it" xmltv_id="">Forensic Files</channel>
+  <channel site="pluto.tv" site_id="6971fc07c945e6e4e5bc46bf" lang="it" xmltv_id="">Gambero Rosso</channel>
+  <channel site="pluto.tv" site_id="619263ee9541940007d20d60" lang="it" xmltv_id="">Geordie Shore</channel>
+  <channel site="pluto.tv" site_id="6536608b4f123d000876b78b" lang="it" xmltv_id="">Gli Immortali | Van Damme vs Lundgren</channel>
+  <channel site="pluto.tv" site_id="66a8c64814a2bb00084d09d6" lang="it" xmltv_id="">Gormiti</channel>
+  <channel site="pluto.tv" site_id="664f0ddbf78a8500092dcffa" lang="it" xmltv_id="">Hell&apos;s Kitchen</channel>
+  <channel site="pluto.tv" site_id="66c35c0c92b1af0008c8e83a" lang="it" xmltv_id="">Horror Club</channel>
+  <channel site="pluto.tv" site_id="62442f28afe626000747f195" lang="it" xmltv_id="">I Jefferson</channel>
+  <channel site="pluto.tv" site_id="68adb5853efb41cd97ce413d" lang="it" xmltv_id="">I Puffi</channel>
+  <channel site="pluto.tv" site_id="6602acadb2abe500081cf28a" lang="it" xmltv_id="">I soliti idioti</channel>
+  <channel site="pluto.tv" site_id="60e4507a06171800072339a3" lang="it" xmltv_id="">Il Banco dei Pugni</channel>
+  <channel site="pluto.tv" site_id="6971fc932c004063166ac8fd" lang="it" xmltv_id="">Il Sole24Ore TV</channel>
+  <channel site="pluto.tv" site_id="61fbd3f0733df400076c9a2d" lang="it" xmltv_id="">Il Testimone</channel>
+  <channel site="pluto.tv" site_id="612375086abc84000738fc03" lang="it" xmltv_id="">Inazuma Eleven</channel>
+  <channel site="pluto.tv" site_id="691c5bef3a369d8f40192e71" lang="it" xmltv_id="">Inter 24/7</channel>
+  <channel site="pluto.tv" site_id="6093f48c95132a00075fd859" lang="it" xmltv_id="">Just for Laughs GAGS</channel>
+  <channel site="pluto.tv" site_id="60a2837f8154ab0007c4dcdf" lang="it" xmltv_id="">Le sorelle McLeod</channel>
+  <channel site="pluto.tv" site_id="65d7211d0d45610008ffcf92" lang="it" xmltv_id="">LOL Just For Laughs</channel>
+  <channel site="pluto.tv" site_id="65cb76723a116800079e1fc3" lang="it" xmltv_id="">Love Boat</channel>
+  <channel site="pluto.tv" site_id="6349279ed5023700078f2bc2" lang="it" xmltv_id="">Mai dire sì</channel>
+  <channel site="pluto.tv" site_id="686cfe983ffa5e0c91cdb5df" lang="it" xmltv_id="">Mattel Junior</channel>
+  <channel site="pluto.tv" site_id="690cb9140d121b44ad925ac9" lang="it" xmltv_id="">Mayday: Disastro Aereo</channel>
+  <channel site="pluto.tv" site_id="65cb77853ba51e00084cba02" lang="it" xmltv_id="">Mission Impossible</channel>
+  <channel site="pluto.tv" site_id="671655b2daad7f00085d202d" lang="it" xmltv_id="">MODUS Super Series Darts</channel>
+  <channel site="pluto.tv" site_id="610a9ebe8c2ac2000734776e" lang="it" xmltv_id="">Naturescape</channel>
+  <channel site="pluto.tv" site_id="6500457d3efb510008315e59" lang="it" xmltv_id="">New Tricks</channel>
+  <channel site="pluto.tv" site_id="691c5b2e74baa89ef7230baf" lang="it" xmltv_id="">Nina</channel>
+  <channel site="pluto.tv" site_id="69affcad8940750a23a7231a" lang="it" xmltv_id="">One Piece</channel>
+  <channel site="pluto.tv" site_id="661f8f01801af800083d9d81" lang="it" xmltv_id="PlutoTVAlbertoSordi.de@IT">Pluto TV Alberto Sordi</channel>
+  <channel site="pluto.tv" site_id="65b90daed77d450008a43345" lang="it" xmltv_id="PlutoTVAnime.de@IT">Pluto TV Anime</channel>
+  <channel site="pluto.tv" site_id="6994800c470389f33df8e090" lang="it" xmltv_id="PlutoTVAzioneCult.de@IT">Pluto TV Azione Cult</channel>
+  <channel site="pluto.tv" site_id="612e05b885183d0007958101" lang="it" xmltv_id="PlutoTVChristmastuttolanno.de@IT">Pluto TV Christmas tutto l&apos;anno</channel>
+  <channel site="pluto.tv" site_id="608aa7d8359b270007861489" lang="it" xmltv_id="PlutoTVCinemaItaliano.de@IT">Pluto TV Cinema Italiano</channel>
+  <channel site="pluto.tv" site_id="6786235bd648bf0008c2780a" lang="it" xmltv_id="PlutoTVCinemaOrientale.de@IT">Pluto TV Cinema Orientale</channel>
+  <channel site="pluto.tv" site_id="608aa718a8ec810007d87fee" lang="it" xmltv_id="PlutoTVCucina.de@IT">Pluto TV Cucina</channel>
+  <channel site="pluto.tv" site_id="6875080e3484d607323641f8" lang="it" xmltv_id="PlutoTVDiveItaliane.de@IT">Pluto TV Dive Italiane</channel>
+  <channel site="pluto.tv" site_id="608aa8a5709d6b0007b132fe" lang="it" xmltv_id="PlutoTVDocumentari.de@IT">Pluto TV Documentari</channel>
+  <channel site="pluto.tv" site_id="66335489307fa300082bd6e4" lang="it" xmltv_id="PlutoTVEros.de@IT">Pluto TV Eros</channel>
+  <channel site="pluto.tv" site_id="608aa17fb9f4490007e6419a" lang="it" xmltv_id="PlutoTVFilm.de@IT">Pluto TV Film</channel>
+  <channel site="pluto.tv" site_id="65158fe20371a8000868809a" lang="it" xmltv_id="PlutoTVFilm.de@ITPlus2">Pluto TV Film</channel>
+  <channel site="pluto.tv" site_id="699d87093d5dba980705cca8" lang="it" xmltv_id="PlutoTVFilmAncoraPiuRomantici.de@IT">Pluto TV Film Ancora Più Romantici</channel>
+  <channel site="pluto.tv" site_id="608aa20a2e7f270007c4878d" lang="it" xmltv_id="PlutoTVFilmAzione.de@IT">Pluto TV Film Azione</channel>
+  <channel site="pluto.tv" site_id="651593a42c585100085b9d09" lang="it" xmltv_id="PlutoTVFilmAzione.de@ITPlus2">Pluto TV Film Azione</channel>
+  <channel site="pluto.tv" site_id="628deda4b9a7650007de2384" lang="it" xmltv_id="PlutoTVFilmAzione.de@ITPlus">Pluto TV Film Azione+</channel>
+  <channel site="pluto.tv" site_id="608aa512d67fd900072323db" lang="it" xmltv_id="PlutoTVFilmCommedia.de@IT">Pluto TV Film Commedia</channel>
+  <channel site="pluto.tv" site_id="628deea29e29d0000765e910" lang="it" xmltv_id="PlutoTVFilmCommedia.de@ITPlus">Pluto TV Film Commedia+</channel>
+  <channel site="pluto.tv" site_id="608aa4a4cc92820007b663af" lang="it" xmltv_id="PlutoTVFilmRomantici.de@IT">Pluto TV Film Romantici</channel>
+  <channel site="pluto.tv" site_id="611644bd5f76a40007d26296" lang="it" xmltv_id="PlutoTVFilmRomantici.de@ITPlus">Pluto TV Film Romantici+</channel>
+  <channel site="pluto.tv" site_id="68750875759366af05a151ce" lang="it" xmltv_id="PlutoTVFilmStorici.de@IT">Pluto TV Film Storici</channel>
+  <channel site="pluto.tv" site_id="608aa5e995132a00075f7005" lang="it" xmltv_id="PlutoTVFilmThriller.de@IT">Pluto TV Film Thriller</channel>
+  <channel site="pluto.tv" site_id="6116413793706b0007f04bb1" lang="it" xmltv_id="PlutoTVFilm.de@ITPlus">Pluto TV Film+</channel>
+  <channel site="pluto.tv" site_id="61c09e3ac210ed0007606620" lang="it" xmltv_id="PlutoTVHorror.de@IT">Pluto TV Horror</channel>
+  <channel site="pluto.tv" site_id="64808a8c536e0c0008a276d1" lang="it" xmltv_id="PlutoTVLegamiLetali.de@IT">Pluto TV Legami Letali</channel>
+  <channel site="pluto.tv" site_id="60802b37709d6b0007b0c549" lang="it" xmltv_id="PlutoTVNatura.de@IT">Pluto TV Natura</channel>
+  <channel site="pluto.tv" site_id="6911c9704316999535eb21cf" lang="it" xmltv_id="PlutoTVNottidiPassione.de@IT">Pluto TV Notti di Passione</channel>
+  <channel site="pluto.tv" site_id="6911c92b4316999535eb1e08" lang="it" xmltv_id="PlutoTVNottidiSangue.de@IT">Pluto TV Notti di Sangue</channel>
+  <channel site="pluto.tv" site_id="6911c8dd8caba6f046c5c5d5" lang="it" xmltv_id="PlutoTVNottidiTerrore.de@IT">Pluto TV Notti di Terrore</channel>
+  <channel site="pluto.tv" site_id="66c70033b1a34600087bb09a" lang="it" xmltv_id="PlutoTVParanormal.de@IT">Pluto TV Paranormal</channel>
+  <channel site="pluto.tv" site_id="60801976f92a750007a0699c" lang="it" xmltv_id="PlutoTVRealLife.de@IT">Pluto TV Real Life</channel>
+  <channel site="pluto.tv" site_id="6116424f5f76a40007d2616e" lang="it" xmltv_id="PlutoTVRealLife.de@ITPlus">Pluto TV Real Life+</channel>
+  <channel site="pluto.tv" site_id="609404b0a8ec810007d8de9d" lang="it" xmltv_id="PlutoTVScherzierisate.de@IT">Pluto TV Scherzi e risate</channel>
+  <channel site="pluto.tv" site_id="61728bb9ee3773000840c1fa" lang="it" xmltv_id="PlutoTVSciFi.de@IT">Pluto TV Sci-Fi</channel>
+  <channel site="pluto.tv" site_id="60b9ff2722bfa400072676ef" lang="it" xmltv_id="PlutoTVSerie.de@IT">Pluto TV Serie</channel>
+  <channel site="pluto.tv" site_id="608aa777b907770007e5d05d" lang="it" xmltv_id="PlutoTVSerieCrime.de@IT">Pluto TV Serie Crime</channel>
+  <channel site="pluto.tv" site_id="67ed14aaf7c5d70b9089c3bf" lang="it" xmltv_id="PlutoTVSerieSciFi.de@IT">Pluto TV Serie Sci-Fi</channel>
+  <channel site="pluto.tv" site_id="61163de693706b0007f04898" lang="it" xmltv_id="PlutoTVSerie.de@ITPlus">Pluto TV Serie+</channel>
+  <channel site="pluto.tv" site_id="67e3b0d2443f0671bc8a1297" lang="it" xmltv_id="PlutoTVShore.de@IT">Pluto TV Shore</channel>
+  <channel site="pluto.tv" site_id="69148c76e9dec35c9269a16c" lang="it" xmltv_id="PlutoTVSnooker900.de@IT">Pluto TV Snooker 900</channel>
+  <channel site="pluto.tv" site_id="608030eff4b6f70007e1684c" lang="it" xmltv_id="PlutoTVSport.de@IT">Pluto TV Sport</channel>
+  <channel site="pluto.tv" site_id="65253fdf3fd33c00080214a3" lang="it" xmltv_id="PlutoTVStoria.de@IT">Pluto TV Storia</channel>
+  <channel site="pluto.tv" site_id="63eb573ba99571000897135b" lang="it" xmltv_id="PlutoTVTeen.de@IT">Pluto TV Teen</channel>
+  <channel site="pluto.tv" site_id="65253f9881f942000833ccd5" lang="it" xmltv_id="PlutoTVToto.de@IT">Pluto TV Totò</channel>
+  <channel site="pluto.tv" site_id="66d9ab4bf0f17500084e9b7e" lang="it" xmltv_id="PlutoTVTrueCrime.de@IT">Pluto TV True Crime</channel>
+  <channel site="pluto.tv" site_id="63c923944207be0007fd0887" lang="it" xmltv_id="PlutoTVViaggi.de@IT">Pluto TV Viaggi</channel>
+  <channel site="pluto.tv" site_id="62e7fb67478a5b0007e6c50c" lang="it" xmltv_id="PlutoTVWestern.de@IT">Pluto TV Western</channel>
+  <channel site="pluto.tv" site_id="696e0fe49ba4ac18057433ac" lang="it" xmltv_id="">Rally TV</channel>
+  <channel site="pluto.tv" site_id="67d9836ba1609bdb523f0c9d" lang="it" xmltv_id="">Relic Hunter</channel>
+  <channel site="pluto.tv" site_id="634926e4b51d2d00077819a2" lang="it" xmltv_id="">Renegade</channel>
+  <channel site="pluto.tv" site_id="63eb57d6c111bc0008fe2658" lang="it" xmltv_id="">Sanctuary</channel>
+  <channel site="pluto.tv" site_id="6245d3792792150007e20634" lang="it" xmltv_id="">Settimo Cielo</channel>
+  <channel site="pluto.tv" site_id="62bc1f502b70e3000706298e" lang="it" xmltv_id="">South Park</channel>
+  <channel site="pluto.tv" site_id="69b1489b5828e7c242d83064" lang="it" xmltv_id="">Space Live</channel>
+  <channel site="pluto.tv" site_id="625e6cc905e09f00073addee" lang="it" xmltv_id="">Squadra Speciale Cobra 11</channel>
+  <channel site="pluto.tv" site_id="65cb73d33ba51e00084cabad" lang="it" xmltv_id="">Star Trek: Voyager</channel>
+  <channel site="pluto.tv" site_id="66177d18c8311c0008d077d0" lang="it" xmltv_id="">Storie Criminali</channel>
+  <channel site="pluto.tv" site_id="66d9a98961dbf00008efb5fc" lang="it" xmltv_id="">Sulle tracce del crimine</channel>
+  <channel site="pluto.tv" site_id="6093f6f8351eb0000754afb8" lang="it" xmltv_id="">Super! Cartoni Animati</channel>
+  <channel site="pluto.tv" site_id="609401db8cf51c00084b592e" lang="it" xmltv_id="">Super! iCarly</channel>
+  <channel site="pluto.tv" site_id="67f4f99729b03f18cb36647e" lang="it" xmltv_id="">Super! Kids Classics</channel>
+  <channel site="pluto.tv" site_id="6093f7b5bb49b90007cecaad" lang="it" xmltv_id="">Super! Pop</channel>
+  <channel site="pluto.tv" site_id="6093f9281db477000759fce0" lang="it" xmltv_id="">Super! SpongeBob</channel>
+  <channel site="pluto.tv" site_id="66a8c8b3d2d50d000821fc4c" lang="it" xmltv_id="">Tandem</channel>
+  <channel site="pluto.tv" site_id="62e7fc8c0d061100083946a9" lang="it" xmltv_id="">Teen Mom</channel>
+  <channel site="pluto.tv" site_id="62619405c733e8000732d1fe" lang="it" xmltv_id="">Teenage Mutant Ninja Turtles</channel>
+  <channel site="pluto.tv" site_id="69ef53e12f4d2b4f9c582e76" lang="it" xmltv_id="">That&apos;s 70s</channel>
+  <channel site="pluto.tv" site_id="69ef54f3c700cf0140272def" lang="it" xmltv_id="">That&apos;s 80s</channel>
+  <channel site="pluto.tv" site_id="69ef55c3b80e144b55d74e36" lang="it" xmltv_id="">That&apos;s 90s/00s</channel>
+  <channel site="pluto.tv" site_id="69ef5682980899a9edf1a884" lang="it" xmltv_id="">That&apos;s Rock</channel>
+  <channel site="pluto.tv" site_id="62e8d5369e48940007fc1dc1" lang="it" xmltv_id="">The Asylum</channel>
+  <channel site="pluto.tv" site_id="69664afedcbf5c784492e422" lang="it" xmltv_id="">The Intern</channel>
+  <channel site="pluto.tv" site_id="64c109a4798def0008a6e03e" lang="it" xmltv_id="">Top Gear</channel>
+  <channel site="pluto.tv" site_id="679203d4bc03978b9b4b79a6" lang="it" xmltv_id="">UFC</channel>
+  <channel site="pluto.tv" site_id="67c832cc9b53325ee16fb899" lang="it" xmltv_id="">Wicked Tuna</channel>
+  <channel site="pluto.tv" site_id="608016e446d73500075ea7e0" lang="it" xmltv_id="">World Poker Tour</channel>
+  <channel site="pluto.tv" site_id="63eb82e24e83e70008ab735f" lang="it" xmltv_id="">Yu-Gi-Oh!</channel>
+  <channel site="raiplay.it" site_id="rai-1" lang="it" xmltv_id="Rai1.it@SD">RAI 1</channel>
+  <channel site="raiplay.it" site_id="rai-2" lang="it" xmltv_id="Rai2.it@SD">RAI 2</channel>
+  <channel site="raiplay.it" site_id="rai-3" lang="it" xmltv_id="Rai3.it@HD">RAI 3</channel>
+  <channel site="raiplay.it" site_id="rai-4" lang="it" xmltv_id="Rai4.it@SD">RAI 4</channel>
+  <channel site="raiplay.it" site_id="rai-5" lang="it" xmltv_id="Rai5.it@SD">RAI 5</channel>
+  <channel site="raiplay.it" site_id="rai-gulp" lang="it" xmltv_id="RaiGulp.it@SD">RAI GULP</channel>
+  <channel site="raiplay.it" site_id="rai-movie" lang="it" xmltv_id="RaiMovie.it@SD">RAI MOVIE</channel>
+  <channel site="raiplay.it" site_id="rai-news-24" lang="it" xmltv_id="RaiNews24.it@SD">RAI NEWS 24</channel>
+  <channel site="raiplay.it" site_id="rai-premium" lang="it" xmltv_id="RaiPremium.it@SD">RAI PREMIUM</channel>
+  <channel site="raiplay.it" site_id="rai-radio-2" lang="it" xmltv_id="">RAI RADIO 2</channel>
+  <channel site="raiplay.it" site_id="rai-scuola" lang="it" xmltv_id="RaiScuola.it@SD">RAI SCUOLA</channel>
+  <channel site="raiplay.it" site_id="rai-sport" lang="it" xmltv_id="RaiSport.it@SD">RAI SPORT</channel>
+  <channel site="raiplay.it" site_id="rai-storia" lang="it" xmltv_id="RaiStoria.it@SD">RAI STORIA</channel>
+  <channel site="raiplay.it" site_id="rai-yoyo" lang="it" xmltv_id="RaiYoyo.it@SD">RAI YOYO</channel>
+  <channel site="raiplay.it" site_id="raiplay" lang="it" xmltv_id="">RAIPLAY</channel>
+  <channel site="raiplay.it" site_id="raiplay-2" lang="it" xmltv_id="">RAIPLAY 2</channel>
+  <channel site="raiplay.it" site_id="raiplay-3" lang="it" xmltv_id="">RAIPLAY 3</channel>
+  </channels>
