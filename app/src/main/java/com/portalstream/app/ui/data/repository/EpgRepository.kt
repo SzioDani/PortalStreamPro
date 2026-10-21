@@ -62,8 +62,18 @@ class EpgRepository(private val context: Context) {
                 }
 
                 if (targetId != null) {
-                    val channelProgs = cachedPrograms.filter { 
-                        it.channelId.equals(targetId, ignoreCase = true) 
+                    // 🚀 Normalizzazione flessibile: rimuove @HD/@SD, spazi e maiuscole/minuscole
+                    val cleanTargetId = targetId
+                        .substringBefore("@")
+                        .replace(" ", "")
+                        .lowercase()
+
+                    val channelProgs = cachedPrograms.filter { prog ->
+                        val cleanProgId = prog.channelId
+                            .substringBefore("@")
+                            .replace(" ", "")
+                            .lowercase()
+                        cleanProgId == cleanTargetId
                     }.sortedBy { it.startTime }
 
                     val currentIndex = channelProgs.indexOfFirst { 
