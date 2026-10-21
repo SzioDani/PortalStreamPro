@@ -518,7 +518,7 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
-        @Composable
+    @Composable
     private fun ChannelCard(
         channel: Channel,
         epgInfo: EpgInfo,
