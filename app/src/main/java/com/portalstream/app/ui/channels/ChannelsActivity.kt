@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,40 +33,28 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
+import com.portalstream.app.data.repository.EpgInfo
+import com.portalstream.app.data.repository.EpgRepository
 import com.portalstream.app.domain.model.Channel
-import com.portalstream.app.network.PortalException
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.home.ChannelCache
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
-
-data class EpgInfo(
-    val currentProgram: String = "",
-    val nextProgram: String = "",
-    val timeshift: Int = 0
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 class ChannelsActivity : ComponentActivity() {
 
     private val TAG = "ChannelsActivity"
     private val client = OkHttpClient()
+    private val epgRepository by lazy { EpgRepository(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,10 +72,16 @@ class ChannelsActivity : ComponentActivity() {
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
-        val epgCacheFile = File(filesDir, "epg_cache.json")
+        val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
 
         setContent {
-            MaterialTheme {
+            var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
+            val darkTheme = appTheme == "dark"
+
+            MaterialTheme(
+                colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()
+            ) {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
                 val localChannels = remember { ChannelCache.take() }
 
@@ -97,11 +92,8 @@ class ChannelsActivity : ComponentActivity() {
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
 
-                // Stato per il fuso orario EPG
+                // Stato per il Dialog delle Impostazioni / Tema (Rotella ⚙️)
                 var showSettingsDialog by remember { mutableStateOf(false) }
-                var epgOffsetHours by remember {
-                    mutableStateOf(prefs.getInt("epg_offset_hours", 0))
-                }
 
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
@@ -118,7 +110,7 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                // Caricamento immediato EPG da cache locale se esiste
+                // Caricamento EPG da cache locale se presente
                 var epgMap by remember {
                     mutableStateOf<Map<String, EpgInfo>>(
                         try {
@@ -137,7 +129,6 @@ class ChannelsActivity : ComponentActivity() {
                         } catch (_: Exception) { emptyMap() }
                     )
                 }
-                var lastEpgUpdate by remember { mutableStateOf(0L) }
 
                 val allGroups = remember(allChannels) {
                     allChannels.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
@@ -159,7 +150,7 @@ class ChannelsActivity : ComponentActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             channelDao.clearAll()
-                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType, MAC: $macAddress, Server: $server, URL: $portalUrl")
+                            Log.d(TAG, "Inizio caricamento canali. Tipo portale: $portalType")
 
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
@@ -230,99 +221,69 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
-                    // Caricamento EPG in background con Gzip e Cache Locale
+                    // Caricamento EPG esterno da iptv-org in background con cache
                     scope.launch(Dispatchers.IO) {
                         try {
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
-                                          portalType.equals("MAG", ignoreCase = true) || macAddress.isNotBlank()
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                          portalType.equals("XSTREAM", ignoreCase = true) ||
-                                          (username.isNotBlank() && password.isNotBlank() && server.isNotBlank())
-
-                            if (isXtream || isStalker) {
-                                val portalServer = if (server.isNotBlank()) server else portalUrl
-                                fetchUnifiedEpgData(
-                                    server = portalServer, username = username, password = password,
-                                    macAddress = macAddress, isStalker = isStalker, userAgent = userAgent,
-                                    channels = dbChannels, offsetHours = epgOffsetHours
-                                ) { newEpgMap ->
-                                    if (newEpgMap.isNotEmpty()) {
-                                        epgMap = newEpgMap
-                                        lastEpgUpdate = System.currentTimeMillis()
-
-                                        // Salvataggio in cache su file JSON locale in background
-                                        try {
-                                            val rootObj = JSONObject()
-                                            newEpgMap.forEach { (key, info) ->
-                                                val itemObj = JSONObject().apply {
-                                                    put("current", info.currentProgram)
-                                                    put("next", info.nextProgram)
-                                                }
-                                                rootObj.put(key, itemObj)
-                                            }
-                                            epgCacheFile.writeText(rootObj.toString())
-                                        } catch (_: Exception) {}
-                                    }
+                            val newEpgMap = epgRepository.getAllCurrentEpg(dbChannels)
+                            if (newEpgMap.isNotEmpty()) {
+                                withContext(Dispatchers.Main) {
+                                    epgMap = newEpgMap
                                 }
+                                // Salvataggio cache JSON locale
+                                try {
+                                    val rootObj = JSONObject()
+                                    newEpgMap.forEach { (key, info) ->
+                                        val itemObj = JSONObject().apply {
+                                            put("current", info.currentProgram)
+                                            put("next", info.nextProgram)
+                                        }
+                                        rootObj.put(key, itemObj)
+                                    }
+                                    epgCacheFile.writeText(rootObj.toString())
+                                } catch (_: Exception) {}
                             }
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Errore caricamento EPG iptv-org", e)
+                        }
                     }
                 }
 
-                // Dialog Impostazioni Fuso Orario EPG
+                // Dialog Impostazioni / Tema (Sostituisce il vecchio EPG Time)
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
-                        title = { Text("🕒 Regola Orario EPG") },
+                        title = { Text("⚙️ Opzioni Lista Canali") },
                         text = {
-                            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "Offset attuale: ${if (epgOffsetHours >= 0) "+$epgOffsetHours" else epgOffsetHours} ore",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Usa i pulsanti se la guida TV risulta in anticipo o in ritardo.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Button(onClick = {
-                                        epgOffsetHours -= 1
-                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
-                                        scope.launch(Dispatchers.IO) {
-                                            val portalServer = if (server.isNotBlank()) server else portalUrl
-                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
-                                        }
-                                    }) {
-                                        Text("-1 Ora")
+                                    Button(
+                                        onClick = {
+                                            appTheme = "dark"
+                                            appPrefs.edit().putString("app_theme", "dark").apply()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Text("Scuro")
                                     }
-                                    Button(onClick = {
-                                        epgOffsetHours = 0
-                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
-                                        scope.launch(Dispatchers.IO) {
-                                            val portalServer = if (server.isNotBlank()) server else portalUrl
-                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
-                                        }
-                                    }) {
-                                        Text("Reset")
-                                    }
-                                    Button(onClick = {
-                                        epgOffsetHours += 1
-                                        prefs.edit().putInt("epg_offset_hours", epgOffsetHours).apply()
-                                        scope.launch(Dispatchers.IO) {
-                                            val portalServer = if (server.isNotBlank()) server else portalUrl
-                                            fetchUnifiedEpgData(portalServer, username, password, macAddress, portalType.contains("STALKER", true) || macAddress.isNotBlank(), userAgent, dbChannels, epgOffsetHours) { epgMap = it }
-                                        }
-                                    }) {
-                                        Text("+1 Ora")
+                                    Button(
+                                        onClick = {
+                                            appTheme = "light"
+                                            appPrefs.edit().putString("app_theme", "light").apply()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Text("Chiaro")
                                     }
                                 }
                             }
@@ -420,12 +381,21 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     } else {
                         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                // Pulsante impostazioni / rotella ⚙️
+                                IconButton(onClick = { showSettingsDialog = true }) {
+                                    Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
 
                             OutlinedTextField(
                                 value = searchQuery,
@@ -464,15 +434,6 @@ class ChannelsActivity : ComponentActivity() {
                                     label = { Text(text = selectedGroup ?: "≡ Gruppi", maxLines = 1) },
                                     leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
                                 )
-
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { showSettingsDialog = true },
-                                    label = {
-                                        val labelText = if (epgOffsetHours == 0) "🕒 EPG Time" else "🕒 ${if (epgOffsetHours > 0) "+$epgOffsetHours" else epgOffsetHours}h"
-                                        Text(labelText, maxLines = 1)
-                                    }
-                                )
                             }
 
                             if (currentChannels.isEmpty()) {
@@ -489,7 +450,7 @@ class ChannelsActivity : ComponentActivity() {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
                                         val isFav = favoriteIds.contains(channel.id)
                                         val isThisLoading = loadingChannelId == channel.id
-                                        val epgInfo = epgMap[channel.id] ?: epgMap[extractRawId(channel.id)] ?: EpgInfo()
+                                        val epgInfo = epgMap[channel.id] ?: EpgInfo()
 
                                         ChannelCard(
                                             channel = channel,
@@ -624,155 +585,6 @@ class ChannelsActivity : ComponentActivity() {
         return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
 
-    // 🚀 Funzione EPG aggiornata con supporto Gzip ed header corretti
-    private suspend fun fetchUnifiedEpgData(
-        server: String,
-        username: String,
-        password: String,
-        macAddress: String,
-        isStalker: Boolean,
-        userAgent: String?,
-        channels: List<Channel>,
-        offsetHours: Int,
-        onUpdate: (Map<String, EpgInfo>) -> Unit
-    ) {
-        withContext(Dispatchers.IO) {
-            val resultMap = mutableMapOf<String, EpgInfo>()
-            try {
-                if (isStalker && macAddress.isNotBlank()) {
-                    val cleanServer = server.trimEnd('/')
-                    val url = "$cleanServer/server/load.php?type=itv&action=get_epg_info&mac=$macAddress"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("User-Agent", userAgent ?: "MAG250")
-                        .header("Accept-Encoding", "gzip, deflate")
-                        .header("Cookie", "mac=$macAddress")
-                        .build()
-
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        if (body.isNotBlank()) {
-                            val jsonRoot = JSONObject(body)
-                            val jsObj = jsonRoot.optJSONObject("js")
-                            val dataObj = jsObj?.optJSONObject("data") ?: jsonRoot.optJSONObject("js")
-                            val nowSec = System.currentTimeMillis() / 1000
-
-                            dataObj?.keys()?.forEach { chId ->
-                                val arr = dataObj.optJSONArray(chId)
-                                if (arr != null && arr.length() > 0) {
-                                    var currentTitle = ""
-                                    var nextTitle = ""
-                                    for (i in 0 until arr.length()) {
-                                        val prog = arr.getJSONObject(i)
-                                        val start = parseStalkerTimestamp(prog.optString("time", "")) ?: prog.optLong("start_timestamp", 0L)
-                                        val stop = parseStalkerTimestamp(prog.optString("time_to", "")) ?: prog.optLong("stop_timestamp", 0L)
-                                        if (start > 0 && stop > 0) {
-                                            if (nowSec in start..stop) {
-                                                currentTitle = prog.optString("name", "")
-                                                if (i + 1 < arr.length()) nextTitle = arr.getJSONObject(i + 1).optString("name", "")
-                                                break
-                                            }
-                                        }
-                                    }
-                                    if (currentTitle.isBlank() && arr.length() > 0) {
-                                        currentTitle = arr.getJSONObject(0).optString("name", "")
-                                        if (arr.length() > 1) nextTitle = arr.getJSONObject(1).optString("name", "")
-                                    }
-                                    if (currentTitle.isNotBlank()) {
-                                        resultMap[chId] = EpgInfo(cleanHtmlIfNeeded(currentTitle), cleanHtmlIfNeeded(nextTitle))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if (username.isNotBlank() && password.isNotBlank()) {
-                    val cleanServer = server.trimEnd('/')
-                    val url = "$cleanServer/player_api.php?username=$username&password=$password&action=get_live_streams"
-                    val request = Request.Builder()
-                        .url(url)
-                        .header("User-Agent", userAgent ?: "PortalStreamPro/1.0")
-                        .header("Accept-Encoding", "gzip, deflate")
-                        .build()
-
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        if (body.isNotBlank()) {
-                            val jsonArray = JSONArray(body)
-                            for (i in 0 until jsonArray.length()) {
-                                val obj = jsonArray.getJSONObject(i)
-                                val streamId = obj.optString("stream_id", "")
-                                val epgNow = obj.optJSONObject("epg_now")
-                                val epgNext = obj.optJSONObject("epg_next")
-                                val nowPlaying = epgNow?.optString("title", null)
-                                val nextPlaying = epgNext?.optString("title", null)
-
-                                val formattedCurrent = if (!nowPlaying.isNullOrBlank()) {
-                                    val startFormatted = formatEpgTime(epgNow.optString("start", ""), epgNow.optLong("start_timestamp", 0L), offsetHours)
-                                    if (startFormatted.isNotBlank()) "[$startFormatted] $nowPlaying" else nowPlaying
-                                } else null
-
-                                if (streamId.isNotBlank() && !formattedCurrent.isNullOrBlank()) {
-                                    resultMap[streamId] = EpgInfo(cleanHtmlIfNeeded(formattedCurrent), if (!nextPlaying.isNullOrBlank()) cleanHtmlIfNeeded(nextPlaying) else "")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                channels.forEach { ch ->
-                    val rawId = extractRawId(ch.id)
-                    val info = resultMap[rawId]
-                    if (info != null) resultMap[ch.id] = info
-                }
-
-                onUpdate(resultMap)
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun formatEpgTime(timeStr: String, timestampSec: Long, offsetHours: Int): String {
-        return try {
-            val adjustedTimestamp = if (timestampSec > 0) timestampSec + (offsetHours * 3600L) else 0L
-            if (adjustedTimestamp > 0) {
-                val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-                sdf.timeZone = TimeZone.getDefault()
-                sdf.format(Date(adjustedTimestamp * 1000))
-            } else if (timeStr.isNotBlank()) {
-                val inputFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                inputFormat.timeZone = TimeZone.getTimeZone("UTC")
-                val date = inputFormat.parse(timeStr)
-                if (date != null) {
-                    val adjustedDate = Date(date.time + (offsetHours * 3600000L))
-                    val outputFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-                    outputFormat.timeZone = TimeZone.getDefault()
-                    outputFormat.format(adjustedDate)
-                } else ""
-            } else ""
-        } catch (_: Exception) { "" }
-    }
-
-    private fun parseStalkerTimestamp(timeStr: String): Long? {
-        if (timeStr.isBlank()) return null
-        return try {
-            val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-            format.timeZone = TimeZone.getTimeZone("UTC")
-            val date = format.parse(timeStr)
-            date?.time?.div(1000)
-        } catch (_: Exception) {
-            timeStr.toLongOrNull()
-        }
-    }
-
-    private fun cleanHtmlIfNeeded(text: String): String {
-        return if (text.contains("&") && (text.contains("quot") || text.contains("amp") || text.contains("lt"))) {
-            android.text.Html.fromHtml(text, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
-        } else {
-            text
-        }
-    }
-
     companion object {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
@@ -785,3 +597,5 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+                                            
+                                  
