@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <channels>
-channel site="sky.com" site_id="IT#118" lang="it" xmltv_id="">Prime Video Sportsbar</channel>
   <channel site="sky.com" site_id="IT#146" lang="it" xmltv_id="">Sky Primafila</channel>
   <channel site="sky.com" site_id="IT#181" lang="it" xmltv_id="">Radio Vaticana Europa</channel>
   <channel site="sky.com" site_id="IT#204" lang="it" xmltv_id="">Western Collection</channel>
