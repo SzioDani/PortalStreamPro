@@ -210,40 +210,39 @@ class ChannelsActivity : ComponentActivity() {
                                     channel.copy(id = safeId)
                                 }
                                 channelDao.insertChannels(validFetched)
+                                Log.d(TAG, "Canali pronti. Avvio caricamento EPG...")
+                                try {
+                                    val newEpgMap = epgRepository.getAllCurrentEpg(validFetched)
+                                    if (newEpgMap.isNotEmpty()) {
+                                        withContext(Dispatchers.Main) {
+                                            epgMap = newEpgMap
+                                        }
+                                        try {
+                                            val rootObj = JSONObject()
+                                            newEpgMap.forEach { (key, info) ->
+                                                val itemObj = JSONObject().apply {
+                                                    put("current", info.currentProgram)
+                                                    put("next", info.nextProgram)
+                                                }
+                                                rootObj.put(key, itemObj)
+                                            }
+                                            epgCacheFile.writeText(rootObj.toString())
+                                        } catch (_: Exception) {}
+                                        Log.d(TAG, "Mappa EPG applicata con successo: ${newEpgMap.size} voci")
+                                    } else {
+                                        Log.w(TAG, "Mappa EPG restituita vuota.")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Errore caricamento EPG", e)
+                                }
                             } else {
                                 statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
                             }
-
                         } catch (e: Exception) {
                             statusMessage = "Errore: ${e.localizedMessage}"
+                            Log.e(TAG, "Errore generale caricamento canali", e)
                         } finally {
                             withContext(Dispatchers.Main) { isLoading = false }
-                        }
-                    }
-
-                    // Caricamento EPG esterno da iptv-org in background con cache
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val newEpgMap = epgRepository.getAllCurrentEpg(dbChannels)
-                            if (newEpgMap.isNotEmpty()) {
-                                withContext(Dispatchers.Main) {
-                                    epgMap = newEpgMap
-                                }
-                                // Salvataggio cache JSON locale
-                                try {
-                                    val rootObj = JSONObject()
-                                    newEpgMap.forEach { (key, info) ->
-                                        val itemObj = JSONObject().apply {
-                                            put("current", info.currentProgram)
-                                            put("next", info.nextProgram)
-                                        }
-                                        rootObj.put(key, itemObj)
-                                    }
-                                    epgCacheFile.writeText(rootObj.toString())
-                                } catch (_: Exception) {}
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Errore caricamento EPG iptv-org", e)
                         }
                     }
                 }
