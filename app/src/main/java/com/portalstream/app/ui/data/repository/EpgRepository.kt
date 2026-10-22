@@ -25,7 +25,7 @@ class EpgRepository(private val context: Context) {
     private val TAG = "EpgRepository"
     private val downloader = EpgDownloader(context)
     private val parser = EpgParser()
-    private val mapper = EpgChannelMapper(context)
+    private val mapper = EpgChannelMapper() // Non richiede più il context!
 
     private var cachedPrograms: List<EpgProgram> = emptyList()
 
@@ -40,7 +40,12 @@ class EpgRepository(private val context: Context) {
                 Log.d(TAG, "Cache programmi vuota. Avvio download EPG...")
                 val result = downloader.downloadEpg(countryCode)
                 result.getOrNull()?.let { xmlContent ->
+                    // 1. Parsa i programmi TV
                     cachedPrograms = parser.parseXmlTv(xmlContent, timeZone)
+                    
+                    // 2. Inizializza i canali ed effettua il mapping direttamente dall'XML scaricato
+                    mapper.loadMappingsFromXml(xmlContent)
+                    
                     Log.d(TAG, "Totale programmi parsati dal file EPG: ${cachedPrograms.size}")
                 }
             }
@@ -55,14 +60,10 @@ class EpgRepository(private val context: Context) {
 
             channels.forEach { channel ->
                 val mapping = mapper.findBestMatch(channel.name)
-                val targetId = when {
-                    mapping != null && mapping.xmltvId.isNotBlank() -> mapping.xmltvId
-                    mapping != null && mapping.siteId.isNotBlank() -> mapping.siteId
-                    else -> null
-                }
+                // Usiamo direttamente il siteId estratto dinamicamente dal file XML
+                val targetId = mapping?.siteId
 
                 if (targetId != null) {
-                    // 🚀 Normalizzazione flessibile: rimuove @HD/@SD, spazi e maiuscole/minuscole
                     val cleanTargetId = targetId
                         .substringBefore("@")
                         .replace(" ", "")
