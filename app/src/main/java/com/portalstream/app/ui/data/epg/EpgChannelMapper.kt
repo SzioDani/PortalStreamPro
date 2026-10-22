@@ -6,8 +6,8 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
 data class EpgChannelMapping(
-    val siteId: String, // L'ID esatto del canale nel file XML (es. "Sky.Uno.it" o l'ID di open-epg)
-    val name: String    // Il nome ufficiale del canale letto dal tag <display-name>
+    val siteId: String, // L'ID esatto del canale nel file XML (es. "Sky.Calcio.11..261.it")
+    val name: String    // Il nome ufficiale letto dal tag <display-name>
 )
 
 class EpgChannelMapper {
@@ -17,7 +17,6 @@ class EpgChannelMapper {
 
     /**
      * Legge e indicizza tutti i canali direttamente dal file XML EPG scaricato
-     * (Funziona perfettamente sia con epgshare01 che con www.open-epg.com)
      */
     fun loadMappingsFromXml(xmlString: String) {
         val mappings = mutableListOf<EpgChannelMapping>()
@@ -55,7 +54,7 @@ class EpgChannelMapper {
                 eventType = parser.next()
             }
             allMappings = mappings
-            Log.d(TAG, "Mappatura dinamica completata: indicizzati ${allMappings.size} canali direttamente dall'EPG scaricato.")
+            Log.d(TAG, "Mappatura dinamica completata: indicizzati ${allMappings.size} canali dall'XML EPG.")
         } catch (e: Exception) {
             Log.e(TAG, "Errore durante il parsing dinamico dei canali dall'XML EPG", e)
         }
@@ -75,7 +74,7 @@ class EpgChannelMapper {
             return it
         }
 
-        // 2. Cerca per contenimento (es. il portale chiama il canale "Rai 1 HD" e l'EPG ha "Rai 1")
+        // 2. Cerca per contenimento
         val partialMatch = allMappings.find { mapping ->
             val cleanMappingName = cleanName(mapping.name)
             cleanMappingName.isNotBlank() && (cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery))
