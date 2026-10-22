@@ -68,17 +68,17 @@ class EpgChannelMapper(private val context: Context) {
             return null
         }
 
-        val cleanQuery = sanitizeChannelName(channelName)
+        val cleanQuery = cleanName(channelName)
 
         // 1. Cerca per uguaglianza perfetta
-        allMappings.find { sanitizeChannelName(it.name) == cleanQuery }?.let {
+        allMappings.find { cleanName(it.name) == cleanQuery }?.let {
             Log.d(TAG, "Match esatto trovato: '$channelName' -> '${it.name}' (ID: ${it.xmltvId.ifBlank { it.siteId }})")
             return it
         }
 
         // 2. Cerca per contenimento
         val partialMatch = allMappings.find { mapping ->
-            val cleanMappingName = sanitizeChannelName(mapping.name)
+            val cleanMappingName = cleanName(mapping.name)
             cleanMappingName.isNotBlank() && (cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery))
         }
 
@@ -91,9 +91,12 @@ class EpgChannelMapper(private val context: Context) {
         return partialMatch
     }
 
-    private fun sanitizeChannelName(name: String): String {
-        return name.lowercase()
-            .replace(Regex("(hd|fhd|4k|hevc|ita|freetair|\\+|[\\(\\[\\-\\]\\)])"), "")
-            .replace(Regex("\\s+"), "")
+    fun cleanName(rawName: String): String {
+        var name = rawName
+        // Rimuove prefissi del tipo "IT - ", "IT | ", "ITA : ", "IT-"
+        name = name.replace(Regex("^(IT|ITA|IT\\||IT\\s*[-:|])\\s*", RegexOption.IGNORE_CASE), "")
+        // Rimuove la qualità e tag inutili
+        name = name.replace(Regex("\\s*(HD|SD|UHD|FHD|4K|HbbTV|RAW)\\s*$", RegexOption.IGNORE_CASE), "")
+        return name.trim().lowercase()
     }
 }
