@@ -247,7 +247,7 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // Dialog Impostazioni / Tema (Sostituisce il vecchio EPG Time)
+                // Dialog Impostazioni / Tema
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
@@ -390,7 +390,6 @@ class ChannelsActivity : ComponentActivity() {
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold
                                 )
-                                // Pulsante impostazioni / rotella ⚙️
                                 IconButton(onClick = { showSettingsDialog = true }) {
                                     Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = MaterialTheme.colorScheme.onSurface)
                                 }
@@ -518,6 +517,16 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        // Cancella il file EPG temporaneo per non occupare spazio alla chiusura dell'activity
+        val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
+        if (epgCacheFile.exists()) {
+            epgCacheFile.delete()
+            Log.d(TAG, "File cache EPG temporaneo eliminato con successo.")
+        }
+    }
+
     @Composable
     private fun ChannelCard(
         channel: Channel,
@@ -559,7 +568,6 @@ class ChannelsActivity : ComponentActivity() {
                     if (epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         
-                        // Riga con Titolo in onda e Orario
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -583,7 +591,6 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         }
 
-                        // 📊 Barra di avanzamento del programma
                         Spacer(modifier = Modifier.height(4.dp))
                         LinearProgressIndicator(
                             progress = { epgInfo.progress },
@@ -592,7 +599,6 @@ class ChannelsActivity : ComponentActivity() {
                             trackColor = MaterialTheme.colorScheme.surfaceVariant,
                         )
 
-                        // ⏭ Programma successivo
                         if (epgInfo.nextProgram.isNotBlank()) {
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
@@ -642,5 +648,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
-                                            
-                                  
