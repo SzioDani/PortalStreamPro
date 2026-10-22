@@ -14,11 +14,17 @@ import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
+// Modello di supporto per le info profilo/scadenza
+data class StalkerProfile(
+    val expireDate: String = "",
+    val status: String = ""
+)
+
 object StalkerClient {
 
     private const val TAG = "StalkerClient"
 
-    // OkHttp configurato con timeout e supporto Gzip nativo (aggiungiamo esplicitamente l'header globale se desiderato)
+    // OkHttp configurato con timeout e supporto Gzip nativo
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -45,6 +51,69 @@ object StalkerClient {
         return baseUrl
     }
 
+    suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
+        val baseUrl = getPortalBaseUrl(portal) ?: return@withContext StalkerProfile()
+        val mac = portal.macAddress.trim()
+        if (mac.isBlank()) return@withContext StalkerProfile()
+
+        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
+            portal.userAgent
+        } else {
+            DEFAULT_USER_AGENT
+        }
+
+        var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
+
+        try {
+            // Handshake
+            val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
+            val handshakeReq = Request.Builder()
+                .url(handshakeUrl)
+                .addHeader("User-Agent", userAgent)
+                .addHeader("Cookie", sessionCookie)
+                .build()
+
+            val handshakeResp = client.newCall(handshakeReq).execute()
+            val setCookieHeaders = handshakeResp.headers("Set-Cookie")
+            if (setCookieHeaders.isNotEmpty()) {
+                val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
+                if (phpSessId != null) {
+                    val cookieValue = phpSessId.split(";").firstOrNull() ?: ""
+                    if (cookieValue.isNotBlank()) sessionCookie += "; $cookieValue"
+                }
+            }
+
+            val handshakeBody = handshakeResp.body?.string() ?: ""
+            val token = parseToken(handshakeBody)
+
+            // Richiesta Profilo Account
+            val profileUrl = "$baseUrl?type=stb&action=get_profile&JsHttpRequest=1-xml" +
+                    if (token.isNotBlank()) "&token=$token" else ""
+
+            val profileReq = Request.Builder()
+                .url(profileUrl)
+                .addHeader("User-Agent", userAgent)
+                .addHeader("Cookie", sessionCookie)
+                .build()
+
+            client.newCall(profileReq).execute().use { response ->
+                val body = response.body?.string() ?: return@withContext StalkerProfile()
+                val root = JSONObject(body)
+                val js = root.optJSONObject("js") ?: return@withContext StalkerProfile()
+
+                // Nei portali Stalker la data di scadenza si trova solitamente in 'phone' o 'expire_date'
+                val expireDate = js.optString("phone", js.optString("expire_date", "Illimitato"))
+                
+                return@withContext StalkerProfile(
+                    expireDate = if (expireDate.isBlank()) "N/D" else expireDate
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore recupero info account Stalker", e)
+            StalkerProfile()
+        }
+    }
+
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext emptyList()
 
@@ -62,7 +131,6 @@ object StalkerClient {
         try {
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
 
-            // Aggiungiamo esplicitamente l'header Accept-Encoding: gzip per velocizzare le risposte pesanti
             val handshakeRequest = Request.Builder()
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
