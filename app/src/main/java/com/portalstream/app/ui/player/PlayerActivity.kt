@@ -25,8 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.core.view.WindowInsetsCompat
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -43,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -167,11 +166,9 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Legge la modalità scelta nel menu impostazioni in alto a destra
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val playerMode = appPrefs.getString("player_mode", "both") // Default a "both" o "miniplayer"
+        val playerMode = appPrefs.getString("player_mode", "both")
 
-        // Se l'utente ha scelto esplicitamente il PiP di sistema ed esce premendo Home
         if ((playerMode == "pip" || playerMode == "both") && mediaPlayer?.isPlaying == true && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
@@ -203,7 +200,6 @@ class PlayerActivity : ComponentActivity() {
         var showSettingsSheet by remember { mutableStateOf(false) }
         var activeTab by remember { mutableIntStateOf(0) }
 
-        // Stato locale per gestire l'attivazione del Miniplayer in-app trascinabile
         var isMinimized by remember { mutableStateOf(false) }
 
         var audioTrackDescriptions by remember { mutableStateOf<List<MediaPlayer.TrackDescription>>(emptyList()) }
@@ -232,20 +228,15 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(configuration.orientation, currentAspectRatio, currentScale, composeMediaPlayer) {
+        // CORRETTO: Gestione pulita e immediata dell'applicazione di scala e aspect ratio senza ritardi superflui
+        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
             if (mp != null) {
-                delay(400) 
-                
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
-                    mp.scale = 0f 
-                    delay(50)
                     mp.scale = currentScale
                 } else if (currentAspectRatio != null) {
                     mp.scale = 0f
-                    mp.aspectRatio = null
-                    delay(50)
                     mp.aspectRatio = currentAspectRatio
                 } else {
                     mp.scale = 0f
@@ -364,7 +355,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // INTEGRAZIONE MINIPLAYER: Racchiude il player nel contenitore fluttuante definito in PlayerUIs.kt
         DraggableMiniPlayerContainer(
             isMinimized = isMinimized,
             onExpand = { isMinimized = false },
@@ -440,7 +430,6 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Pulsante pulito per ridurre a Miniplayer in-app (stile YouTube)
                             IconButton(onClick = { isMinimized = true }) {
                                 Icon(
                                     imageVector = Icons.Default.FullscreenExit,
@@ -698,38 +687,38 @@ class PlayerActivity : ComponentActivity() {
                                         if (mp != null) {
                                             when (newRatio) {
                                                 "FILL" -> {
-                                                    mp.scale = 1.45f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.45f
                                                     currentScale = 1.45f
                                                     prefs.edit().putFloat("scale", 1.45f).apply()
                                                 }
                                                 "ZOOM110" -> {
-                                                    mp.scale = 1.10f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.10f
                                                     currentScale = 1.10f
                                                     prefs.edit().putFloat("scale", 1.10f).apply()
                                                 }
                                                 "ZOOM120" -> {
-                                                    mp.scale = 1.20f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.20f
                                                     currentScale = 1.20f
                                                     prefs.edit().putFloat("scale", 1.20f).apply()
                                                 }
                                                 "ZOOM125" -> {
-                                                    mp.scale = 1.25f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.25f
                                                     currentScale = 1.25f
                                                     prefs.edit().putFloat("scale", 1.25f).apply()
                                                 }
                                                 "ZOOM130" -> {
-                                                    mp.scale = 1.30f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.30f
                                                     currentScale = 1.30f
                                                     prefs.edit().putFloat("scale", 1.30f).apply()
                                                 }
                                                 "ZOOM135" -> {
-                                                    mp.scale = 1.35f
                                                     mp.aspectRatio = null
+                                                    mp.scale = 1.35f
                                                     currentScale = 1.35f
                                                     prefs.edit().putFloat("scale", 1.35f).apply()
                                                 }
@@ -747,6 +736,10 @@ class PlayerActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+
+                                        // RISOLUZIONE BUG: Chiude immediatamente il menu impostazioni 
+                                        // evitando che il ridimensionamento del layout sovrascriva lo zoom.
+                                        showSettingsSheet = false
                                     }
                                 )
                             }
