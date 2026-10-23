@@ -682,7 +682,7 @@ class ChannelsActivity : ComponentActivity() {
                         Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium)
                     }
                     Text(
-                        text = "• CMD / Stream:\n${channel.cmd}",
+                        text = "• CMD / Stream:\n${channel.cmd.ifBlank { channel.url }}", 
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
