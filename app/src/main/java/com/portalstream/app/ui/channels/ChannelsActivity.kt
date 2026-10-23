@@ -67,6 +67,8 @@ class ChannelsActivity : ComponentActivity() {
 
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
         val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
+        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
         val portalType = intent.getStringExtra(EXTRA_PORTAL_TYPE) ?: ""
         val server = intent.getStringExtra(EXTRA_SERVER) ?: ""
@@ -77,11 +79,9 @@ class ChannelsActivity : ComponentActivity() {
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
-        nelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
-
         setContent {
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
             val darkTheme = appTheme == "dark"
