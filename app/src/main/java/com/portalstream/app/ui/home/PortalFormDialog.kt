@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+
 
 private data class UaPreset(val label: String, val value: String)
 
@@ -91,7 +96,58 @@ fun AddPortalTypeDialog(
         }
     )
 }
+@Composable
+fun ChannelDetailsDialog(
+    channel: com.portalstream.app.domain.model.Channel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "ℹ️ Dettagli Tecnici Canale",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium)
+                if (!channel.customSid.isNullOrBlank()) {
+                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(
+                    text = "• CMD / Stream:\n${channel.cmd}", 
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    clipboardManager.setText(AnnotatedString(channel.cmd))
+                    Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                Text("Copia CMD")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Chiudi")
+            }
+        }
+    )
+}
 @Composable
 fun PortalFormDialog(
     existing: Portal?,
