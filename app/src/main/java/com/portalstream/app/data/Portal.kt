@@ -34,5 +34,7 @@ data class Portal(
     val username: String = "",
     val password: String = "",
     val streamFormat: String = "m3u8",
-    val forceStreamLink: Boolean = false
+    val forceStreamLink: Boolean = false,
+    val expireDate: String = "",       // 👈 Data di scadenza recuperata dal server
+    val activationDate: String = ""    // 👈 Data di attivazione recuperata dal server
 )
