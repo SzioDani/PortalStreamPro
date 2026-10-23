@@ -16,14 +16,18 @@ class EpgChannelMapper {
     private var allMappings: List<EpgChannelMapping> = emptyList()
 
     /**
-     * Legge e indicizza tutti i canali direttamente dal file XML EPG scaricato
+     * Legge e indicizza tutti i canali direttamente dal file XML EPG scaricato,
+     * rimuovendo eventuali caratteri BOM o spazi iniziali che bloccano il parser.
      */
     fun loadMappingsFromXml(xmlString: String) {
         val mappings = mutableListOf<EpgChannelMapping>()
         try {
+            // Pulisce la stringa da BOM UTF-8 e spazi vuoti/ritorni a capo iniziali
+            val cleanXml = xmlString.trimStart('\uFEFF', '\u00EF', '\u00BB', '\u00BF', ' ', '\n', '\r', '\t')
+
             val factory = XmlPullParserFactory.newInstance()
             val parser = factory.newPullParser()
-            parser.setInput(StringReader(xmlString))
+            parser.setInput(StringReader(cleanXml))
 
             var eventType = parser.eventType
             var currentId: String? = null
