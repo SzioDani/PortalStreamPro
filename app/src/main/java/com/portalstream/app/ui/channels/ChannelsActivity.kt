@@ -76,7 +76,7 @@ class ChannelsActivity : ComponentActivity() {
         val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
 
         val db = AppDatabase.getDatabase(this)
-        val channelDao = db.chan
+        val channelDao = db.channelDao()
         nelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
