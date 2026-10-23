@@ -67,8 +67,6 @@ class ChannelsActivity : ComponentActivity() {
 
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
         val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
-        val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
         val portalType = intent.getStringExtra(EXTRA_PORTAL_TYPE) ?: ""
         val server = intent.getStringExtra(EXTRA_SERVER) ?: ""
