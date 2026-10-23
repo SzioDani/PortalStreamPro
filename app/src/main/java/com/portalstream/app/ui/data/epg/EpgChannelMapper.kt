@@ -116,11 +116,20 @@ class EpgChannelMapper {
 
     fun cleanName(rawName: String): String {
         var name = rawName
-        name = name.replace(Regex("\\(.*?\\)"), "") // Rimuove parentesi
-        name = name.replace(Regex("^(IT|ITA|IT\\||IT\\s*[-:|])\\s*", RegexOption.IGNORE_CASE), "") // Rimuove prefissi IT -
-        name = name.replace(Regex("\\s*(HD|SD|UHD|FHD|4K|HbbTV|RAW|PLUS|\\+)\\s*$", RegexOption.IGNORE_CASE), "") // Rimuove qualità finali
-        name = name.replace(Regex("[+|\\-_]"), " ") // Converte +, -, | in spazi
-        name = name.replace(Regex("\\s+\\d+$"), "") // Rimuove numeri ordinali finali
+        // 1. Rimuove parentesi e contenuto (es. "(HbbTV)", "(1080p)")
+    name = name.replace(Regex("\\(.*?\\)"), "") 
+    
+    // 2. Rimuove prefissi nazionali in tutti i formati possibili: "IT - ", "|IT|", "IT|", "ITA - ", "IT:" ecc.
+    name = name.replace(Regex("^(\\|?IT\\|?|ITA|IT\\||IT\\s*[-:|])\\s*", RegexOption.IGNORE_CASE), "")
+    
+    // 3. Rimuove qualità finali (HD, SD, UHD, FHD, 4K, HbbTV, RAW, PLUS, +)
+    name = name.replace(Regex("\\s*(HD|SD|UHD|FHD|4K|HbbTV|RAW|PLUS|\\+)\\s*$", RegexOption.IGNORE_CASE), "")
+    
+    // 4. Converte simboli come +, -, |, _ in uno spazio unico
+    name = name.replace(Regex("[+|\\-_]"), " ") 
+    
+    // 5. Rimuove numeri ordinali o ID di canale in coda (es. "Rai Scuola 5057")
+    name = name.replace(Regex("\\s+\\d+$"), "") 
         return name.trim().lowercase()
     }
 }
