@@ -51,6 +51,9 @@ import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 class ChannelsActivity : ComponentActivity() {
@@ -73,7 +76,8 @@ class ChannelsActivity : ComponentActivity() {
         val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
 
         val db = AppDatabase.getDatabase(this)
-        val channelDao = db.channelDao()
+        val channelDao = db.chan
+        nelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
