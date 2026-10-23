@@ -25,7 +25,7 @@ class EpgRepository(private val context: Context) {
     private val TAG = "EpgRepository"
     private val downloader = EpgDownloader(context)
     private val parser = EpgParser()
-    private val mapper = EpgChannelMapper() // Non richiede più il context!
+    private val mapper = EpgChannelMapper()
 
     private var cachedPrograms: List<EpgProgram> = emptyList()
 
@@ -40,7 +40,7 @@ class EpgRepository(private val context: Context) {
                 Log.d(TAG, "Cache programmi vuota. Avvio download EPG...")
                 val result = downloader.downloadEpg(countryCode)
                 result.getOrNull()?.let { xmlContent ->
-                    // 1. Parsa i programmi TV
+                    // 1. Parsa i programmi TV passando correttamente il fuso orario
                     cachedPrograms = parser.parseXmlTv(xmlContent, timeZone)
                     
                     // 2. Inizializza i canali ed effettua il mapping direttamente dall'XML scaricato
@@ -59,8 +59,8 @@ class EpgRepository(private val context: Context) {
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
             channels.forEach { channel ->
-                val mapping = mapper.findBestMatch(channel.name)
-                // Usiamo direttamente il siteId estratto dinamicamente dal file XML
+                // 🚀 CORRETTO: Passiamo l'intero oggetto channel per sfruttare tvg-id, custom_sid e fallback
+                val mapping = mapper.findBestMatch(channel)
                 val targetId = mapping?.siteId
 
                 if (targetId != null) {
