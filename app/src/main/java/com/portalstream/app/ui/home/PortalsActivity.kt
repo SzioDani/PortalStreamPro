@@ -141,23 +141,24 @@ class PortalsActivity : ComponentActivity() {
 
                                     // 🚀 Mostriamo Attivazione e Scadenza se presenti
                                     if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Column(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             if (portal.activationDate.isNotBlank()) {
                                                 Text(
-                                                    text = "🟢 Attivato: ${portal.activationDate}",
+                                                    text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
                                             }
                                             if (portal.expireDate.isNotBlank()) {
+                                                val formattedExpire = formatDateToItalian(portal.expireDate)
                                                 Text(
-                                                    text = "⏳ Scadenza: ${portal.expireDate}",
+                                                    text = "Scadenza: ${portal.expireDate}",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = if (portal.expireDate.contains("Illimitato", ignoreCase = true)) 
+                                                    color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
                                                         MaterialTheme.colorScheme.primary 
                                                     else MaterialTheme.colorScheme.error
                                                 )
