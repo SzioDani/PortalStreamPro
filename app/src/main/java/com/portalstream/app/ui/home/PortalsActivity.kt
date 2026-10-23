@@ -475,4 +475,37 @@ object ChannelCache {
         channels = emptyList()
         return result
     }
+    private fun formatDateToItalian(dateStr: String): String {
+        if (dateStr.isBlank()) return ""
+        if (dateStr.contains("Illimitato", ignoreCase = true) || dateStr.contains("Unlimited", ignoreCase = true)) {
+            return "Non definita / Illimitata"
+        }
+    
+        return try {
+        // Separa eventuale orario "YYYY-MM-DD HH:mm:ss" -> parti: "YYYY-MM-DD", "HH:mm:ss"
+            val parts = dateStr.trim().split(" ")
+            val dateParts = parts[0].split("-")
+        
+            if (dateParts.size == 3) {
+                val year = dateParts[0]
+                val month = dateParts[1]
+                val day = dateParts[2]
+            
+                val formattedDate = "$day/$month/$year"
+                if (parts.size > 1) {
+                // Mantiene anche l'ora se presente (es. "18/02/2022 14:40")
+                    val timeParts = parts[1].split(":")
+                    val time = if (timeParts.size >= 2) "${timeParts[0]}:${timeParts[1]}" else parts[1]
+                    "$formattedDate $time"
+                } else {
+                    formattedDate
+                }
+            } else {
+                dateStr
+            }
+        } catch (e: Exception) {
+            dateStr
+        }
+    }
 }
+
