@@ -7,8 +7,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +97,9 @@ class ChannelsActivity : ComponentActivity() {
 
                 // Stato per il Dialog delle Impostazioni / Tema (Rotella ⚙️)
                 var showSettingsDialog by remember { mutableStateOf(false) }
+
+                // Stato per gestire il canale selezionato per i dettagli tecnici (Long-Click)
+                var channelForDetails by remember { mutableStateOf<Channel?>(null) }
 
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
@@ -505,6 +511,9 @@ class ChannelsActivity : ComponentActivity() {
                                                         withContext(Dispatchers.Main) { loadingChannelId = null }
                                                     }
                                                 }
+                                            },
+                                            onLongClick = {
+                                                channelForDetails = channel
                                             }
                                         )
                                     }
@@ -513,13 +522,20 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // Dialog dei Dettagli Tecnici al Long-Click del Canale
+                channelForDetails?.let { selectedChannel ->
+                    ChannelDetailsDialog(
+                        channel = selectedChannel,
+                        onDismiss = { channelForDetails = null }
+                    )
+                }
             }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Cancella il file EPG temporaneo per non occupare spazio alla chiusura dell'activity
         val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
         if (epgCacheFile.exists()) {
             epgCacheFile.delete()
@@ -534,10 +550,18 @@ class ChannelsActivity : ComponentActivity() {
         isFavorite: Boolean,
         isLoading: Boolean,
         onFavoriteToggle: () -> Unit,
-        onPlayClick: () -> Unit
+        onPlayClick: () -> Unit,
+        onLongClick: () -> Unit
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = !isLoading, onClick = onPlayClick),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .combinedClickable(
+                    enabled = !isLoading,
+                    onClick = onPlayClick,
+                    onLongClick = onLongClick
+                ),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
@@ -625,6 +649,59 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Composable
+    private fun ChannelDetailsDialog(
+        channel: Channel,
+        onDismiss: () -> Unit
+    ) {
+        val context = LocalContext.current
+        val clipboardManager = LocalClipboardManager.current
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Text(
+                    text = "ℹ️ Dettagli Tecnici Canale",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium)
+                    Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium)
+                    Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium)
+                    if (!channel.customSid.isNullOrBlank()) {
+                        Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Text(
+                        text = "• CMD / Stream:\n${channel.cmd}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(channel.cmd))
+                        Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Copia CMD")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Chiudi")
+                }
+            }
+        )
     }
 
     private fun isValidUrl(url: String?): Boolean {
