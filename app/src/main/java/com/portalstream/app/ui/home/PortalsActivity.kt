@@ -63,7 +63,6 @@ class PortalsActivity : ComponentActivity() {
         var editing by remember { mutableStateOf<Portal?>(null) }
         var showSettings by remember { mutableStateOf(false) }
         
-        // 🚀 CoroutineScope per lanciare la richiesta di rete al salvataggio
         val scope = rememberCoroutineScope()
 
         Scaffold(
@@ -71,7 +70,6 @@ class PortalsActivity : ComponentActivity() {
                 TopAppBar(
                     title = { Text("PortalStream Pro") },
                     actions = {
-                        // ⚙️ Pulsante Impostazioni in alto a destra
                         IconButton(onClick = { showSettings = true }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -140,6 +138,33 @@ class PortalsActivity : ComponentActivity() {
                                         overflow = TextOverflow.Ellipsis,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+
+                                    // 🚀 Mostriamo Attivazione e Scadenza se presenti
+                                    if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
+                                        Spacer(Modifier.height(6.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            if (portal.activationDate.isNotBlank()) {
+                                                Text(
+                                                    text = "🟢 Attivato: ${portal.activationDate}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            if (portal.expireDate.isNotBlank()) {
+                                                Text(
+                                                    text = "⏳ Scadenza: ${portal.expireDate}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (portal.expireDate.contains("Illimitato", ignoreCase = true)) 
+                                                        MaterialTheme.colorScheme.primary 
+                                                    else MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     Row {
                                         TextButton(onClick = { editing = portal }) {
                                             Text("Modifica")
@@ -173,7 +198,7 @@ class PortalsActivity : ComponentActivity() {
             )
         }
 
-        // 🚀 Gestione salvataggio NUOVO portale con interrogazione Stalker in background
+        // Salvataggio NUOVO portale con associazione Attivazione e Scadenza
         formType?.let { type ->
             PortalFormDialog(
                 existing = null,
@@ -194,7 +219,10 @@ class PortalsActivity : ComponentActivity() {
 
                             if (isStalker) {
                                 val profile = StalkerClient.fetchAccountInfo(portalToSave)
-                                Timber.d("Info Stalker ricevute - Scadenza: ${profile.expireDate}, Attivazione: ${profile.activationDate}")
+                                finalPortal = portalToSave.copy(
+                                    expireDate = profile.expireDate,
+                                    activationDate = profile.activationDate
+                                )
                             }
 
                             store.add(finalPortal)
@@ -203,7 +231,7 @@ class PortalsActivity : ComponentActivity() {
                                 formType = null
                             }
                         } catch (e: Exception) {
-                            Timber.e(e, "Errore durante il recupero delle info account al salvataggio")
+                            Timber.e(e, "Errore salvataggio info account")
                             store.add(portalToSave)
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
@@ -216,7 +244,7 @@ class PortalsActivity : ComponentActivity() {
             )
         }
 
-        // 🚀 Gestione salvataggio MODIFICA portale esistente con interrogazione Stalker in background
+        // Salvataggio MODIFICA portale esistente con associazione Attivazione e Scadenza
         editing?.let { portal ->
             PortalFormDialog(
                 existing = portal,
@@ -237,7 +265,10 @@ class PortalsActivity : ComponentActivity() {
 
                             if (isStalker) {
                                 val profile = StalkerClient.fetchAccountInfo(portalToUpdate)
-                                Timber.d("Info Stalker aggiornate - Scadenza: ${profile.expireDate}")
+                                finalPortal = portalToUpdate.copy(
+                                    expireDate = profile.expireDate,
+                                    activationDate = profile.activationDate
+                                )
                             }
 
                             store.update(finalPortal)
@@ -246,7 +277,7 @@ class PortalsActivity : ComponentActivity() {
                                 editing = null
                             }
                         } catch (e: Exception) {
-                            Timber.e(e, "Errore durante l'aggiornamento delle info account")
+                            Timber.e(e, "Errore aggiornamento info account")
                             store.update(portalToUpdate)
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
@@ -353,7 +384,6 @@ fun SettingsBottomSheet(
             
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 1. Scelta Tema Scuro / Chiaro
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -374,7 +404,6 @@ fun SettingsBottomSheet(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Scelta Modalità Video Ridotto
             Text("Modalità Video Ridotto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -415,7 +444,6 @@ fun SettingsBottomSheet(
                     }
                 }
 
-                // Terza opzione: ENTRAMBI (Stile YouTube)
                 Button(
                     onClick = {
                         playerMode = "both"
@@ -435,7 +463,6 @@ fun SettingsBottomSheet(
     }
 }
 
-// Cache per passare la lista canali senza superare i limiti degli intent
 object ChannelCache {
     private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
 
