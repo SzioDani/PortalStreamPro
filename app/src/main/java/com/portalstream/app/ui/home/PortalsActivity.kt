@@ -21,8 +21,12 @@ import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalStore
 import com.portalstream.app.data.PortalType
+import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.channels.ChannelsActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 class PortalsActivity : ComponentActivity() {
@@ -58,6 +62,9 @@ class PortalsActivity : ComponentActivity() {
         var formType by remember { mutableStateOf<PortalType?>(null) }
         var editing by remember { mutableStateOf<Portal?>(null) }
         var showSettings by remember { mutableStateOf(false) }
+        
+        // 🚀 CoroutineScope per lanciare la richiesta di rete al salvataggio
+        val scope = rememberCoroutineScope()
 
         Scaffold(
             topBar = {
@@ -166,6 +173,7 @@ class PortalsActivity : ComponentActivity() {
             )
         }
 
+        // 🚀 Gestione salvataggio NUOVO portale con interrogazione Stalker in background
         formType?.let { type ->
             PortalFormDialog(
                 existing = null,
@@ -174,14 +182,41 @@ class PortalsActivity : ComponentActivity() {
                 onSave = { draft ->
                     val detected = PortalType.detect(draft.url)
                     val finalType = if (detected != PortalType.UNKNOWN) detected else type
-                    store.add(draft.copy(type = finalType))
-                    portals = store.load()
-                    formType = null
+                    val portalToSave = draft.copy(type = finalType)
+
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val isStalker = finalType.name.equals("STALKER", true) || 
+                                          finalType.name.equals("MAG", true) || 
+                                          portalToSave.macAddress.isNotBlank()
+
+                            var finalPortal = portalToSave
+
+                            if (isStalker) {
+                                val profile = StalkerClient.fetchAccountInfo(portalToSave)
+                                Timber.d("Info Stalker ricevute - Scadenza: ${profile.expireDate}, Attivazione: ${profile.activationDate}")
+                            }
+
+                            store.add(finalPortal)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                formType = null
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Errore durante il recupero delle info account al salvataggio")
+                            store.add(portalToSave)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                formType = null
+                            }
+                        }
+                    }
                 },
                 onPickFile = { pickLocalFile() }
             )
         }
 
+        // 🚀 Gestione salvataggio MODIFICA portale esistente con interrogazione Stalker in background
         editing?.let { portal ->
             PortalFormDialog(
                 existing = portal,
@@ -190,9 +225,35 @@ class PortalsActivity : ComponentActivity() {
                 onSave = { updated ->
                     val detected = PortalType.detect(updated.url)
                     val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
-                    store.update(updated.copy(type = finalType))
-                    portals = store.load()
-                    editing = null
+                    val portalToUpdate = updated.copy(type = finalType)
+
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val isStalker = finalType.name.equals("STALKER", true) || 
+                                          finalType.name.equals("MAG", true) || 
+                                          portalToUpdate.macAddress.isNotBlank()
+
+                            var finalPortal = portalToUpdate
+
+                            if (isStalker) {
+                                val profile = StalkerClient.fetchAccountInfo(portalToUpdate)
+                                Timber.d("Info Stalker aggiornate - Scadenza: ${profile.expireDate}")
+                            }
+
+                            store.update(finalPortal)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                editing = null
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Errore durante l'aggiornamento delle info account")
+                            store.update(portalToUpdate)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                editing = null
+                            }
+                        }
+                    }
                 },
                 onPickFile = { pickLocalFile() }
             )
