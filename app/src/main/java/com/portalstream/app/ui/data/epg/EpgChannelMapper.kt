@@ -6,8 +6,8 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
 data class EpgChannelMapping(
-    val siteId: String, // L'ID esatto del canale nel file XML (es. "Sky.Calcio.11..261.it")
-    val name: String    // Il nome ufficiale letto dal tag <display-name>
+    val siteId: String, 
+    val name: String    
 )
 
 class EpgChannelMapper {
@@ -15,14 +15,9 @@ class EpgChannelMapper {
     private val TAG = "EpgChannelMapper"
     private var allMappings: List<EpgChannelMapping> = emptyList()
 
-    /**
-     * Legge e indicizza tutti i canali direttamente dal file XML EPG scaricato,
-     * rimuovendo eventuali caratteri BOM o spazi iniziali che bloccano il parser.
-     */
     fun loadMappingsFromXml(xmlString: String) {
         val mappings = mutableListOf<EpgChannelMapping>()
         try {
-            // Pulisce la stringa da BOM UTF-8 e spazi vuoti/ritorni a capo iniziali
             val cleanXml = xmlString.trimStart('\uFEFF', '\u00EF', '\u00BB', '\u00BF', ' ', '\n', '\r', '\t')
 
             val factory = XmlPullParserFactory.newInstance()
@@ -65,23 +60,44 @@ class EpgChannelMapper {
     }
 
     fun findBestMatch(channelName: String): EpgChannelMapping? {
-        if (allMappings.isEmpty()) {
-            Log.w(TAG, "Attenzione: allMappings è vuoto! Nessun canale EPG indicizzato dal file.")
-            return null
-        }
+        if (allMappings.isEmpty()) return null
 
         val cleanQuery = cleanName(channelName)
 
-        // 1. Cerca per uguaglianza perfetta del nome pulito
+        // 1. Mappatura manuale diretta per i casi limite noti
+        val manualAlias = when (cleanQuery) {
+            "twenty seven", "twentyseven" -> "27"
+            "tv2000", "tv 2000" -> "tv2000"
+            "rai sport +", "rai sport plus" -> "rai sport"
+            "rai 4k" -> "rai 4k"
+            "rai scuola" -> "rai scuola"
+            "donna tv" -> "donna tv"
+            "alma tv" -> "alma tv"
+            "r101 tv", "r101" -> "r101"
+            "radioitaliatv", "radio italia tv" -> "radio italia"
+            else -> null
+        }
+
+        if (manualAlias != null) {
+            allMappings.find { cleanName(it.name).contains(manualAlias) }?.let {
+                Log.d(TAG, "Match Alias trovato: '$channelName' -> '${it.name}' (ID XML: ${it.siteId})")
+                return it
+            }
+        }
+
+        // 2. Cerca per uguaglianza perfetta del nome pulito
         allMappings.find { cleanName(it.name) == cleanQuery }?.let {
             Log.d(TAG, "Match esatto trovato: '$channelName' -> '${it.name}' (ID XML: ${it.siteId})")
             return it
         }
 
-        // 2. Cerca per contenimento
+        // 3. Cerca per contenimento (con filtro sulla lunghezza minima per evitare TV2000 -> 20)
         val partialMatch = allMappings.find { mapping ->
             val cleanMappingName = cleanName(mapping.name)
-            cleanMappingName.isNotBlank() && (cleanQuery.contains(cleanMappingName) || cleanMappingName.contains(cleanQuery))
+            if (cleanMappingName.isBlank()) false
+            else if (cleanQuery == "tv2000" && cleanMappingName == "20") false // Ignora falso positivo TV2000
+            else (cleanQuery.contains(cleanMappingName) && cleanMappingName.length > 2) || 
+                 (cleanMappingName.contains(cleanQuery) && cleanQuery.length > 2)
         }
 
         if (partialMatch != null) {
@@ -95,10 +111,15 @@ class EpgChannelMapper {
 
     fun cleanName(rawName: String): String {
         var name = rawName
-        // Rimuove prefissi del tipo "IT - ", "IT | ", "ITA : ", "IT-"
+        // Rimuove la qualità, le parentesi tipo (HbbTV) o (1080p) e simboli inutili
+        name = name.replace(Regex("\\(.*?\\)"), "") // Rimuove tutto ciò che sta tra parentesi
         name = name.replace(Regex("^(IT|ITA|IT\\||IT\\s*[-:|])\\s*", RegexOption.IGNORE_CASE), "")
-        // Rimuove la qualità alla fine
-        name = name.replace(Regex("\\s*(HD|SD|UHD|FHD|4K|HbbTV|RAW)\\s*$", RegexOption.IGNORE_CASE), "")
+        name = name.replace(Regex("\\s*(HD|SD|UHD|FHD|4K|HbbTV|RAW|PLUS|\\+)\\s*$", RegexOption.IGNORE_CASE), "")
+        name = name.replace(Regex("[+|\\-_]"), " ") // Sostituisce +, |, - con uno spazio
+        
+        // Rimuove eventuali numeri di canale sky/digitale terrestre lasciati in fondo dal provider (es "Rai Scuola 5057" -> "Rai Scuola")
+        name = name.replace(Regex("\\s+\\d+$"), "") 
+        
         return name.trim().lowercase()
     }
 }
