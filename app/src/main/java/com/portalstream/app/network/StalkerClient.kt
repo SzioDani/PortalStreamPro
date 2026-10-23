@@ -113,7 +113,8 @@ object StalkerClient {
                     .build()
 
                 try {
-                    client.newCall(profileReq).execute().use { response ->
+                    val response = client.newCall(profileReq).execute()
+                    try {
                         if (response.isSuccessful) {
                             val body = response.body?.string() ?: ""
                             if (body.contains("exp_date") || body.contains("phone") || body.contains("tariff_plan") || body.contains("created")) {
@@ -123,6 +124,8 @@ object StalkerClient {
                                 jsonResponseStr = body
                             }
                         }
+                    } finally {
+                        response.close()
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Tentativo account info fallito con action=$action: ${e.message}")
@@ -221,8 +224,6 @@ object StalkerClient {
         }
     }
 
-    // [Il resto dei metodi esistenti per fetchChannels, getStreamUrl, fetchGenres, ecc. rimangono invariati]
-    
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext emptyList()
         val mac = portal.macAddress.trim()
@@ -480,7 +481,7 @@ object StalkerClient {
                 val item = dataArray.optJSONObject(i) ?: continue
                 val id = item.optString("id", i.toString())
                 val name = item.optString("name", "Canale $id")
-                val genreId = item.opString("tv_genre_id", "")
+                val genreId = item.optString("tv_genre_id", "") // Corretto da opString a optString
                 val categoryName = categoriesMap[genreId] ?: "Generale"
                 val cmd = item.optString("cmd", "")
                 val logo = item.optString("logo", "")
