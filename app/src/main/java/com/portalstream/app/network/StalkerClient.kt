@@ -10,14 +10,19 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.SocketTimeoutException
-import java.net.URLEncoder
 import java.net.UnknownHostException
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-// Modello di supporto per le info profilo/scadenza
+// Modello di supporto esteso per le info profilo/scadenza e attivazione
 data class StalkerProfile(
-    val expireDate: String = "",
-    val status: String = ""
+    val expireDate: String = "N/D",
+    val activationDate: String = "N/D",
+    val tariffPlan: String = "Standard",
+    val isExpired: Boolean = false
 )
 
 object StalkerClient {
@@ -30,9 +35,8 @@ object StalkerClient {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private const val DEFAULT_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+    private const val DEFAULT_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stb app version: 2f rev: 1812 Safari/533.3"
 
-    // Funzione di supporto unificata per ricavare l'indirizzo del portale MAG da server o url
     private fun getPortalBaseUrl(portal: Portal): String? {
         var rawServer = portal.server.trim()
         if (rawServer.isBlank()) {
@@ -51,6 +55,10 @@ object StalkerClient {
         return baseUrl
     }
 
+    /**
+     * Interroga il portale Stalker per estrarre la data di scadenza, attivazione e piano tariffario.
+     * Viene chiamata immediatamente al salvataggio del portale.
+     */
     suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext StalkerProfile()
         val mac = portal.macAddress.trim()
@@ -65,11 +73,13 @@ object StalkerClient {
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
-            // Handshake
+            // 1. Handshake unico e pulito
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
             val handshakeReq = Request.Builder()
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -86,37 +96,135 @@ object StalkerClient {
             val handshakeBody = handshakeResp.body?.string() ?: ""
             val token = parseToken(handshakeBody)
 
-            // Richiesta Profilo Account
-            val profileUrl = "$baseUrl?type=stb&action=get_profile&JsHttpRequest=1-xml" +
-                    if (token.isNotBlank()) "&token=$token" else ""
+            // 2. Tentativi sequenziali con azioni di profilo standard Ministra
+            val actions = listOf("get_profile", "account_info", "get_info", "get_main_info")
+            var jsonResponseStr = ""
 
-            val profileReq = Request.Builder()
-                .url(profileUrl)
-                .addHeader("User-Agent", userAgent)
-                .addHeader("Cookie", sessionCookie)
-                .build()
+            for (action in actions) {
+                val profileUrl = "$baseUrl?type=stb&action=$action&JsHttpRequest=1-xml" +
+                        if (token.isNotBlank()) "&token=$token" else ""
 
-            client.newCall(profileReq).execute().use { response ->
-                val body = response.body?.string() ?: return@withContext StalkerProfile()
-                val root = JSONObject(body)
-                val js = root.optJSONObject("js") ?: return@withContext StalkerProfile()
+                val profileReq = Request.Builder()
+                    .url(profileUrl)
+                    .addHeader("User-Agent", userAgent)
+                    .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                    .addHeader("Accept-Encoding", "gzip, deflate")
+                    .addHeader("Cookie", sessionCookie)
+                    .build()
 
-                // Nei portali Stalker la data di scadenza si trova solitamente in 'phone' o 'expire_date'
-                val expireDate = js.optString("phone", js.optString("expire_date", "Illimitato"))
-                
-                return@withContext StalkerProfile(
-                    expireDate = if (expireDate.isBlank()) "N/D" else expireDate
-                )
+                try {
+                    client.newCall(profileReq).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            if (body.contains("exp_date") || body.contains("phone") || body.contains("tariff_plan") || body.contains("created")) {
+                                jsonResponseStr = body
+                                break
+                            } else if (body.isNotBlank() && jsonResponseStr.isBlank()) {
+                                jsonResponseStr = body
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Tentativo account info fallito con action=$action: ${e.message}")
+                }
             }
+
+            if (jsonResponseStr.isBlank()) {
+                return@withContext StalkerProfile(expireDate = "Non disponibile")
+            }
+
+            // 3. Parsing della risposta JSON
+            val cleanJson = extractJsHttpPayload(jsonResponseStr)
+            val root = JSONObject(cleanJson)
+            val js = if (root.has("js")) root.optJSONObject("js") ?: root else root
+
+            val tariffPlan = js.optString("tariff_plan", js.optString("package_name", "Standard"))
+
+            // 4. Estrazione data di scadenza (Standard exp_date / expire_date)
+            var formattedExpireDate = "Illimitato"
+            var isExpired = false
+
+            val expDateRaw = js.opt("exp_date") ?: js.opt("expire_date")
+            if (expDateRaw != null && expDateRaw.toString() != "null" && expDateRaw.toString().isNotBlank()) {
+                val timestampSec = expDateRaw.toString().toLongOrNull()
+                if (timestampSec != null && timestampSec > 0) {
+                    val millis = timestampSec * 1000
+                    val date = Date(millis)
+                    isExpired = date.before(Date())
+                    formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(date)
+                } else {
+                    formattedExpireDate = expDateRaw.toString()
+                }
+            }
+
+            // 5. Fallback sul campo "phone" per portali custom
+            if (formattedExpireDate == "Illimitato" || formattedExpireDate == "N/D") {
+                val phoneField = js.optString("phone", "")
+                if (phoneField.isNotBlank()) {
+                    val dateFromPhone = extractDateFromCustomString(phoneField)
+                    if (dateFromPhone != null) {
+                        isExpired = dateFromPhone.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(dateFromPhone)
+                    } else {
+                        formattedExpireDate = phoneField
+                    }
+                }
+            }
+
+            // 6. Estrazione data di attivazione / creazione (created)
+            var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
+            val createdRaw = js.opt("created") ?: js.opt("activation_date")
+            if (createdRaw != null && createdRaw.toString() != "null" && createdRaw.toString().isNotBlank()) {
+                val timestampSec = createdRaw.toString().toLongOrNull()
+                if (timestampSec != null && timestampSec > 0) {
+                    formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
+                } else {
+                    formattedActivationDate = createdRaw.toString()
+                }
+            }
+
+            return@withContext StalkerProfile(
+                expireDate = formattedExpireDate,
+                activationDate = formattedActivationDate,
+                tariffPlan = tariffPlan,
+                isExpired = isExpired
+            )
+
         } catch (e: Exception) {
             Log.e(TAG, "Errore recupero info account Stalker", e)
-            StalkerProfile()
+            StalkerProfile(expireDate = "Errore di connessione")
         }
     }
 
+    private fun extractDateFromCustomString(text: String): Date? {
+        val formats = listOf(
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH),
+            SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
+            SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
+            SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN)
+        )
+        for (fmt in formats) {
+            try {
+                fmt.isLenient = true
+                val parsed = fmt.parse(text)
+                if (parsed != null) return parsed
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun extractJsHttpPayload(raw: String): String {
+        return if (raw.contains("JsHttpRequest") && raw.contains("\"js\":")) {
+            raw
+        } else {
+            raw
+        }
+    }
+
+    // [Il resto dei metodi esistenti per fetchChannels, getStreamUrl, fetchGenres, ecc. rimangono invariati]
+    
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext emptyList()
-
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext emptyList()
 
@@ -196,7 +304,6 @@ object StalkerClient {
 
     suspend fun getStreamUrl(portal: Portal, cmd: String): String? = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext null
-
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext null
 
@@ -373,7 +480,7 @@ object StalkerClient {
                 val item = dataArray.optJSONObject(i) ?: continue
                 val id = item.optString("id", i.toString())
                 val name = item.optString("name", "Canale $id")
-                val genreId = item.optString("tv_genre_id", "")
+                val genreId = item.opString("tv_genre_id", "")
                 val categoryName = categoriesMap[genreId] ?: "Generale"
                 val cmd = item.optString("cmd", "")
                 val logo = item.optString("logo", "")
@@ -404,8 +511,8 @@ object StalkerClient {
         return try {
             val root = JSONObject(jsonStr)
             when {
-                root.has("js") -> {
-                    val js = root.get("js")
+                root.has("has") || root.has("js") -> {
+                    val js = root.opt("js")
                     when (js) {
                         is JSONArray -> js
                         is JSONObject -> js.optJSONArray("data")
