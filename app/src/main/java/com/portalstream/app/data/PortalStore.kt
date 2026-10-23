@@ -33,7 +33,9 @@ class PortalStore(context: Context) {
                         username = o.optString("user", ""),
                         password = o.optString("pass", ""),
                         streamFormat = o.optString("format", "m3u8"),
-                        forceStreamLink = o.optBoolean("forceLink", false)
+                        forceStreamLink = o.optBoolean("forceLink", false),
+                        expireDate = o.optString("expireDate", ""),           // 👈 Aggiunto
+                        activationDate = o.optString("activationDate", "")     // 👈 Aggiunto
                     )
                 )
             }
@@ -79,6 +81,8 @@ class PortalStore(context: Context) {
                     put("pass", p.password)
                     put("format", p.streamFormat)
                     put("forceLink", p.forceStreamLink)
+                    put("expireDate", p.expireDate)           // 👈 Aggiunto
+                    put("activationDate", p.activationDate)     // 👈 Aggiunto
                 }
             )
         }
