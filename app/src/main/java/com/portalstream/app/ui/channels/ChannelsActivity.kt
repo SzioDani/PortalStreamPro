@@ -7,8 +7,10 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,10 +37,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
+import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
-import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.domain.model.Channel
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
@@ -52,9 +54,6 @@ import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
@@ -81,6 +80,7 @@ class ChannelsActivity : ComponentActivity() {
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
+
         setContent {
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
             val darkTheme = appTheme == "dark"
@@ -319,9 +319,9 @@ class ChannelsActivity : ComponentActivity() {
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                                 ) {
+                                ) {
                                     Text("🔄 Forza Auto-Associa EPG")
-                                 }   
+                                }
                             }
                         },
                         confirmButton = {
@@ -561,7 +561,7 @@ class ChannelsActivity : ComponentActivity() {
                         availableEpgMappings = epgRepository.getMapper().getAllMappings(),
                         onDismiss = { channelForDetails = null },
                         onSaveTvgId = { newTvgId ->
-                            lifecycleScope.launch(Dispatchers.IO) {
+                            scope.launch(Dispatchers.IO) {
                                 // Aggiorniamo il canale nel DB salvando il nuovo tvgId
                                 val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
                                 channelDao.insertChannel(updatedChannel)
@@ -747,7 +747,7 @@ class ChannelsActivity : ComponentActivity() {
                     Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall)
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
 
                     OutlinedTextField(
                         value = editableTvgId,
@@ -807,7 +807,7 @@ class ChannelsActivity : ComponentActivity() {
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                 }
                             }
                         }
