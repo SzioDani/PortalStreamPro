@@ -173,7 +173,7 @@ object StalkerClient {
                     if (timestampSec != null && timestampSec > 0) {
                         val d = Date(timestampSec * 1000)
                         isExpired = d.before(Date())
-                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(d)
                     }
                 } else {
                     formattedExpireDate = expTs
@@ -184,7 +184,7 @@ object StalkerClient {
                     val dateFromPhone = extractDateFromCustomString(phoneField)
                     if (dateFromPhone != null) {
                         isExpired = dateFromPhone.before(Date())
-                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(dateFromPhone)
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(dateFromPhone)
                     } else {
                         formattedExpireDate = phoneField
                     }
@@ -192,7 +192,7 @@ object StalkerClient {
             }
 
             // ATTIVAZIONE
-            var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
+            var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(Date())
             
             var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
             if (createdTs == "-") createdTs = estraiCampoTestuale(jsonResponseStr, "activation_date")
@@ -201,7 +201,7 @@ object StalkerClient {
                 if (createdTs.matches(Regex("\\d+"))) {
                     val timestampSec = createdTs.toLongOrNull()
                     if (timestampSec != null && timestampSec > 0) {
-                        formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
+                        formattedActivationDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(Date(timestampSec * 1000))
                     }
                 } else {
                     formattedActivationDate = createdTs
@@ -227,6 +227,7 @@ object StalkerClient {
             SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
             SimpleDateFormat("MMMM d, yyyy, h:mm a", Locale.ENGLISH),
             SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
+            SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN),
             SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN)
         )
         for (fmt in formats) {
