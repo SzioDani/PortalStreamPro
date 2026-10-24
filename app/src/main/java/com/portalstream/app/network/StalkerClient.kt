@@ -53,7 +53,7 @@ object StalkerClient {
         return baseUrl
     }
 
-    // ⭐ FUNZIONE ESTRATTA DAL PRIMO CODICE: Ricerca testuale infallibile
+    // ⭐ Ricerca testuale infallibile (ignora JSON rotti o formattazioni strane)
     private fun estraiCampoTestuale(json: String, campo: String): String {
         return try {
             val m = Regex("\"" + campo + "\"\\s*:\\s*\"?([^\",}\\]]+)").find(json)
@@ -75,6 +75,9 @@ object StalkerClient {
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
+            // =================================================================
+            // 1. HANDSHAKE E TOKEN
+            // =================================================================
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
             val handshakeReq = Request.Builder()
                 .url(handshakeUrl)
@@ -94,58 +97,66 @@ object StalkerClient {
                 }
             }
 
-            val handshakeBody = handshakeResp.body?.string() ?: ""
-            val token = parseToken(handshakeBody)
+            val token = parseToken(handshakeResp.body?.string() ?: "")
 
-            val actions = listOf("get_profile", "account_info", "get_info", "get_main_info")
+            // =================================================================
+            // 2. CHIAMATE AL SERVER (Ripristinati URL ESATTI di ScanService)
+            // =================================================================
             var jsonResponseStr = ""
 
-            for (action in actions) {
-                val profileUrl = "$baseUrl?type=stb&action=$action&JsHttpRequest=1-xml" +
-                        if (token.isNotBlank()) "&token=$token" else ""
+            // Funzione di supporto per fare le chiamate rapidamente
+            fun faiRichiesta(urlParams: String): String {
+                return try {
+                    val reqUrl = "$baseUrl$urlParams" + if (token.isNotBlank()) "&token=$token" else ""
+                    val req = Request.Builder()
+                        .url(reqUrl)
+                        .addHeader("User-Agent", userAgent)
+                        .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                        .addHeader("Accept-Encoding", "gzip, deflate")
+                        .addHeader("Cookie", sessionCookie)
+                        .build()
+                    val resp = client.newCall(req).execute()
+                    val b = resp.body?.string() ?: ""
+                    resp.close()
+                    b
+                } catch (e: Exception) { "" }
+            }
 
-                val profileReq = Request.Builder()
-                    .url(profileUrl)
-                    .addHeader("User-Agent", userAgent)
-                    .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
-                    .addHeader("Accept-Encoding", "gzip, deflate")
-                    .addHeader("Cookie", sessionCookie)
-                    .build()
+            // A) Prova principale come nel primo codice (type=account_info)
+            val req1 = faiRichiesta("?type=account_info&JsHttpRequest=1-xml")
+            if (req1.contains("exp_date") || req1.contains("phone") || req1.contains("created")) {
+                jsonResponseStr += req1
+            }
 
-                try {
-                    val response = client.newCall(profileReq).execute()
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        if (body.contains("exp_date") || body.contains("phone") || body.contains("created")) {
-                            jsonResponseStr = body
-                            response.close()
-                            break
-                        } else if (body.isNotBlank() && jsonResponseStr.isBlank()) {
-                            jsonResponseStr = body
-                        }
+            // B) Se mancano info essenziali, prova i fallback di ScanService
+            if (!jsonResponseStr.contains("exp_date") && !jsonResponseStr.contains("phone")) {
+                for (azione in listOf("get_info", "get_main_info")) {
+                    val req2 = faiRichiesta("?type=account_info&action=$azione&JsHttpRequest=1-xml")
+                    if (req2.contains("exp_date") || req2.contains("phone") || req2.contains("created")) {
+                        jsonResponseStr += req2
+                        break
                     }
-                    response.close()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Tentativo account info fallito con action=$action: ${e.message}")
                 }
             }
+
+            // C) Per sicurezza, chiediamo anche il get_profile (contiene spesso data attivazione e tariff plan)
+            val req3 = faiRichiesta("?type=stb&action=get_profile&JsHttpRequest=1-xml")
+            jsonResponseStr += req3 // Concateniamo tutto! La lettura testuale troverà comunque i campi.
 
             if (jsonResponseStr.isBlank()) {
                 return@withContext StalkerProfile(expireDate = "Non disponibile")
             }
 
-            // Piano tariffario e check JSON standard
-            var tariffPlan = "Standard"
-            try {
-                val cleanJson = extractJsHttpPayload(jsonResponseStr)
-                val root = JSONObject(cleanJson)
-                val js = if (root.has("js")) root.optJSONObject("js") ?: root else root
-                tariffPlan = js.optString("tariff_plan", js.optString("package_name", "Standard"))
-            } catch (e: Exception) { }
+            // =================================================================
+            // 3. ESTRAZIONE DATI TESTUALE (Senza JSONObject, a prova di bomba)
+            // =================================================================
+            
+            // Piano tariffario
+            var tariffPlan = estraiCampoTestuale(jsonResponseStr, "tariff_plan")
+            if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(jsonResponseStr, "package_name")
+            if (tariffPlan == "-") tariffPlan = "Standard"
 
-            // =================================================================
-            // ⭐ LOGICA DEL PRIMO CODICE APPLICATA: SCADENZA
-            // =================================================================
+            // SCADENZA (Esattamente la logica di ScanService)
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
@@ -153,20 +164,19 @@ object StalkerClient {
             if (expTs == "-") expTs = estraiCampoTestuale(jsonResponseStr, "expire_date")
 
             if (expTs != "-") {
-                if (expTs.matches(Regex("\\d+"))) { // Se è un Timestamp numerico
+                if (expTs.matches(Regex("\\d+"))) {
                     val timestampSec = expTs.toLongOrNull()
                     if (timestampSec != null && timestampSec > 0) {
                         val d = Date(timestampSec * 1000)
                         isExpired = d.before(Date())
                         formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
                     }
-                } else { // Se è già una data testuale
+                } else if (expTs != "null") {
                     formattedExpireDate = expTs
                 }
             } else {
-                // Fallback sul campo phone come primo codice
                 val phoneField = estraiCampoTestuale(jsonResponseStr, "phone")
-                if (phoneField != "-") {
+                if (phoneField != "-" && phoneField != "null") {
                     val dateFromPhone = extractDateFromCustomString(phoneField)
                     if (dateFromPhone != null) {
                         isExpired = dateFromPhone.before(Date())
@@ -177,21 +187,19 @@ object StalkerClient {
                 }
             }
 
-            // =================================================================
-            // ⭐ LOGICA DEL PRIMO CODICE APPLICATA: ATTIVAZIONE
-            // =================================================================
+            // ATTIVAZIONE
             var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
             
             var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
             if (createdTs == "-") createdTs = estraiCampoTestuale(jsonResponseStr, "activation_date")
 
             if (createdTs != "-") {
-                if (createdTs.matches(Regex("\\d+"))) { // Se è un Timestamp numerico
+                if (createdTs.matches(Regex("\\d+"))) {
                     val timestampSec = createdTs.toLongOrNull()
                     if (timestampSec != null && timestampSec > 0) {
                         formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
                     }
-                } else { // Se è già testuale
+                } else if (createdTs != "null") {
                     formattedActivationDate = createdTs
                 }
             }
@@ -225,14 +233,6 @@ object StalkerClient {
             } catch (_: Exception) {}
         }
         return null
-    }
-
-    private fun extractJsHttpPayload(raw: String): String {
-        return if (raw.contains("JsHttpRequest") && raw.contains("\"js\":")) {
-            raw
-        } else {
-            raw
-        }
     }
 
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
@@ -440,7 +440,9 @@ object StalkerClient {
 
             val response = client.newCall(reqBuilder.build()).execute()
             val body = response.body?.string() ?: return map
-            val dataArray = extractDataArray(body) ?: return map
+            
+            // Per sicurezza, estraiamo i canali/generi con JSON sicuro
+            val dataArray = extractDataArraySicuro(body) ?: return map
 
             for (i in 0 until dataArray.length()) {
                 val obj = dataArray.optJSONObject(i) ?: continue
@@ -486,7 +488,7 @@ object StalkerClient {
     private fun parseChannels(jsonStr: String, categoriesMap: Map<String, String>): List<Channel> {
         val channels = mutableListOf<Channel>()
         try {
-            val dataArray = extractDataArray(jsonStr) ?: return emptyList()
+            val dataArray = extractDataArraySicuro(jsonStr) ?: return emptyList()
 
             for (i in 0 until dataArray.length()) {
                 val item = dataArray.optJSONObject(i) ?: continue
@@ -519,7 +521,7 @@ object StalkerClient {
         return channels
     }
 
-    private fun extractDataArray(jsonStr: String): JSONArray? {
+    private fun extractDataArraySicuro(jsonStr: String): JSONArray? {
         return try {
             val root = JSONObject(jsonStr)
             when {
