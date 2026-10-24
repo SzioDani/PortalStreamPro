@@ -684,19 +684,33 @@ class ChannelsActivity : ComponentActivity() {
     @Composable
     private fun ChannelDetailsDialog(
         channel: Channel,
-        onDismiss: () -> Unit
+        availableEpgMappings: List<EpgChannelMapping>, // Lista proveniente da EpgChannelMapper
+        onDismiss: () -> Unit,
+        onSaveTvgId: (String) -> Unit
     ) {
         val context = LocalContext.current
         val clipboardManager = LocalClipboardManager.current
 
-        // 📋 Prepariamo il testo completo con tutti i campi
+        var editableTvgId by remember { mutableStateOf(channel.tvgId.ifBlank { channel.customSid }) }
+        var searchQuery by remember { mutableStateOf("") }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        // Filtriamo gli ID dell'EPG in base a ciò che l'utente digita nella ricerca
+        val filteredMappings = remember(searchQuery, availableEpgMappings) {
+            if (searchQuery.isBlank()) emptyList()
+            else {
+                availableEpgMappings.filter { 
+                    it.name.contains(searchQuery, ignoreCase = true) || 
+                    it.siteId.contains(searchQuery, ignoreCase = true)
+                }.take(8) // Limite di 8 suggerimenti visibili
+            }
+        }
+
         val fullDetailsText = buildString {
             appendLine("• ID Canale: ${channel.id}")
             appendLine("• Numero: ${channel.number}")
             appendLine("• Nome Grezzo: ${channel.name}")
-            if (!channel.customSid.isNullOrBlank()) {
-                appendLine("• Custom SID: ${channel.customSid}")
-            }
+            appendLine("• TVG-ID Attuale: $editableTvgId")
             appendLine("• CMD / Stream: ${channel.cmd.ifBlank { channel.url }}")
         }
 
@@ -704,7 +718,7 @@ class ChannelsActivity : ComponentActivity() {
             onDismissRequest = onDismiss,
             title = {
                 Text(
-                    text = "ℹ️ Dettagli Tecnici Canale",
+                    text = "ℹ️ Dettagli & Assegnazione EPG",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -714,27 +728,98 @@ class ChannelsActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium)
-                    Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium)
-                    Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium)
-                    if (!channel.customSid.isNullOrBlank()) {
-                        Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Text(
-                        text = "• CMD / Stream:\n${channel.cmd.ifBlank { channel.url }}", 
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall)
+
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // Campo dell'ID EPG selezionato o inserito
+                    OutlinedTextField(
+                        value = editableTvgId,
+                        onValueChange = { editableTvgId = it },
+                        label = { Text("ID EPG Associato (tvg-id)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 🔍 Barra di ricerca EPG integrata
+                    Text(
+                        text = "🔍 Cerca ID nell'EPG ufficiale:",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { 
+                            searchQuery = it 
+                            isDropdownExpanded = it.isNotBlank()
+                        },
+                        placeholder = { Text("Es. Sky Sport, Rai 1, Movistar...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Lista dei risultati di ricerca selezionabili
+                    if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 160.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            LazyColumn(modifier = Modifier.padding(4.dp)) {
+                                items(filteredMappings) { mapping ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                editableTvgId = mapping.siteId // Seleziona l'ID con un tap
+                                                searchQuery = ""
+                                                isDropdownExpanded = false
+                                            }
+                                            .padding(8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = mapping.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = mapping.siteId,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        clipboardManager.setText(AnnotatedString(fullDetailsText))
-                        Toast.makeText(context, "Tutti i dettagli copiati negli appunti!", Toast.LENGTH_SHORT).show()
+                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(fullDetailsText))
+                            Toast.makeText(context, "Dettagli copiati!", Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text("Copia")
                     }
-                ) {
-                    Text("Copia")
+                    Button(
+                        onClick = {
+                            onSaveTvgId(editableTvgId.trim())
+                            Toast.makeText(context, "✅ ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Salva ID")
+                    }
                 }
             },
             dismissButton = {
