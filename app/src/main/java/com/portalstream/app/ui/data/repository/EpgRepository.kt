@@ -110,4 +110,41 @@ class EpgRepository(private val context: Context) {
         }
         resultMap
     }
+
+    /**
+     * Esegue l'auto-associazione EPG di massa per tutti i canali presenti nel DB
+     */
+    suspend fun autoAssociateAllChannels(
+        channelDao: com.portalstream.app.data.local.ChannelDao, 
+        countryCode: String = "it"
+    ): Int = withContext(Dispatchers.Default) {
+        var matchedCount = 0
+        try {
+            if (cachedPrograms.isEmpty()) {
+                val result = downloader.downloadEpg(countryCode)
+                result.getOrNull()?.let { xmlContent ->
+                    cachedPrograms = parser.parseXmlTv(xmlContent, ZoneId.of("Europe/Rome"))
+                    mapper.loadMappingsFromXml(xmlContent)
+                }
+            }
+
+            val channels = channelDao.getAllChannelsList()
+            if (channels.isNotEmpty() && cachedPrograms.isNotEmpty()) {
+                val updatedList = channels.map { channel ->
+                    val mapping = mapper.findBestMatch(channel)
+                    if (mapping != null) {
+                        matchedCount++
+                        channel.copy(tvgId = mapping.siteId)
+                    } else {
+                        channel
+                    }
+                }
+                channelDao.insertChannels(updatedList)
+                Log.d(TAG, "Auto-associazione completata: aggiornati $matchedCount canali.")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Errore durante l'auto-associazione EPG massiva", e)
+        }
+        matchedCount
+    }
 }
