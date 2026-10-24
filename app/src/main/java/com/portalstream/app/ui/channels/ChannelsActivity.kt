@@ -661,6 +661,17 @@ class ChannelsActivity : ComponentActivity() {
         val context = LocalContext.current
         val clipboardManager = LocalClipboardManager.current
 
+        // 📋 Prepariamo il testo completo con tutti i campi
+        val fullDetailsText = buildString {
+            appendLine("• ID Canale: ${channel.id}")
+            appendLine("• Numero: ${channel.number}")
+            appendLine("• Nome Grezzo: ${channel.name}")
+            if (!channel.customSid.isNullOrBlank()) {
+                appendLine("• Custom SID: ${channel.customSid}")
+            }
+            appendLine("• CMD / Stream: ${channel.cmd.ifBlank { channel.url }}")
+        }
+
         AlertDialog(
             onDismissRequest = onDismiss,
             title = {
@@ -691,11 +702,11 @@ class ChannelsActivity : ComponentActivity() {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        clipboardManager.setText(AnnotatedString(channel.cmd))
-                        Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
+                        clipboardManager.setText(AnnotatedString(fullDetailsText))
+                        Toast.makeText(context, "Tutti i dettagli copiati negli appunti!", Toast.LENGTH_SHORT).show()
                     }
                 ) {
-                    Text("Copia CMD")
+                    Text("Copia")
                 }
             },
             dismissButton = {
