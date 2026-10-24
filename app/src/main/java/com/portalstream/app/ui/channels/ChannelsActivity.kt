@@ -438,7 +438,7 @@ class ChannelsActivity : ComponentActivity() {
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
                                     label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1) },
-                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(20.dp)) }
+                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(22.dp)) }
                                 )
                             }
 
