@@ -212,39 +212,34 @@ class PortalsActivity : ComponentActivity() {
 
                     scope.launch(Dispatchers.IO) {
                         try {
-                            val isStalker = finalType == PortalType.MAG || 
+                            val isStalker = finalType.name.equals("STALKER", true) || 
+                                          finalType.name.equals("MAG", true) || 
                                           portalToSave.macAddress.isNotBlank()
 
                             var finalPortal = portalToSave
 
                             if (isStalker) {
-                                try {
-                                    val profile = StalkerClient.fetchAccountInfo(portalToSave)
-                                    Log.d("PortalsActivity", "Profilo ricevuto: expireDate='${profile.expireDate}', activationDate='${profile.activationDate}'")
-                                    finalPortal = portalToSave.copy(
-                                        expireDate = profile.expireDate,
-                                        activationDate = profile.activationDate
-                                    )
-                                } catch (e: Exception) {
-                                    
-                            }Log.e("PortalsActivity", "Errore fetchAccountInfo", e)
+                                val profile = StalkerClient.fetchAccountInfo(portalToSave)
+                                finalPortal = portalToSave.copy(
+                                    expireDate = profile.expireDate,
+                                    activationDate = profile.activationDate
+                                )
+                            }
+
+                            store.add(finalPortal)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                formType = null
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Errore salvataggio info account")
+                            store.add(portalToSave)
+                            withContext(Dispatchers.Main) {
+                                portals = store.load()
+                                formType = null
                             }
                         }
-                        store.add(finalPortal)
-                        withContext(Dispatchers.Main) {
-                            portals = store.load()
-                            formType = null
-                        }
-                     } catch (e: Exception) {
-                        Timber.e(e, "Errore salvataggio info portale")
-                        store.add(portalToSave)
-                        withContext(Dispatchers.Main) {
-                            portals = store.load()
-                            formType = null
-                        }
-                        
                     }
-                
                 },
                 onPickFile = { pickLocalFile() }
             )
@@ -485,19 +480,15 @@ object ChannelCache {
 
 // 🟢 Funzione helper per formattare la data nel formato italiano GG/MM/AAAA
 private fun formatDateToItalian(dateStr: String): String {
-    if (dateStr.isBlank()) return "Non disponibile"
-    if (dateStr.contains("Illimitato", ignoreCase = true) ||
-            dateStr.contains("Unlimited", ignoreCase = true) ||
-            dateStr.contains("Non disponibile", ignoreCase = true)) {
-            return "Non definita / Illimitata"      
+    if (dateStr.isBlank()) return ""
+    if (dateStr.contains("Illimitato", ignoreCase = true) || dateStr.contains("Unlimited", ignoreCase = true)) {
+        return "Non definita / Illimitata"
     }
-    if (dateStr.matches(Regex("\\d{2}/\\d{2}/\\d{4}.*"))) {
-        return dateStr
-    }
+
     return try {
         val parts = dateStr.trim().split(" ")
         val dateParts = parts[0].split("-")
-        
+
         if (dateParts.size == 3) {
             val year = dateParts[0]
             val month = dateParts[1]
