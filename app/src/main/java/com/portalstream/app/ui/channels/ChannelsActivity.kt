@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
+import com.portalstream.app.data.epg.EpgProgram
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
@@ -56,6 +57,7 @@ import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.io.File
 import java.net.URL
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
@@ -99,6 +101,7 @@ class ChannelsActivity : ComponentActivity() {
                 var selectedGroup by remember { mutableStateOf<String?>(null) }
                 var searchQuery by remember { mutableStateOf("") }
                 var showOnlyFavorites by remember { mutableStateOf(false) }
+                var showOnlyEpg by remember { mutableStateOf(false) } // 🚀 Attiva la vista Guida TV
 
                 // Stato per il Dialog delle Impostazioni / Tema (Rotella ⚙️)
                 var showSettingsDialog by remember { mutableStateOf(false) }
@@ -146,14 +149,18 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val currentChannels = remember(
-                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, favoriteIds
+                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
                     allChannels.filter { channel ->
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
                         val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
-                        matchesGroup && matchesSearch && matchesFavorites
+                        
+                        // Se la Guida TV è attiva, mostra solo i canali con ID EPG
+                        val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
+
+                        matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }
                 }
 
@@ -370,6 +377,7 @@ class ChannelsActivity : ComponentActivity() {
                                             modifier = Modifier.clickable {
                                                 selectedGroup = null
                                                 showOnlyFavorites = false
+                                                showOnlyEpg = false
                                                 showGroupDialog = false
                                             }
                                         )
@@ -395,6 +403,7 @@ class ChannelsActivity : ComponentActivity() {
                                             modifier = Modifier.clickable {
                                                 selectedGroup = group
                                                 showOnlyFavorites = false
+                                                showOnlyEpg = false
                                                 showGroupDialog = false
                                             }
                                         )
@@ -451,6 +460,7 @@ class ChannelsActivity : ComponentActivity() {
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
 
+                            // 🚀 Riga con i 3 filtri proporzionati (Preferiti, Gruppi, Guida TV)
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -460,16 +470,34 @@ class ChannelsActivity : ComponentActivity() {
                                     selected = showOnlyFavorites,
                                     onClick = {
                                         showOnlyFavorites = !showOnlyFavorites
-                                        if (showOnlyFavorites) selectedGroup = null
+                                        if (showOnlyFavorites) {
+                                            selectedGroup = null
+                                            showOnlyEpg = false
+                                        }
                                     },
-                                    label = { Text("⭐ Preferiti") }
+                                    label = { Text("⭐ Preferiti", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.weight(1f)
                                 )
 
                                 FilterChip(
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
-                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1) },
-                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(22.dp)) }
+                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                FilterChip(
+                                    selected = showOnlyEpg,
+                                    onClick = {
+                                        showOnlyEpg = !showOnlyEpg
+                                        if (showOnlyEpg) {
+                                            showOnlyFavorites = false
+                                            selectedGroup = null
+                                        }
+                                    },
+                                    label = { Text("📺 Guida TV", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
 
@@ -485,70 +513,125 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
-                                        val isFav = favoriteIds.contains(channel.id)
-                                        val isThisLoading = loadingChannelId == channel.id
-                                        val epgInfo = epgMap[channel.id] ?: EpgInfo()
+                                        if (showOnlyEpg) {
+                                            // 📺 VISTA GUIDA TV: Scheda espansa con palinsesto completo
+                                            EpgChannelCard(
+                                                channel = channel,
+                                                epgPrograms = epgRepository.getFullScheduleForChannel(channel),
+                                                onPlayClick = {
+                                                    loadingChannelId = channel.id
+                                                    scope.launch(Dispatchers.IO) {
+                                                        try {
+                                                            val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                            val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
 
-                                        ChannelCard(
-                                            channel = channel,
-                                            epgInfo = epgInfo,
-                                            isFavorite = isFav,
-                                            isLoading = isThisLoading,
-                                            onFavoriteToggle = {
-                                                val newFavs = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
-                                                favoriteIds = newFavs
-                                                prefs.edit().putStringSet("favorite_ids", newFavs).apply()
-                                            },
-                                            onPlayClick = {
-                                                loadingChannelId = channel.id
-                                                scope.launch(Dispatchers.IO) {
-                                                    try {
-                                                        val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
-                                                        val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
-
-                                                        val playUrl = when {
-                                                            isStalker || macAddress.isNotBlank() -> {
-                                                                val portalServer = if (server.isNotBlank()) server else portalUrl
-                                                                val portalDraft = Portal(
-                                                                    id = 0, server = portalServer, macAddress = macAddress,
-                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                                                )
-                                                                StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
-                                                            }
-                                                            isXtream -> {
-                                                                if (channel.url.startsWith("http")) channel.url
-                                                                else {
-                                                                    val cleanServer = server.trimEnd('/')
-                                                                    val cleanFormat = if (format.isBlank()) "m3u8" else format
-                                                                    val rawId = extractRawId(channel.id)
-                                                                    "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
+                                                            val playUrl = when {
+                                                                isStalker || macAddress.isNotBlank() -> {
+                                                                    val portalServer = if (server.isNotBlank()) server else portalUrl
+                                                                    val portalDraft = Portal(
+                                                                        id = 0, server = portalServer, macAddress = macAddress,
+                                                                        useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                                                    )
+                                                                    StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
                                                                 }
+                                                                isXtream -> {
+                                                                    if (channel.url.startsWith("http")) channel.url
+                                                                    else {
+                                                                        val cleanServer = server.trimEnd('/')
+                                                                        val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                        val rawId = extractRawId(channel.id)
+                                                                        "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
+                                                                    }
+                                                                }
+                                                                else -> channel.url
                                                             }
-                                                            else -> channel.url
-                                                        }
 
-                                                        withContext(Dispatchers.Main) {
-                                                            val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
-                                                            val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                                                putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
-                                                                putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                                putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                            withContext(Dispatchers.Main) {
+                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                                }
+                                                                startActivity(intent)
                                                             }
-                                                            startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            withContext(Dispatchers.Main) {
+                                                                Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } finally {
+                                                            withContext(Dispatchers.Main) { loadingChannelId = null }
                                                         }
-                                                    } catch (e: Exception) {
-                                                        withContext(Dispatchers.Main) {
-                                                            Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    } finally {
-                                                        withContext(Dispatchers.Main) { loadingChannelId = null }
                                                     }
                                                 }
-                                            },
-                                            onLongClick = {
-                                                channelForDetails = channel
-                                            }
-                                        )
+                                            )
+                                        } else {
+                                            // 📺 VISTA NORMALE
+                                            val isFav = favoriteIds.contains(channel.id)
+                                            val isThisLoading = loadingChannelId == channel.id
+                                            val epgInfo = epgMap[channel.id] ?: EpgInfo()
+
+                                            ChannelCard(
+                                                channel = channel,
+                                                epgInfo = epgInfo,
+                                                isFavorite = isFav,
+                                                isLoading = isThisLoading,
+                                                onFavoriteToggle = {
+                                                    val newFavs = if (isFav) favoriteIds - channel.id else favoriteIds + channel.id
+                                                    favoriteIds = newFavs
+                                                    prefs.edit().putStringSet("favorite_ids", newFavs).apply()
+                                                },
+                                                onPlayClick = {
+                                                    loadingChannelId = channel.id
+                                                    scope.launch(Dispatchers.IO) {
+                                                        try {
+                                                            val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                            val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
+
+                                                            val playUrl = when {
+                                                                isStalker || macAddress.isNotBlank() -> {
+                                                                    val portalServer = if (server.isNotBlank()) server else portalUrl
+                                                                    val portalDraft = Portal(
+                                                                        id = 0, server = portalServer, macAddress = macAddress,
+                                                                        useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                                                    )
+                                                                    StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
+                                                                }
+                                                                isXtream -> {
+                                                                    if (channel.url.startsWith("http")) channel.url
+                                                                    else {
+                                                                        val cleanServer = server.trimEnd('/')
+                                                                        val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                        val rawId = extractRawId(channel.id)
+                                                                        "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
+                                                                    }
+                                                                }
+                                                                else -> channel.url
+                                                            }
+
+                                                            withContext(Dispatchers.Main) {
+                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                                }
+                                                                startActivity(intent)
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            withContext(Dispatchers.Main) {
+                                                                Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        } finally {
+                                                            withContext(Dispatchers.Main) { loadingChannelId = null }
+                                                        }
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    channelForDetails = channel
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -701,6 +784,90 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
+    private fun EpgChannelCard(
+        channel: Channel,
+        epgPrograms: List<EpgProgram>,
+        onPlayClick: () -> Unit
+    ) {
+        val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .clickable { onPlayClick() },
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(text = "▶ Avvia", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                if (epgPrograms.isEmpty()) {
+                    Text(
+                        text = "Nessun palinsesto caricato per oggi.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        epgPrograms.forEach { prog ->
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+                            
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = prog.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = timeRange,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                if (!prog.description.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = prog.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
     private fun ChannelDetailsDialog(
         channel: Channel,
         availableEpgMappings: List<EpgChannelMapping>,
@@ -714,7 +881,6 @@ class ChannelsActivity : ComponentActivity() {
         var searchQuery by remember { mutableStateOf("") }
         var isDropdownExpanded by remember { mutableStateOf(false) }
 
-        // 🚀 Stato per gestire lo scorrimento verticale del dialog
         val scrollState = rememberScrollState()
 
         val filteredMappings = remember(searchQuery, availableEpgMappings) {
@@ -745,7 +911,6 @@ class ChannelsActivity : ComponentActivity() {
                 )
             },
             text = {
-                // 🚀 Aggiunto .verticalScroll(scrollState) per rendere tutto scorrevole ed evitare tagli
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
