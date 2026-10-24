@@ -57,6 +57,8 @@ object StalkerClient {
 
     /**
      * Interroga il portale Stalker per estrarre la data di scadenza, attivazione e piano tariffario.
+     * Viene chiamata immediatamente al salvataggio del portale.
+     * MODALITÀ: parsing timestamp come nel primo codice (ScanService)
      */
     suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext StalkerProfile()
@@ -135,55 +137,97 @@ object StalkerClient {
                 return@withContext StalkerProfile(expireDate = "Non disponibile")
             }
 
-            // =========================================================
-            //  MODALITÀ DI LETTURA ESATTA DEL TUO PRIMO CODICE (REGEX)
-            // =========================================================
-            val expTs = estraiCampo(jsonResponseStr, "exp_date")
-            val scadPhone = Regex("\"phone\":\"([^\"]+)\"").find(jsonResponseStr)
-                ?.groupValues?.get(1)?.trim() ?: "-"
-            
-            var scadenza: String? = null
-            var scaduto = false
+            // 3. Parsing della risposta JSON
+            val cleanJson = extractJsHttpPayload(jsonResponseStr)
+            val root = JSONObject(cleanJson)
+            val js = if (root.has("js")) root.optJSONObject("js") ?: root else root
 
-            if (expTs.matches(Regex("\\d+"))) {
-                val d = Date(expTs.toLong() * 1000)
-                scaduto = d.before(Date())
-                scadenza = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(d)
-            } else if (scadPhone != "-" && scadPhone.matches(Regex(".*\\d{4}.*"))) {
-                try {
-                    val d = SimpleDateFormat("MMMM d, yyyy, h:mm a", Locale.ENGLISH).parse(scadPhone)
-                    if (d != null) {
-                        scaduto = d.before(Date())
-                        var dataIt = SimpleDateFormat("d/MMMM/yyyy, HH:mm", Locale.ITALY).format(d)
-                        val idx = dataIt.indexOf('/')
-                        if (idx >= 0 && idx + 1 < dataIt.length) {
-                            dataIt = dataIt.substring(0, idx + 1) +
-                                dataIt.substring(idx + 1).replaceFirstChar { it.uppercase() }
-                        }
-                        scadenza = dataIt
+            val tariffPlan = js.optString("tariff_plan", js.optString("package_name", "Standard"))
+
+            // ⭐ 4. ESTRAZIONE SCADENZA - MODALITÀ PRIMO CODICE (timestamp numerico)
+            var formattedExpireDate = "Illimitato"
+            var isExpired = false
+
+            val expDateRaw = js.opt("exp_date") ?: js.opt("expire_date")
+            if (expDateRaw != null && expDateRaw.toString() != "null" && expDateRaw.toString().isNotBlank()) {
+                val expStr = expDateRaw.toString().trim()
+                
+                // Se è un numero (timestamp): converte come nel primo codice
+                if (expStr.matches(Regex("\\d+"))) {
+                    val timestampSec = expStr.toLongOrNull()
+                    if (timestampSec != null && timestampSec > 0) {
+                        val millis = timestampSec * 1000
+                        val date = Date(millis)
+                        isExpired = date.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(date)
                     }
-                } catch (e: Exception) { }
+                } else {
+                    formattedExpireDate = expStr
+                }
             }
 
-            val tariffRaw = estraiCampo(jsonResponseStr, "tariff_plan")
-            val tariffPlan = if (tariffRaw != "-") tariffRaw else "Standard"
+            // Fallback sul campo "phone" per portali custom (COME NEL PRIMO CODICE)
+            if (formattedExpireDate == "Illimitato" || formattedExpireDate == "N/D") {
+                val phoneField = js.optString("phone", "")
+                if (phoneField.isNotBlank()) {
+                    val dateFromPhone = extractDateFromCustomString(phoneField)
+                    if (dateFromPhone != null) {
+                        isExpired = dateFromPhone.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(dateFromPhone)
+                    } else {
+                        formattedExpireDate = phoneField
+                    }
+                }
+            }
 
-            val createdRaw = estraiCampo(jsonResponseStr, "created")
-            var formattedActivationDate = "N/D"
-            if (createdRaw != "-" && createdRaw.matches(Regex("\\d+"))) {
-                formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(createdRaw.toLong() * 1000))
+            // ⭐ 5. ESTRAZIONE DATA DI ATTIVAZIONE / CREAZIONE (created)
+            var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
+            val createdRaw = js.opt("created") ?: js.opt("activation_date")
+            if (createdRaw != null && createdRaw.toString() != "null" && createdRaw.toString().isNotBlank()) {
+                val createdStr = createdRaw.toString().trim()
+                val timestampSec = createdStr.toLongOrNull()
+                if (timestampSec != null && timestampSec > 0) {
+                    formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
+                } else {
+                    formattedActivationDate = createdStr
+                }
             }
 
             return@withContext StalkerProfile(
-                expireDate = scadenza ?: "Illimitato",
+                expireDate = formattedExpireDate,
                 activationDate = formattedActivationDate,
                 tariffPlan = tariffPlan,
-                isExpired = scaduto
+                isExpired = isExpired
             )
 
         } catch (e: Exception) {
             Log.e(TAG, "Errore recupero info account Stalker", e)
-            StalkerProfile(expireDate = "Errore di connessione")
+            return@withContext StalkerProfile(expireDate = "Errore di connessione")
+        }
+    }
+
+    private fun extractDateFromCustomString(text: String): Date? {
+        val formats = listOf(
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH),
+            SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
+            SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
+            SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN)
+        )
+        for (fmt in formats) {
+            try {
+                fmt.isLenient = true
+                val parsed = fmt.parse(text)
+                if (parsed != null) return parsed
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun extractJsHttpPayload(raw: String): String {
+        return if (raw.contains("JsHttpRequest") && raw.contains("\"js\":")) {
+            raw
+        } else {
+            raw
         }
     }
 
@@ -239,7 +283,7 @@ object StalkerClient {
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
-                .build()
+                 .build()
 
             val response = client.newCall(channelsRequest).execute()
             checkHttpResponseCode(response.code)
@@ -489,15 +533,5 @@ object StalkerClient {
         } catch (e: Exception) {
             null
         }
-    }
-
-    // ====================================================================
-    // FUNZIONE DI ESTRAZIONE DEL TUO PRIMO CODICE
-    // ====================================================================
-    private fun estraiCampo(json: String, campo: String): String {
-        return try {
-            val m = Regex("\"" + campo + "\"\\s*:\\s*\"?([^\",}]+)").find(json)
-            m?.groupValues?.get(1)?.trim() ?: "-"
-        } catch (e: Exception) { "-" }
     }
 }
