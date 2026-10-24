@@ -17,7 +17,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-// Modello di supporto esteso per le info profilo/scadenza e attivazione
 data class StalkerProfile(
     val expireDate: String = "N/D",
     val activationDate: String = "N/D",
@@ -29,7 +28,6 @@ object StalkerClient {
 
     private const val TAG = "StalkerClient"
 
-    // OkHttp configurato con timeout e supporto Gzip nativo
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -55,11 +53,14 @@ object StalkerClient {
         return baseUrl
     }
 
-    /**
-     * Interroga il portale Stalker per estrarre la data di scadenza, attivazione e piano tariffario.
-     * Viene chiamata immediatamente al salvataggio del portale.
-     * MODALITÀ: parsing timestamp come nel primo codice (ScanService)
-     */
+    // ⭐ FUNZIONE ESTRATTA DAL PRIMO CODICE: Ricerca testuale infallibile
+    private fun estraiCampoTestuale(json: String, campo: String): String {
+        return try {
+            val m = Regex("\"" + campo + "\"\\s*:\\s*\"?([^\",}\\]]+)").find(json)
+            m?.groupValues?.get(1)?.trim() ?: "-"
+        } catch (e: Exception) { "-" }
+    }
+
     suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext StalkerProfile()
         val mac = portal.macAddress.trim()
@@ -74,7 +75,6 @@ object StalkerClient {
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
-            // 1. Handshake unico e pulito
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
             val handshakeReq = Request.Builder()
                 .url(handshakeUrl)
@@ -97,7 +97,6 @@ object StalkerClient {
             val handshakeBody = handshakeResp.body?.string() ?: ""
             val token = parseToken(handshakeBody)
 
-            // 2. Tentativi sequenziali con azioni di profilo standard Ministra
             val actions = listOf("get_profile", "account_info", "get_info", "get_main_info")
             var jsonResponseStr = ""
 
@@ -115,19 +114,17 @@ object StalkerClient {
 
                 try {
                     val response = client.newCall(profileReq).execute()
-                    try {
-                        if (response.isSuccessful) {
-                            val body = response.body?.string() ?: ""
-                            if (body.contains("exp_date") || body.contains("phone") || body.contains("tariff_plan") || body.contains("created")) {
-                                jsonResponseStr = body
-                                break
-                            } else if (body.isNotBlank() && jsonResponseStr.isBlank()) {
-                                jsonResponseStr = body
-                            }
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: ""
+                        if (body.contains("exp_date") || body.contains("phone") || body.contains("created")) {
+                            jsonResponseStr = body
+                            response.close()
+                            break
+                        } else if (body.isNotBlank() && jsonResponseStr.isBlank()) {
+                            jsonResponseStr = body
                         }
-                    } finally {
-                        response.close()
                     }
+                    response.close()
                 } catch (e: Exception) {
                     Log.w(TAG, "Tentativo account info fallito con action=$action: ${e.message}")
                 }
@@ -137,39 +134,39 @@ object StalkerClient {
                 return@withContext StalkerProfile(expireDate = "Non disponibile")
             }
 
-            // 3. Parsing della risposta JSON
-            val cleanJson = extractJsHttpPayload(jsonResponseStr)
-            val root = JSONObject(cleanJson)
-            val js = if (root.has("js")) root.optJSONObject("js") ?: root else root
+            // Piano tariffario e check JSON standard
+            var tariffPlan = "Standard"
+            try {
+                val cleanJson = extractJsHttpPayload(jsonResponseStr)
+                val root = JSONObject(cleanJson)
+                val js = if (root.has("js")) root.optJSONObject("js") ?: root else root
+                tariffPlan = js.optString("tariff_plan", js.optString("package_name", "Standard"))
+            } catch (e: Exception) { }
 
-            val tariffPlan = js.optString("tariff_plan", js.optString("package_name", "Standard"))
-
-            // ⭐ 4. ESTRAZIONE SCADENZA - MODALITÀ PRIMO CODICE (timestamp numerico)
+            // =================================================================
+            // ⭐ LOGICA DEL PRIMO CODICE APPLICATA: SCADENZA
+            // =================================================================
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
-            val expDateRaw = js.opt("exp_date") ?: js.opt("expire_date")
-            if (expDateRaw != null && expDateRaw.toString() != "null" && expDateRaw.toString().isNotBlank()) {
-                val expStr = expDateRaw.toString().trim()
-                
-                // Se è un numero (timestamp): converte come nel primo codice
-                if (expStr.matches(Regex("\\d+"))) {
-                    val timestampSec = expStr.toLongOrNull()
-                    if (timestampSec != null && timestampSec > 0) {
-                        val millis = timestampSec * 1000
-                        val date = Date(millis)
-                        isExpired = date.before(Date())
-                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(date)
-                    }
-                } else {
-                    formattedExpireDate = expStr
-                }
-            }
+            var expTs = estraiCampoTestuale(jsonResponseStr, "exp_date")
+            if (expTs == "-") expTs = estraiCampoTestuale(jsonResponseStr, "expire_date")
 
-            // Fallback sul campo "phone" per portali custom (COME NEL PRIMO CODICE)
-            if (formattedExpireDate == "Illimitato" || formattedExpireDate == "N/D") {
-                val phoneField = js.optString("phone", "")
-                if (phoneField.isNotBlank()) {
+            if (expTs != "-") {
+                if (expTs.matches(Regex("\\d+"))) { // Se è un Timestamp numerico
+                    val timestampSec = expTs.toLongOrNull()
+                    if (timestampSec != null && timestampSec > 0) {
+                        val d = Date(timestampSec * 1000)
+                        isExpired = d.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
+                    }
+                } else { // Se è già una data testuale
+                    formattedExpireDate = expTs
+                }
+            } else {
+                // Fallback sul campo phone come primo codice
+                val phoneField = estraiCampoTestuale(jsonResponseStr, "phone")
+                if (phoneField != "-") {
                     val dateFromPhone = extractDateFromCustomString(phoneField)
                     if (dateFromPhone != null) {
                         isExpired = dateFromPhone.before(Date())
@@ -180,16 +177,22 @@ object StalkerClient {
                 }
             }
 
-            // ⭐ 5. ESTRAZIONE DATA DI ATTIVAZIONE / CREAZIONE (created)
+            // =================================================================
+            // ⭐ LOGICA DEL PRIMO CODICE APPLICATA: ATTIVAZIONE
+            // =================================================================
             var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
-            val createdRaw = js.opt("created") ?: js.opt("activation_date")
-            if (createdRaw != null && createdRaw.toString() != "null" && createdRaw.toString().isNotBlank()) {
-                val createdStr = createdRaw.toString().trim()
-                val timestampSec = createdStr.toLongOrNull()
-                if (timestampSec != null && timestampSec > 0) {
-                    formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
-                } else {
-                    formattedActivationDate = createdStr
+            
+            var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
+            if (createdTs == "-") createdTs = estraiCampoTestuale(jsonResponseStr, "activation_date")
+
+            if (createdTs != "-") {
+                if (createdTs.matches(Regex("\\d+"))) { // Se è un Timestamp numerico
+                    val timestampSec = createdTs.toLongOrNull()
+                    if (timestampSec != null && timestampSec > 0) {
+                        formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
+                    }
+                } else { // Se è già testuale
+                    formattedActivationDate = createdTs
                 }
             }
 
@@ -210,6 +213,7 @@ object StalkerClient {
         val formats = listOf(
             SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH),
             SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
+            SimpleDateFormat("MMMM d, yyyy, h:mm a", Locale.ENGLISH),
             SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
             SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN)
         )
