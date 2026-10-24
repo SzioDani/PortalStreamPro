@@ -53,11 +53,20 @@ object StalkerClient {
         return baseUrl
     }
 
-    // ⭐ Ricerca testuale infallibile (ignora JSON rotti o formattazioni strane)
+    // ⭐ CORREZIONE DECISIVA: Ora non si ferma più alla virgola se il testo è tra virgolette!
     private fun estraiCampoTestuale(json: String, campo: String): String {
         return try {
-            val m = Regex("\"" + campo + "\"\\s*:\\s*\"?([^\",}\\]]+)").find(json)
-            m?.groupValues?.get(1)?.trim() ?: "-"
+            // 1. Prova prima a leggere il valore se è tra virgolette (salva l'anno anche se c'è la virgola!)
+            var m = Regex("\"" + campo + "\"\\s*:\\s*\"([^\"]+)\"").find(json)
+            if (m != null) {
+                val found = m.groupValues[1].trim()
+                if (found.isNotBlank() && found != "null") return found
+            }
+
+            // 2. Se non è tra virgolette (es. numero timestamp puro "exp_date":123456789)
+            m = Regex("\"" + campo + "\"\\s*:\\s*([^,}\\]]+)").find(json)
+            val found2 = m?.groupValues?.get(1)?.trim() ?: "-"
+            if (found2 == "null") "-" else found2
         } catch (e: Exception) { "-" }
     }
 
@@ -100,11 +109,10 @@ object StalkerClient {
             val token = parseToken(handshakeResp.body?.string() ?: "")
 
             // =================================================================
-            // 2. CHIAMATE AL SERVER (Ripristinati URL ESATTI di ScanService)
+            // 2. CHIAMATE AL SERVER
             // =================================================================
             var jsonResponseStr = ""
 
-            // Funzione di supporto per fare le chiamate rapidamente
             fun faiRichiesta(urlParams: String): String {
                 return try {
                     val reqUrl = "$baseUrl$urlParams" + if (token.isNotBlank()) "&token=$token" else ""
@@ -122,13 +130,11 @@ object StalkerClient {
                 } catch (e: Exception) { "" }
             }
 
-            // A) Prova principale come nel primo codice (type=account_info)
             val req1 = faiRichiesta("?type=account_info&JsHttpRequest=1-xml")
             if (req1.contains("exp_date") || req1.contains("phone") || req1.contains("created")) {
                 jsonResponseStr += req1
             }
 
-            // B) Se mancano info essenziali, prova i fallback di ScanService
             if (!jsonResponseStr.contains("exp_date") && !jsonResponseStr.contains("phone")) {
                 for (azione in listOf("get_info", "get_main_info")) {
                     val req2 = faiRichiesta("?type=account_info&action=$azione&JsHttpRequest=1-xml")
@@ -139,24 +145,22 @@ object StalkerClient {
                 }
             }
 
-            // C) Per sicurezza, chiediamo anche il get_profile (contiene spesso data attivazione e tariff plan)
             val req3 = faiRichiesta("?type=stb&action=get_profile&JsHttpRequest=1-xml")
-            jsonResponseStr += req3 // Concateniamo tutto! La lettura testuale troverà comunque i campi.
+            jsonResponseStr += req3 
 
             if (jsonResponseStr.isBlank()) {
                 return@withContext StalkerProfile(expireDate = "Non disponibile")
             }
 
             // =================================================================
-            // 3. ESTRAZIONE DATI TESTUALE (Senza JSONObject, a prova di bomba)
+            // 3. ESTRAZIONE DATI TESTUALE
             // =================================================================
             
-            // Piano tariffario
             var tariffPlan = estraiCampoTestuale(jsonResponseStr, "tariff_plan")
             if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(jsonResponseStr, "package_name")
             if (tariffPlan == "-") tariffPlan = "Standard"
 
-            // SCADENZA (Esattamente la logica di ScanService)
+            // SCADENZA
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
@@ -171,12 +175,12 @@ object StalkerClient {
                         isExpired = d.before(Date())
                         formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
                     }
-                } else if (expTs != "null") {
+                } else {
                     formattedExpireDate = expTs
                 }
             } else {
                 val phoneField = estraiCampoTestuale(jsonResponseStr, "phone")
-                if (phoneField != "-" && phoneField != "null") {
+                if (phoneField != "-") {
                     val dateFromPhone = extractDateFromCustomString(phoneField)
                     if (dateFromPhone != null) {
                         isExpired = dateFromPhone.before(Date())
@@ -199,7 +203,7 @@ object StalkerClient {
                     if (timestampSec != null && timestampSec > 0) {
                         formattedActivationDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date(timestampSec * 1000))
                     }
-                } else if (createdTs != "null") {
+                } else {
                     formattedActivationDate = createdTs
                 }
             }
@@ -441,7 +445,6 @@ object StalkerClient {
             val response = client.newCall(reqBuilder.build()).execute()
             val body = response.body?.string() ?: return map
             
-            // Per sicurezza, estraiamo i canali/generi con JSON sicuro
             val dataArray = extractDataArraySicuro(body) ?: return map
 
             for (i in 0 until dataArray.length()) {
