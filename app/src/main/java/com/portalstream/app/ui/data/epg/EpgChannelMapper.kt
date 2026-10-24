@@ -16,6 +16,12 @@ class EpgChannelMapper {
     private val TAG = "EpgChannelMapper"
     private var allMappings: List<EpgChannelMapping> = emptyList()
 
+    /**
+     * Restituisce la lista completa di tutti gli ID/Nomi indicizzati dall'XML EPG.
+     * Utilizzato dall'interfaccia utente per la ricerca manuale dei canali nel dialog.
+     */
+    fun getAllMappings(): List<EpgChannelMapping> = allMappings
+
     fun loadMappingsFromXml(xmlString: String) {
         val mappings = mutableListOf<EpgChannelMapping>()
         try {
@@ -61,7 +67,7 @@ class EpgChannelMapper {
 
     /**
      * Cerca il match ESCLUSIVAMENTE tramite ID diretto (tvgId o customSid).
-     * L'associazione basata sui nomi è stata completamente disattivata.
+     * L'associazione basata sui nomi è disattivata per evitare falsi positivi.
      */
     fun findBestMatch(channel: Channel): EpgChannelMapping? {
         if (allMappings.isEmpty()) return null
