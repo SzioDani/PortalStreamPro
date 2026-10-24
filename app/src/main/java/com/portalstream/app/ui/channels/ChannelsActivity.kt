@@ -293,6 +293,34 @@ class ChannelsActivity : ComponentActivity() {
                                         Text("Chiaro")
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Divider()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        showSettingsDialog = false
+                                        scope.launch(Dispatchers.IO) {
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(this@ChannelsActivity, "⏳ Ricerca e associazione EPG in corso...", Toast.LENGTH_SHORT).show()
+                                            }
+                                            val count = epgRepository.autoAssociateAllChannels(channelDao)
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali!", Toast.LENGTH_LONG).show()
+                                                val refreshedChannels = channelDao.getAllChannelsList()
+                                                val newEpgMap = epgRepository.getAllCurrentEpg(refreshedChannels)
+                                                if (newEpgMap.isNotEmpty()) {
+                                                    epgMap = newEpgMap
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                 ) {
+                                    Text("🔄 Forza Auto-Associa EPG")
+                                 }   
                             }
                         },
                         confirmButton = {
