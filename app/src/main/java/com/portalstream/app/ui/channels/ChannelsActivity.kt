@@ -712,6 +712,9 @@ class ChannelsActivity : ComponentActivity() {
         var searchQuery by remember { mutableStateOf("") }
         var isDropdownExpanded by remember { mutableStateOf(false) }
 
+        // 🚀 Stato per gestire lo scorrimento verticale del dialog
+        val scrollState = rememberScrollState()
+
         val filteredMappings = remember(searchQuery, availableEpgMappings) {
             if (searchQuery.isBlank()) emptyList()
             else {
@@ -740,8 +743,11 @@ class ChannelsActivity : ComponentActivity() {
                 )
             },
             text = {
+                // 🚀 Aggiunto .verticalScroll(scrollState) per rendere tutto scorrevole ed evitare tagli
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -842,7 +848,7 @@ class ChannelsActivity : ComponentActivity() {
             }
         )
     }
-
+        
     private fun isValidUrl(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         return url.startsWith("http://") || url.startsWith("https://")
