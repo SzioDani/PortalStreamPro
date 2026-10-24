@@ -18,6 +18,9 @@ interface ChannelDao {
     @Query("SELECT * FROM channels")
     suspend fun getAllChannelsList(): List<Channel>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChannel(channel: Channel)
+
     @Query("SELECT * FROM channels WHERE `group` = :groupName ORDER BY name ASC")
     fun getChannelsByGroup(groupName: String): Flow<List<Channel>>
 
