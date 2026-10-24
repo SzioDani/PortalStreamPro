@@ -29,6 +29,13 @@ class EpgRepository(private val context: Context) {
 
     private var cachedPrograms: List<EpgProgram> = emptyList()
 
+    /**
+     * 🚀 NUOVO METODO: Espone il mapper per consentire la ricerca manuale degli ID nel dialog.
+     */
+    fun getMapper(): EpgChannelMapper {
+        return mapper
+    }
+
     suspend fun getAllCurrentEpg(
         channels: List<Channel>,
         countryCode: String = "it",
@@ -59,7 +66,6 @@ class EpgRepository(private val context: Context) {
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
             channels.forEach { channel ->
-                // 🚀 CORRETTO: Passiamo l'intero oggetto channel per sfruttare tvg-id, custom_sid e fallback
                 val mapping = mapper.findBestMatch(channel)
                 val targetId = mapping?.siteId
 
