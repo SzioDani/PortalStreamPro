@@ -212,34 +212,39 @@ class PortalsActivity : ComponentActivity() {
 
                     scope.launch(Dispatchers.IO) {
                         try {
-                            val isStalker = finalType.name.equals("STALKER", true) || 
-                                          finalType.name.equals("MAG", true) || 
+                            val isStalker = finalType == PortalType.MAG || 
                                           portalToSave.macAddress.isNotBlank()
 
                             var finalPortal = portalToSave
 
                             if (isStalker) {
-                                val profile = StalkerClient.fetchAccountInfo(portalToSave)
-                                finalPortal = portalToSave.copy(
-                                    expireDate = profile.expireDate,
-                                    activationDate = profile.activationDate
-                                )
-                            }
-
-                            store.add(finalPortal)
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                formType = null
-                            }
-                        } catch (e: Exception) {
-                            Timber.e(e, "Errore salvataggio info account")
-                            store.add(portalToSave)
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                formType = null
+                                try {
+                                    val profile = StalkerClient.fetchAccountInfo(portalToSave)
+                                    Log.d("PortalsActivity", "Profilo ricevuto: expireDate='${profile.expireDate}', activationDate='${profile.activationDate}'")
+                                    finalPortal = portalToSave.copy(
+                                        expireDate = profile.expireDate,
+                                        activationDate = profile.activationDate
+                                    )
+                                } catch (e: Exception) {
+                                    
+                            }Log.e("PortalsActivity", "Errore fetchAccountInfo", e)
                             }
                         }
+                        store.add(finalPortal)
+                        withContext(Dispatchers.Main) {
+                            portals = store.load()
+                            formType = null
+                        }
+                     } catch (e: Exception) {
+                        Timber.e(e, "Errore salvataggio info portale")
+                        store.add(portalToSave)
+                        withContext(Dispatchers.Main) {
+                            portals = store.load()
+                            formType = null
+                        }
+                        
                     }
+                
                 },
                 onPickFile = { pickLocalFile() }
             )
