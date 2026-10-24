@@ -480,15 +480,19 @@ object ChannelCache {
 
 // 🟢 Funzione helper per formattare la data nel formato italiano GG/MM/AAAA
 private fun formatDateToItalian(dateStr: String): String {
-    if (dateStr.isBlank()) return ""
-    if (dateStr.contains("Illimitato", ignoreCase = true) || dateStr.contains("Unlimited", ignoreCase = true)) {
-        return "Non definita / Illimitata"
+    if (dateStr.isBlank()) return "Non disponibile"
+    if (dateStr.contains("Illimitato", ignoreCase = true) ||
+            dateStr.contains("Unlimited", ignoreCase = true) ||
+            dateStr.contains("Non disponibile", ignoreCase = true)) {
+            return "Non definita / Illimitata"      
     }
-
+    if (dateStr.matches(Regex("\\d{2}/\\d{2}/\\d{4}.*"))) {
+        return dateStr
+    }
     return try {
         val parts = dateStr.trim().split(" ")
         val dateParts = parts[0].split("-")
-
+        
         if (dateParts.size == 3) {
             val year = dateParts[0]
             val month = dateParts[1]
