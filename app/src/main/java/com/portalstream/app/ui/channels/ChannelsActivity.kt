@@ -38,6 +38,7 @@ import com.portalstream.app.data.Portal
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
+import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.domain.model.Channel
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
@@ -557,7 +558,23 @@ class ChannelsActivity : ComponentActivity() {
                 channelForDetails?.let { selectedChannel ->
                     ChannelDetailsDialog(
                         channel = selectedChannel,
-                        onDismiss = { channelForDetails = null }
+                        availableEpgMappings = epgRepository.getMapper().getAllMappings(),
+                        onDismiss = { channelForDetails = null },
+                        onSaveTvgId = { newTvgId ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                // Aggiorniamo il canale nel DB salvando il nuovo tvgId
+                                val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
+                                channelDao.insertChannel(updatedChannel)
+                                // Ricarichiamo la mappa EPG aggiornata per riflettere la modifica a schermo
+                                val refreshedChannels = channelDao.getAllChannelsList()
+                                val newEpgMap = epgRepository.getAllCurrentEpg(refreshedChannels)
+                                withContext(Dispatchers.Main) {
+                                    if (newEpgMap.isNotEmpty()) {
+                                        epgMap = newEpgMap
+                                    }
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -684,7 +701,7 @@ class ChannelsActivity : ComponentActivity() {
     @Composable
     private fun ChannelDetailsDialog(
         channel: Channel,
-        availableEpgMappings: List<EpgChannelMapping>, // Lista proveniente da EpgChannelMapper
+        availableEpgMappings: List<EpgChannelMapping>,
         onDismiss: () -> Unit,
         onSaveTvgId: (String) -> Unit
     ) {
@@ -695,14 +712,13 @@ class ChannelsActivity : ComponentActivity() {
         var searchQuery by remember { mutableStateOf("") }
         var isDropdownExpanded by remember { mutableStateOf(false) }
 
-        // Filtriamo gli ID dell'EPG in base a ciò che l'utente digita nella ricerca
         val filteredMappings = remember(searchQuery, availableEpgMappings) {
             if (searchQuery.isBlank()) emptyList()
             else {
                 availableEpgMappings.filter { 
                     it.name.contains(searchQuery, ignoreCase = true) || 
                     it.siteId.contains(searchQuery, ignoreCase = true)
-                }.take(8) // Limite di 8 suggerimenti visibili
+                }.take(8)
             }
         }
 
@@ -731,9 +747,8 @@ class ChannelsActivity : ComponentActivity() {
                     Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall)
 
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                    // Campo dell'ID EPG selezionato o inserito
                     OutlinedTextField(
                         value = editableTvgId,
                         onValueChange = { editableTvgId = it },
@@ -744,7 +759,6 @@ class ChannelsActivity : ComponentActivity() {
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // 🔍 Barra di ricerca EPG integrata
                     Text(
                         text = "🔍 Cerca ID nell'EPG ufficiale:",
                         style = MaterialTheme.typography.bodySmall,
@@ -762,7 +776,6 @@ class ChannelsActivity : ComponentActivity() {
                         singleLine = true
                     )
 
-                    // Lista dei risultati di ricerca selezionabili
                     if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
                         Card(
                             modifier = Modifier
@@ -771,12 +784,12 @@ class ChannelsActivity : ComponentActivity() {
                             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                         ) {
                             LazyColumn(modifier = Modifier.padding(4.dp)) {
-                                items(filteredMappings) { mapping ->
+                                items(filteredMappings) { mapping: EpgChannelMapping ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                editableTvgId = mapping.siteId // Seleziona l'ID con un tap
+                                                editableTvgId = mapping.siteId
                                                 searchQuery = ""
                                                 isDropdownExpanded = false
                                             }
@@ -794,7 +807,7 @@ class ChannelsActivity : ComponentActivity() {
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }
-                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                 }
                             }
                         }
@@ -802,7 +815,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             },
             confirmButton = {
-                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
                             clipboardManager.setText(AnnotatedString(fullDetailsText))
