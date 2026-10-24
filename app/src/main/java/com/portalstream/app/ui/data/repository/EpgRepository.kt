@@ -36,6 +36,30 @@ class EpgRepository(private val context: Context) {
         return mapper
     }
 
+    /**
+     * Restituisce l'elenco completo dei programmi EPG della giornata per un canale
+     */
+    fun getFullScheduleForChannel(
+        channel: Channel,
+        timeZone: ZoneId = ZoneId.of("Europe/Rome")
+    ): List<EpgProgram> {
+        val mapping = mapper.findBestMatch(channel)
+        val targetId = mapping?.siteId ?: channel.tvgId.ifBlank { return emptyList() }
+
+        val cleanTargetId = targetId
+            .substringBefore("@")
+            .replace(" ", "")
+            .lowercase()
+
+        return cachedPrograms.filter { prog ->
+            val cleanProgId = prog.channelId
+                .substringBefore("@")
+                .replace(" ", "")
+                .lowercase()
+            cleanProgId == cleanTargetId
+        }.sortedBy { it.startTime }
+    }
+
     suspend fun getAllCurrentEpg(
         channels: List<Channel>,
         countryCode: String = "it",
