@@ -437,8 +437,8 @@ class ChannelsActivity : ComponentActivity() {
                                 FilterChip(
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
-                                    label = { Text(text = selectedGroup ?: "  Gruppi", maxLines = 1) },
-                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1) },
+                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(20.dp)) }
                                 )
                             }
 
