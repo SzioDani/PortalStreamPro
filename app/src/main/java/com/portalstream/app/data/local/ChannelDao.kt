@@ -15,6 +15,9 @@ interface ChannelDao {
     @Query("SELECT * FROM channels ORDER BY name ASC")
     fun getAllChannels(): Flow<List<Channel>>
 
+    @Query("SELECT * FROM channels")
+    suspend fun getAllChannelsList(): List<Channel>
+
     @Query("SELECT * FROM channels WHERE `group` = :groupName ORDER BY name ASC")
     fun getChannelsByGroup(groupName: String): Flow<List<Channel>>
 
