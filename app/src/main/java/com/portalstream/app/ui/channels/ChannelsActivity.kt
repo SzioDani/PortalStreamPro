@@ -483,8 +483,10 @@ class ChannelsActivity : ComponentActivity() {
 
                             // 🚀 Riga con i 3 filtri proporzionati (Preferiti, Gruppi, Guida TV)
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 FilterChip(
@@ -496,14 +498,42 @@ class ChannelsActivity : ComponentActivity() {
                                             showOnlyEpg = false
                                         }
                                     },
-                                    label = { Text("Preferiti", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
-                                    modifier = Modifier.weight(1f)
+                                    label = { 
+                                        Text(
+                                            "Preferiti", 
+                                            maxLines = 1, 
+                                            style = MaterialTheme.typography.labelMedium, 
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Favorite,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f)     
                                 )
 
                                 FilterChip(
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
-                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
+                                    label = { 
+                                        Text(
+                                            text = selectedGroup ?: "Gruppi", 
+                                            maxLines = 1, 
+                                            style = MaterialTheme.typography.labelMedium, 
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.List,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -516,7 +546,21 @@ class ChannelsActivity : ComponentActivity() {
                                             selectedGroup = null
                                         }
                                     },
-                                    label = { Text("Guida TV", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
+                                    label = { 
+                                        Text(
+                                            "Guida TV",
+                                            maxLines = 1, 
+                                            style = MaterialTheme.typography.labelMedium,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Tv,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
