@@ -157,7 +157,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val currentChannels = remember(
-                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
+                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
                     allChannels.filter { channel ->
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
@@ -166,7 +166,7 @@ class ChannelsActivity : ComponentActivity() {
                         val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
                         val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
-                        matchesPortal && matchesGroup && matchesSearch && matchesFavorites && matchesEpg
+                        matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }
                 }
 
