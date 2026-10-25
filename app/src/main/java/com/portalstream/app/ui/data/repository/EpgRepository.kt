@@ -115,8 +115,18 @@ class EpgRepository(private val context: Context) {
 
                     if (currentIndex != -1) {
                         val prog = channelProgs[currentIndex]
-                        val current = prog.title
-                        val next = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1].title else ""
+                        
+                        // 🏷️ Mostra anche l'episodio nel titolo "In Corso" se disponibile (es. The Last Ship (S2 E13))
+                        var current = prog.title
+                        if (!prog.episodeNum.isNullOrBlank()) {
+                            current += " (${prog.episodeNum})"
+                        }
+
+                        val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
+                        var next = nextProg?.title ?: ""
+                        if (nextProg != null && !nextProg.episodeNum.isNullOrBlank()) {
+                            next += " (${nextProg.episodeNum})"
+                        }
 
                         val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
                         val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
@@ -130,7 +140,12 @@ class EpgRepository(private val context: Context) {
                         resultMap[channel.id] = EpgInfo(current, next, progress, timeRange)
                     } else {
                         val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
-                        val current = upcoming?.title ?: channelProgs.firstOrNull()?.title ?: ""
+                        var current = upcoming?.title ?: channelProgs.firstOrNull()?.title ?: ""
+                        val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
+                        if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
+                            current += " (${firstOrUpcoming.episodeNum})"
+                        }
+
                         val timeRange = if (upcoming != null) "${upcoming.startTime.format(timeFormatter)}" else ""
                         resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange)
                     }
