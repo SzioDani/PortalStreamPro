@@ -84,6 +84,9 @@ class ChannelsActivity : ComponentActivity() {
         val format = intent.getStringExtra(EXTRA_FORMAT) ?: "m3u8"
         val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
 
+        // 🚀 DICHIARATO SUBITO QUI PER ESSERE ACCESSIBILE OVUNQUE
+        val portalIdentifier = server.ifBlank { portalUrl }
+
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
@@ -94,7 +97,6 @@ class ChannelsActivity : ComponentActivity() {
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
             val darkTheme = appTheme == "dark"
 
-            // 🎛️ Stati per le preferenze di personalizzazione (leggere e istantanee)
             var channelTextSize by remember { mutableStateOf(appPrefs.getFloat("channel_text_size", 16f)) }
             var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
             var epgTextSize by remember { mutableStateOf(appPrefs.getFloat("epg_text_size", 14f)) }
@@ -158,7 +160,7 @@ class ChannelsActivity : ComponentActivity() {
                     allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
                 ) {
                     allChannels.filter { channel ->
-                        val matchesPortal = channel.id.startsWith("ch_") || true // isolamento logico
+                        val matchesPortal = channel.id.startsWith("ch_") || true
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
@@ -169,7 +171,6 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                // 🚀 Funzione per il caricamento o aggiornamento dei canali dal server
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -186,7 +187,6 @@ class ChannelsActivity : ComponentActivity() {
                                     val portalServer = if (server.isNotBlank()) server else portalUrl
                                     if (portalServer.isBlank() || macAddress.isBlank()) {
                                         withContext(Dispatchers.Main) {
-                                        
                                             Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
                                         }
                                         emptyList()
@@ -234,19 +234,20 @@ class ChannelsActivity : ComponentActivity() {
                                     val safeId = if (channel.id.isBlank()) {
                                         "ch_${portalIdentifier.hashCode()}_${index}_${channel.name.hashCode()}"
                                     } else {
-                                        "ch_${portalIdentifier.hashCode()}_${channel.id}"     
+                                        "ch_${portalIdentifier.hashCode()}_${channel.id}"       
                                     }
-        
+
                                     val lookupKey = "${portalIdentifier}_${channel.name}"
                                     val preservedTvgId = savedTvgMap[lookupKey] ?: channel.tvgId
                                     val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
-        
+
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
+                                
                                 channelDao.insertChannels(validFetched)
                                 epgRepository.autoAssociateAllChannels(channelDao)
                                 
-                                Log.d(TAG, "Canali pronti e ID EPG preservati. Avvio caricamento EPG...")
+                                Log.d(TAG, "Canali del portale $portalIdentifier pronti e ID EPG preservati.")
                                 try {
                                     val refreshedChannels = channelDao.getAllChannelsList()
                                     val newEpgMap = epgRepository.getAllCurrentEpg(refreshedChannels)
@@ -258,6 +259,7 @@ class ChannelsActivity : ComponentActivity() {
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Errore caricamento EPG", e)
                                 }
+
                                 if (isManualRefresh) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(this@ChannelsActivity, "✅ Lista canali aggiornata con successo!", Toast.LENGTH_SHORT).show()
@@ -274,7 +276,7 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
                 }
-                // 🚀 ALL'AVVIO: Controlla se abbiamo già i canali salvati in locale per QUESTO specifico portale
+
                 LaunchedEffect(Unit) {
                     val existing = channelDao.getAllChannelsList()
                     if (existing.isEmpty() && localChannels.isEmpty()) {
@@ -290,8 +292,8 @@ class ChannelsActivity : ComponentActivity() {
                         }
                         isLoading = false
                     }
-                }                                                    
-                // Dialog Impostazioni, Tema & Personalizzazioni
+                }
+
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
@@ -336,7 +338,6 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Divider()
 
-                                // 🔄 Tasto Aggiorna Lista Canali
                                 Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Button(
                                     onClick = {
@@ -378,7 +379,6 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Divider()
 
-                                // 🎛️ Personalizzazione Dimensioni (Testi, Loghi, EPG)
                                 Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 
                                 Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
@@ -935,10 +935,9 @@ class ChannelsActivity : ComponentActivity() {
                             val isCurrent = now.isAfter(prog.startTime) && now.isBefore(prog.endTime)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             
-                            // 📺 Gestione Titolo, Sottotitolo ed Episodio (es. S2 E13 + "Di Nuovo In Mare")
                             val mainTitle = prog.title
-                            val subTitle = prog.subTitle ?: "" // Sottotitolo/Titolo episodio (<sub-title>)
-                            val episodeInfo = prog.episodeNum ?: "" // Formato "S2 E13" dal tag onscreen
+                            val subTitle = prog.subTitle ?: "" 
+                            val episodeInfo = prog.episodeNum ?: ""
 
                             Column(
                                 modifier = Modifier
@@ -970,7 +969,6 @@ class ChannelsActivity : ComponentActivity() {
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         
-                                        // 🏷️ Etichetta Stagione/Episodio (es. S2 E13)
                                         if (episodeInfo.isNotBlank()) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
@@ -986,7 +984,6 @@ class ChannelsActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        // 🟣 Etichetta "IN CORSO"
                                         if (isCurrent) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
@@ -1010,7 +1007,6 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                 }
 
-                                // 🎬 Sottotitolo / Titolo dell'episodio (es. "Di Nuovo In Mare")
                                 if (subTitle.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
@@ -1211,5 +1207,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
-
-
