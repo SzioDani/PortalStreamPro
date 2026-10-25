@@ -228,25 +228,24 @@ class ChannelsActivity : ComponentActivity() {
                                 val existingChannels = channelDao.getAllChannelsList()
                                 val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
                                 val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
-
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = if (channel.id.isBlank()) {
                                         "ch_${portalIdentifier.hashCode()}_${index}_${channel.name.hashCode()}"
                                     } else {
-                                        "ch_${portalIdentifier.hashCode()}_${channel.id}"       
+                                        "ch_${portalIdentifier.hashCode()}_${channel.id}"     
                                     }
 
-                                    val lookupKey = "${portalIdentifier}_${channel.name}"
+                                   val lookupKey = "${portalIdentifier}_${channel.name}"
                                     val preservedTvgId = savedTvgMap[lookupKey] ?: channel.tvgId
                                     val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
-
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
-                                channelDao.clearAll()
-                                channelDao.insertChannels(validFetched)
+                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+                                val otherPortalsChannels = existingChannels.filter { !it.id.startsWith(portalPrefix) }
+                                val combinedChannels = otherPortalsChannels + validFetched
+                                channelDao.insertChannels(combinedChannels)
                                 epgRepository.autoAssociateAllChannels(channelDao)
-                                
-                                Log.d(TAG, "Canali del portale $portalIdentifier pronti e ID EPG preservati.")
+                                Log.d(TAG, "Canali del portale $portalIdentifier salvati correttamente in armonia con gli altri portali.")
                                 try {
                                     val refreshedChannels = channelDao.getAllChannelsList()
                                     val newEpgMap = epgRepository.getAllCurrentEpg(refreshedChannels)
@@ -258,7 +257,6 @@ class ChannelsActivity : ComponentActivity() {
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Errore caricamento EPG", e)
                                 }
-
                                 if (isManualRefresh) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(this@ChannelsActivity, "✅ Lista canali aggiornata con successo!", Toast.LENGTH_SHORT).show()
