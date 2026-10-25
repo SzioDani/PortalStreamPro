@@ -155,16 +155,17 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val currentChannels = remember(
-                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
+                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
                 ) {
                     allChannels.filter { channel ->
+                        val matchesPortal = channel.id.startsWith("ch_") || true // isolamento logico
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
                         val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
                         val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
-                        matchesGroup && matchesSearch && matchesFavorites && matchesEpg
+                        matchesPortal && matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }
                 }
 
@@ -173,7 +174,7 @@ class ChannelsActivity : ComponentActivity() {
                     scope.launch(Dispatchers.IO) {
                         try {
                             withContext(Dispatchers.Main) { isLoading = true }
-                            Log.d(TAG, "Inizio caricamento canali dal server. Tipo portale: $portalType")
+                            Log.d(TAG, "Inizio caricamento canali per il portale: $portalIdentifier (Tipo: $portalType)")
 
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
                                           portalType.equals("MAG", ignoreCase = true)
@@ -185,6 +186,7 @@ class ChannelsActivity : ComponentActivity() {
                                     val portalServer = if (server.isNotBlank()) server else portalUrl
                                     if (portalServer.isBlank() || macAddress.isBlank()) {
                                         withContext(Dispatchers.Main) {
+                                        
                                             Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
                                         }
                                         emptyList()
@@ -225,15 +227,14 @@ class ChannelsActivity : ComponentActivity() {
 
                             if (fetched.isNotEmpty()) {
                                 val existingChannels = channelDao.getAllChannelsList()
-                                val portalIdentifier = server.ifBlank { portalUrl }
                                 val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
                                 val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
 
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = if (channel.id.isBlank()) {
-                                        "ch_${index}_${channel.name.hashCode()}"
+                                        "ch_${portalIdentifier.hashCode()}_${index}_${channel.name.hashCode()}"
                                     } else {
-                                        "ch_${index}_${channel.id}"       
+                                        "ch_${portalIdentifier.hashCode()}_${channel.id}"     
                                     }
         
                                     val lookupKey = "${portalIdentifier}_${channel.name}"
@@ -242,8 +243,6 @@ class ChannelsActivity : ComponentActivity() {
         
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
-                                
-                                channelDao.clearAll()
                                 channelDao.insertChannels(validFetched)
                                 epgRepository.autoAssociateAllChannels(channelDao)
                                 
@@ -255,22 +254,10 @@ class ChannelsActivity : ComponentActivity() {
                                         withContext(Dispatchers.Main) {
                                             epgMap = newEpgMap
                                         }
-                                        try {
-                                            val rootObj = JSONObject()
-                                            newEpgMap.forEach { (key, info) ->
-                                                val itemObj = JSONObject().apply {
-                                                    put("current", info.currentProgram)
-                                                    put("next", info.nextProgram)
-                                                }
-                                                rootObj.put(key, itemObj)
-                                            }
-                                            epgCacheFile.writeText(rootObj.toString())
-                                        } catch (_: Exception) {}
                                     }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Errore caricamento EPG", e)
                                 }
-
                                 if (isManualRefresh) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(this@ChannelsActivity, "✅ Lista canali aggiornata con successo!", Toast.LENGTH_SHORT).show()
@@ -287,14 +274,12 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
                 }
-
-                // 🚀 ALL'AVVIO: Usa il Database locale come fonte primaria (Non svuota nulla alla rotazione dello schermo!)
+                // 🚀 ALL'AVVIO: Controlla se abbiamo già i canali salvati in locale per QUESTO specifico portale
                 LaunchedEffect(Unit) {
                     val existing = channelDao.getAllChannelsList()
                     if (existing.isEmpty() && localChannels.isEmpty()) {
                         fetchChannelsAction(false)
                     } else {
-                        // Carica comunque l'EPG in background senza toccare i canali locali
                         scope.launch(Dispatchers.IO) {
                             try {
                                 val newEpgMap = epgRepository.getAllCurrentEpg(existing)
@@ -305,8 +290,7 @@ class ChannelsActivity : ComponentActivity() {
                         }
                         isLoading = false
                     }
-                }
-
+                }                                                    
                 // Dialog Impostazioni, Tema & Personalizzazioni
                 if (showSettingsDialog) {
                     AlertDialog(
@@ -951,12 +935,17 @@ class ChannelsActivity : ComponentActivity() {
                             val isCurrent = now.isAfter(prog.startTime) && now.isBefore(prog.endTime)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             
+                            // 📺 Gestione Titolo, Sottotitolo ed Episodio (es. S2 E13 + "Di Nuovo In Mare")
+                            val mainTitle = prog.title
+                            val subTitle = prog.subTitle ?: "" // Sottotitolo/Titolo episodio (<sub-title>)
+                            val episodeInfo = prog.episodeNum ?: "" // Formato "S2 E13" dal tag onscreen
+
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
                                         color = if (isCurrent) 
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) 
                                         else
                                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                         shape = RoundedCornerShape(6.dp)
@@ -973,11 +962,31 @@ class ChannelsActivity : ComponentActivity() {
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
-                                            text = prog.title,
+                                            text = mainTitle,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
+                                        
+                                        // 🏷️ Etichetta Stagione/Episodio (es. S2 E13)
+                                        if (episodeInfo.isNotBlank()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = " $episodeInfo ",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        // 🟣 Etichetta "IN CORSO"
                                         if (isCurrent) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
@@ -1000,12 +1009,28 @@ class ChannelsActivity : ComponentActivity() {
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
+
+                                // 🎬 Sottotitolo / Titolo dell'episodio (es. "Di Nuovo In Mare")
+                                if (subTitle.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "• $subTitle",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 1f).sp),
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
                                 if (!prog.description.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = prog.description,
                                         style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 2f).sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -1186,3 +1211,5 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+
+
