@@ -159,9 +159,7 @@ class ChannelsActivity : ComponentActivity() {
                 val currentChannels = remember(
                     allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
                 ) {
-                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
                     allChannels.filter { channel ->
-                        val matchesPortal = channel.id.startsWith(portalPrefix) || !channel.id.startsWith("ch_")
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
@@ -244,7 +242,7 @@ class ChannelsActivity : ComponentActivity() {
 
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
-                                
+                                channelDao.clearAll()
                                 channelDao.insertChannels(validFetched)
                                 epgRepository.autoAssociateAllChannels(channelDao)
                                 
@@ -280,7 +278,9 @@ class ChannelsActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     val existing = channelDao.getAllChannelsList()
-                    if (existing.isEmpty() && localChannels.isEmpty()) {
+                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+                    val hasCurrentPortalChannels = existing.any { it.id.startsWith(portalPrefix) }
+                    if (existing.isEmpty() || !hasCurrentPortalChannels) {
                         fetchChannelsAction(false)
                     } else {
                         scope.launch(Dispatchers.IO) {
@@ -1212,6 +1212,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
-
-
-
