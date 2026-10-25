@@ -30,7 +30,7 @@ class EpgRepository(private val context: Context) {
     private var cachedPrograms: List<EpgProgram> = emptyList()
 
     /**
-     * 🚀 NUOVO METODO: Espone il mapper per consentire la ricerca manuale degli ID nel dialog.
+     * 🚀 Espone il mapper per consentire la ricerca manuale degli ID nel dialog.
      */
     fun getMapper(): EpgChannelMapper {
         return mapper
@@ -67,6 +67,8 @@ class EpgRepository(private val context: Context) {
     ): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
         val resultMap = mutableMapOf<String, EpgInfo>()
         try {
+            Log.d(TAG, "📥 [getAllCurrentEpg] Avvio elaborazione per ${channels.size} canali.")
+            
             if (cachedPrograms.isEmpty()) {
                 Log.d(TAG, "Cache programmi vuota. Avvio download EPG...")
                 val result = downloader.downloadEpg(countryCode)
@@ -132,11 +134,13 @@ class EpgRepository(private val context: Context) {
                         val timeRange = if (upcoming != null) "${upcoming.startTime.format(timeFormatter)}" else ""
                         resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange)
                     }
+                } else {
+                    Log.v(TAG, "⚠️ [getAllCurrentEpg] Nessun mapping trovato per il canale: '${channel.name}' (id: ${channel.id})")
                 }
             }
-            Log.d(TAG, "Mappa EPG generata con successo per ${resultMap.size} canali.")
+            Log.d(TAG, "✅ Mappa EPG generata con successo per ${resultMap.size} canali su ${channels.size}.")
         } catch (e: Exception) {
-            Log.e(TAG, "Errore critico in getAllCurrentEpg", e)
+            Log.e(TAG, "❌ Errore critico in getAllCurrentEpg", e)
         }
         resultMap
     }
@@ -150,6 +154,8 @@ class EpgRepository(private val context: Context) {
     ): Int = withContext(Dispatchers.Default) {
         var matchedCount = 0
         try {
+            Log.d(TAG, "🤖 [autoAssociateAllChannels] Avvio auto-associazione...")
+            
             if (cachedPrograms.isEmpty()) {
                 val result = downloader.downloadEpg(countryCode)
                 result.getOrNull()?.let { xmlContent ->
@@ -159,21 +165,27 @@ class EpgRepository(private val context: Context) {
             }
 
             val channels = channelDao.getAllChannelsList()
+            Log.d(TAG, "📋 [autoAssociateAllChannels] Canali letti dal DB: ${channels.size}")
+
             if (channels.isNotEmpty() && cachedPrograms.isNotEmpty()) {
                 val updatedList = channels.map { channel ->
                     val mapping = mapper.findBestMatch(channel)
                     if (mapping != null) {
                         matchedCount++
+                        Log.d(TAG, "🎯 [AutoAssocia] Trovato match per '${channel.name}' -> SiteId: '${mapping.siteId}'")
                         channel.copy(tvgId = mapping.siteId)
                     } else {
+                        Log.v(TAG, "⚪ [AutoAssocia] Nessun match per '${channel.name}'")
                         channel
                     }
                 }
                 channelDao.insertChannels(updatedList)
-                Log.d(TAG, "Auto-associazione completata: aggiornati $matchedCount canali.")
+                Log.d(TAG, "✅ Auto-associazione completata: aggiornati $matchedCount canali.")
+            } else {
+                Log.w(TAG, "⚠️ [autoAssociateAllChannels] Saltato: canali DB o cache programmi vuoti.")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Errore durante l'auto-associazione EPG massiva", e)
+            Log.e(TAG, "❌ Errore durante l'auto-associazione EPG massiva", e)
         }
         matchedCount
     }
