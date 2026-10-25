@@ -11,6 +11,8 @@ import java.time.format.DateTimeFormatter
 data class EpgProgram(
     val channelId: String,
     val title: String,
+    val subTitle: String?,        // 📺 Sottotitolo / Titolo episodio (<sub-title>)
+    val episodeNum: String?,      // 🏷️ Stagione ed Episodio (<episode-num system="onscreen">)
     val description: String?,
     val startTime: LocalDateTime,
     val endTime: LocalDateTime,
@@ -31,6 +33,8 @@ class EpgParser {
             var eventType = parser.eventType
             var currentChannelId = ""
             var currentTitle = ""
+            var currentSubTitle = ""
+            var currentEpisodeNum = ""
             var currentDesc = ""
             var currentStart = ""
             var currentEnd = ""
@@ -46,12 +50,26 @@ class EpgParser {
                                 currentStart = parser.getAttributeValue(null, "start") ?: ""
                                 currentEnd = parser.getAttributeValue(null, "stop") ?: ""
                                 currentTitle = ""
+                                currentSubTitle = ""
+                                currentEpisodeNum = ""
                                 currentDesc = ""
                                 currentCategory = ""
                                 currentIcon = ""
                             }
                             "title" -> {
                                 currentTitle = parser.nextText()
+                            }
+                            "sub-title" -> {
+                                // 📺 Legge il sottotitolo (es. titolo episodio)
+                                currentSubTitle = parser.nextText()
+                            }
+                            "episode-num" -> {
+                                // 🏷️ Controlla se il sistema è "onscreen" (es. S2 E13) o raccoglie il testo
+                                val systemAttr = parser.getAttributeValue(null, "system")
+                                val text = parser.nextText()
+                                if (systemAttr == "onscreen" || currentEpisodeNum.isBlank()) {
+                                    currentEpisodeNum = text
+                                }
                             }
                             "desc" -> {
                                 currentDesc = parser.nextText()
@@ -66,7 +84,6 @@ class EpgParser {
                     }
                     XmlPullParser.END_TAG -> {
                         if (parser.name == "programme" && currentChannelId.isNotBlank() && currentTitle.isNotBlank()) {
-                            // ✅ IMPORTANTE: Converti UTC → Fuso Orario Locale
                             val startTime = parseEpgTime(currentStart, targetTimeZone)
                             val endTime = parseEpgTime(currentEnd, targetTimeZone)
 
@@ -74,6 +91,8 @@ class EpgParser {
                                 EpgProgram(
                                     channelId = currentChannelId,
                                     title = currentTitle,
+                                    subTitle = currentSubTitle.takeIf { it.isNotBlank() },
+                                    episodeNum = currentEpisodeNum.takeIf { it.isNotBlank() },
                                     description = currentDesc.takeIf { it.isNotBlank() },
                                     startTime = startTime,
                                     endTime = endTime,
@@ -87,7 +106,7 @@ class EpgParser {
                 eventType = parser.next()
             }
 
-            Log.d("EpgParser", "Parsati ${programs.size} programmi")
+            Log.d("EpgParser", "Parsati ${programs.size} programmi con sottotitoli ed episodi")
             return programs
 
         } catch (e: Exception) {
@@ -96,19 +115,13 @@ class EpgParser {
         }
     }
 
-    // ✅ CRUCIALE: Converti formato EPG (UTC) al fuso orario locale
     private fun parseEpgTime(timeStr: String, targetTimeZone: ZoneId): LocalDateTime {
         return try {
-            // Formato EPG: "20240101120000 +0000" (UTC)
             val cleanTime = timeStr.replace(Regex("[^0-9]"), "").take(14)
-            
             val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
             val utcTime = LocalDateTime.parse(cleanTime, formatter)
-            
-            // Converti da UTC al fuso orario target
             val utcZoned = ZonedDateTime.of(utcTime, ZoneId.of("UTC"))
             val localZoned = utcZoned.withZoneSameInstant(targetTimeZone)
-            
             localZoned.toLocalDateTime()
         } catch (e: Exception) {
             Log.e("EpgParser", "Errore parsing tempo: $timeStr", e)
