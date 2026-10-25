@@ -219,18 +219,37 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             if (fetched.isNotEmpty()) {
+                                // 1. Salviamo i vecchi ID associati legandoli al server/portale corrente per evitare conflitti
+                                val existingChannels = channelDao.getAllChannelsList()
+                                val portalIdentifier = server.ifBlank { portalUrl }
+                                val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
+                                val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
+
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = if (channel.id.isBlank()) {
                                         "ch_${index}_${channel.name.hashCode()}"
                                     } else {
-                                        "ch_${index}_${channel.id}"
+                                        "ch_${index}_${channel.id}"       
                                     }
-                                    channel.copy(id = safeId)
+        
+                                    // Preserviamo gli ID EPG solo se appartengono allo stesso server/portale
+                                    val lookupKey = "${portalIdentifier}_${channel.name}"
+                                    val preservedTvgId = savedTvgMap[lookupKey] ?: channel.tvgId
+                                    val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
+        
+                                    channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
+                                
+                                channelDao.clearAll()
                                 channelDao.insertChannels(validFetched)
-                                Log.d(TAG, "Canali pronti. Avvio caricamento EPG...")
+                                
+                                // 🚀 Eseguiamo l'auto-associazione per i canali sprovvisti di ID
+                                epgRepository.autoAssociateAllChannels(channelDao)
+                                
+                                Log.d(TAG, "Canali pronti e ID EPG preservati per il server: $portalIdentifier. Avvio caricamento EPG...")
                                 try {
-                                    val newEpgMap = epgRepository.getAllCurrentEpg(validFetched)
+                                    val refreshedChannels = channelDao.getAllChannelsList()
+                                    val newEpgMap = epgRepository.getAllCurrentEpg(refreshedChannels)
                                     if (newEpgMap.isNotEmpty()) {
                                         withContext(Dispatchers.Main) {
                                             epgMap = newEpgMap
@@ -475,15 +494,14 @@ class ChannelsActivity : ComponentActivity() {
                                             showOnlyEpg = false
                                         }
                                     },
-                                    label = { Text("⭐ Preferiti", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    label = { Text("Preferiti", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
                                     modifier = Modifier.weight(1f)
                                 )
 
                                 FilterChip(
                                     selected = selectedGroup != null,
                                     onClick = { showGroupDialog = true },
-                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    leadingIcon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    label = { Text(text = selectedGroup ?: "Gruppi", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -496,7 +514,7 @@ class ChannelsActivity : ComponentActivity() {
                                             selectedGroup = null
                                         }
                                     },
-                                    label = { Text("📺 Guida TV", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    label = { Text("Guida TV", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis) },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -791,11 +809,15 @@ class ChannelsActivity : ComponentActivity() {
     ) {
         val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
+       val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 6.dp)
                 .clickable { onPlayClick() },
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -810,49 +832,77 @@ class ChannelsActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(text = "▶ Avvia", style = MaterialTheme.typography.labelMedium)
-                }
+                    text = "▶ Avvia",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                if (epgPrograms.isEmpty()) {
-                    Text(
-                        text = "Nessun palinsesto caricato per oggi.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
+            if (epgPrograms.isEmpty()) {
+                Text(
+                    text = "Nessun palinsesto caricato per oggi.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
+                            val isCurrent = now.isAfter(prog.startTime) && now.isBefore(prog.endTime)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        color = if (isCurrent) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) 
+                                        else
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                         shape = RoundedCornerShape(6.dp)
                                     )
                                     .padding(8.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = prog.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
+                                    ) {
+                                        Text(
+                                            text = prog.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (isCurrent) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                               Text(
+                                                   text = " IN CORSO ",
+                                                   style = MaterialTheme.typography.labelSmall,
+                                                   color = MaterialTheme.colorScheme.onPrimary,
+                                                   fontWeight = FontWeight.Bold
+                                               )
+                                           }
+                                       }
+                                   }
+                                   Text(
                                         text = timeRange,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                                 if (!prog.description.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = prog.description,
                                         style = MaterialTheme.typography.bodySmall,
@@ -1037,3 +1087,5 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+
+
