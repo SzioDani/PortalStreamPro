@@ -159,8 +159,9 @@ class ChannelsActivity : ComponentActivity() {
                 val currentChannels = remember(
                     allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
                 ) {
+                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
                     allChannels.filter { channel ->
-                        val matchesPortal = channel.id.startsWith("ch_") || true
+                        val matchesPortal = channel.id.startsWith(portalPrefix) || !channel.id.startsWith("ch_")
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
@@ -887,6 +888,7 @@ class ChannelsActivity : ComponentActivity() {
         onLongClick: () -> Unit
     ) {
         val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+        // 🕒 Orario corrente puntuale in Italia
         val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
 
         Card(
@@ -932,7 +934,8 @@ class ChannelsActivity : ComponentActivity() {
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
-                            val isCurrent = now.isAfter(prog.startTime) && now.isBefore(prog.endTime)
+                            // 🚀 Controllo robusto: il programma è in corso se 'now' è compreso tra inizio e fine
+                            val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             
                             val mainTitle = prog.title
@@ -943,8 +946,9 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
+                                        // 🟣 COLORE EVIDENZIATO IN CORSO (VIOLA) O STANDARD
                                         color = if (isCurrent) 
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f) 
                                         else
                                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                         shape = RoundedCornerShape(6.dp)
@@ -984,6 +988,7 @@ class ChannelsActivity : ComponentActivity() {
                                             }
                                         }
 
+                                        // 🏷️ ETICHETTA "IN CORSO" BEN VISIBILE
                                         if (isCurrent) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
@@ -1002,7 +1007,7 @@ class ChannelsActivity : ComponentActivity() {
                                     Text(
                                         text = timeRange,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -1207,3 +1212,6 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+
+
+
