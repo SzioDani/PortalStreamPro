@@ -938,20 +938,21 @@ class ChannelsActivity : ComponentActivity() {
                             
                             val mainTitle = prog.title
                             val subTitle = prog.subTitle ?: "" 
+                            
                             val episodeInfo = prog.episodeNum ?: ""
 
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(
                                         // 🟣 COLORE EVIDENZIATO IN CORSO (VIOLA) O STANDARD
                                         color = if (isCurrent) 
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
                                         else
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                        shape = RoundedCornerShape(6.dp)
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                                     )
-                                    .padding(8.dp)
+                                    .padding(10.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
