@@ -16,10 +16,6 @@ class EpgChannelMapper {
     private val TAG = "EpgChannelMapper"
     private var allMappings: List<EpgChannelMapping> = emptyList()
 
-    /**
-     * Restituisce la lista completa di tutti gli ID/Nomi indicizzati dall'XML EPG.
-     * Utilizzato dall'interfaccia utente per la ricerca manuale dei canali nel dialog.
-     */
     fun getAllMappings(): List<EpgChannelMapping> = allMappings
 
     fun loadMappingsFromXml(xmlString: String) {
@@ -59,30 +55,42 @@ class EpgChannelMapper {
                 eventType = parser.next()
             }
             allMappings = mappings
-            Log.d(TAG, "Mappatura dinamica completata: indicizzati ${allMappings.size} canali dall'XML EPG.")
+            Log.d(TAG, "Mappatura caricata: indicizzati ${allMappings.size} canali dall'XML EPG.")
         } catch (e: Exception) {
             Log.e(TAG, "Errore durante il parsing dei canali dall'XML EPG", e)
         }
     }
 
     /**
-     * Cerca il match ESCLUSIVAMENTE tramite ID diretto (tvgId o customSid).
-     * L'associazione basata sui nomi è disattivata per evitare falsi positivi.
+     * Metodo di controllo diagnostico: stampa log puliti per capire cosa legge l'M3U vs XML
      */
     fun findBestMatch(channel: Channel): EpgChannelMapping? {
-        if (allMappings.isEmpty()) return null
+        if (allMappings.isEmpty()) {
+            Log.w(TAG, "⚠️ [DIAG] Nessuna mappatura XML disponibile.")
+            return null
+        }
 
-        // PRIORITÀ ASSOLUTA E UNICA: Match diretto su tvgId / customSid dell'M3U/Stalker
+        // 1. Controllo ID Diretto
         val directTvgId = channel.tvgId.ifBlank { channel.customSid }
         if (directTvgId.isNotBlank()) {
-            allMappings.find { it.siteId.equals(directTvgId, ignoreCase = true) }?.let {
-                Log.d(TAG, "Match Diretto per ID trovato: '${channel.name}' -> '${it.name}' (ID XML: ${it.siteId})")
-                return it
+            val match = allMappings.find { it.siteId.equals(directTvgId, ignoreCase = true) }
+            if (match != null) {
+                Log.d(TAG, "✅ [ID Diretto] OK: '${channel.name}' -> ${match.siteId}")
+                return match
+            } else {
+                Log.w(TAG, "❌ [ID Diretto] FALLITO: Il canale '${channel.name}' ha ID '${directTvgId}' ma non esiste nell'XML.")
+            }
+        } else {
+            // Se non ha un ID, loggiamo in modo pulito il nome del canale M3U che sta fallendo l'associazione
+            Log.w(TAG, "🔍 [Senza ID] Canale M3U senza tvg-id: '${channel.name}' (Gruppo: '${channel.group}')")
+            
+            // Verifichiamo se per caso esiste un canale nell'XML che ha lo stesso identico nome (senza filtri)
+            val exactNameMatch = allMappings.find { it.name.equals(channel.name, ignoreCase = true) }
+            if (exactNameMatch != null) {
+                Log.i(TAG, "💡 [Suggerimento] Trovato match esatto per nome nell'XML! '${channel.name}' -> SiteId: ${exactNameMatch.siteId}")
             }
         }
 
-        // Se l'ID diretto non è presente o non trova riscontro nell'XML, restituisce null
-        Log.w(TAG, "Nessun ID valido (tvgId/customSid) per il canale: '${channel.name}'")
         return null
     }
 }
