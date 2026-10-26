@@ -60,6 +60,32 @@ class EpgRepository(private val context: Context) {
         }.sortedBy { it.startTime }
     }
 
+    /**
+     * Restituisce la mappa completa dei programmi giornalieri per una lista di canali
+     */
+    suspend fun getProgramsForChannels(
+        channels: List<Channel>,
+        countryCode: String = "it",
+        timeZone: ZoneId = ZoneId.of("Europe/Rome")
+    ): Map<String, List<EpgProgram>> = withContext(Dispatchers.Default) {
+        val resultMap = mutableMapOf<String, List<EpgProgram>>()
+        try {
+            if (cachedPrograms.isEmpty()) {
+                val result = downloader.downloadEpg(countryCode)
+                result.getOrNull()?.let { xmlContent ->
+                    cachedPrograms = parser.parseXmlTv(xmlContent, timeZone)
+                    mapper.loadMappingsFromXml(xmlContent)
+                }
+            }
+            channels.forEach { channel ->
+                resultMap[channel.id] = getFullScheduleForChannel(channel, timeZone)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Errore in getProgramsForChannels", e)
+        }
+        resultMap
+    }
+
     suspend fun getAllCurrentEpg(
         channels: List<Channel>,
         countryCode: String = "it",
