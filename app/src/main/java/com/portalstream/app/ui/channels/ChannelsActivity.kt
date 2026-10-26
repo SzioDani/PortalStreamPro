@@ -665,7 +665,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 }
                                             )
                                         } else {
-                                            ChannelCard(
+                                            EpgChannelCard(
                                                 channel = channel,
                                                 epgInfo = epgMap[channel.id] ?: EpgInfo(),
                                                 isFavorite = favoriteIds.contains(channel.id),
