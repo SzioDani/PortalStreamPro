@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -451,7 +452,6 @@ class ChannelsActivity : ComponentActivity() {
                                     textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                                 )
-
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
                                     else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
@@ -921,7 +921,6 @@ class ChannelsActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                 if (epgPrograms.isEmpty()) {
@@ -934,8 +933,7 @@ class ChannelsActivity : ComponentActivity() {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
                             val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
-                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
-                            
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"    
                             val mainTitle = prog.title
                             val subTitle = prog.subTitle ?: "" 
                             val episodeInfo = prog.episodeNum ?: ""
@@ -973,7 +971,8 @@ class ChannelsActivity : ComponentActivity() {
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         
                                         if (episodeInfo.isNotBlank()) {
@@ -1006,11 +1005,15 @@ class ChannelsActivity : ComponentActivity() {
                                             }
                                         }
                                     }
+                                    
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    
                                     Text(
                                         text = timeRange,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
                                         color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
                                     )
                                 }
 
@@ -1201,7 +1204,6 @@ class ChannelsActivity : ComponentActivity() {
     private fun extractRawId(safeId: String): String {
         return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
-
     companion object {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
@@ -1213,4 +1215,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_FORMAT = "extra_format"
         const val EXTRA_MAC = "extra_mac"
     }
-}
+}                          
