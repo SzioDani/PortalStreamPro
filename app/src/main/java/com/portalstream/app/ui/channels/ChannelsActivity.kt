@@ -2,6 +2,7 @@ package com.portalstream.app.ui.channels
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -28,11 +29,12 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -108,10 +110,11 @@ class ChannelsActivity : ComponentActivity() {
                 val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
                 val scope = rememberCoroutineScope()
 
-                var selectedGroup by remember { mutableStateOf<String?>(null) }
-                var searchQuery by remember { mutableStateOf("") }
-                var showOnlyFavorites by remember { mutableStateOf(false) }
-                var showOnlyEpg by remember { mutableStateOf(false) }
+                // 🔄 Stati salvati con rememberSaveable per persistere alla rotazione dello schermo
+                var selectedGroup by rememberSaveable { mutableStateOf<String?>(null) }
+                var searchQuery by rememberSaveable { mutableStateOf("") }
+                var showOnlyFavorites by rememberSaveable { mutableStateOf(false) }
+                var showOnlyEpg by rememberSaveable { mutableStateOf(false) }
 
                 var showSettingsDialog by remember { mutableStateOf(false) }
                 var channelForDetails by remember { mutableStateOf<Channel?>(null) }
@@ -413,18 +416,18 @@ class ChannelsActivity : ComponentActivity() {
                                 OutlinedTextField(
                                     value = groupSearchQuery,
                                     onValueChange = { groupSearchQuery = it },
-                                    modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
-                                    placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodyMedium) },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp).padding(bottom = 8.dp),
+                                    placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodySmall) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                     trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
-                                            IconButton(onClick = { groupSearchQuery = "" }) {
-                                                Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(20.dp))
+                                            IconButton(onClick = { groupSearchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(16.dp))
                                             }
                                         }
                                     },
                                     singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodyMedium
+                                    textStyle = MaterialTheme.typography.bodySmall
                                 )
 
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
@@ -433,10 +436,10 @@ class ChannelsActivity : ComponentActivity() {
                                     baseList.sortedWith(compareByDescending<String> { favoriteGroups.contains(it) }.thenBy { it })
                                 }
 
-                                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)) {
                                     item {
                                         ListItem(
-                                            headlineContent = { Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyLarge) },
+                                            headlineContent = { Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyMedium) },
                                             modifier = Modifier.clickable {
                                                 selectedGroup = null
                                                 showOnlyFavorites = false
@@ -449,17 +452,18 @@ class ChannelsActivity : ComponentActivity() {
                                     items(filteredGroups) { group ->
                                         val isFavGroup = favoriteGroups.contains(group)
                                         ListItem(
-                                            headlineContent = { Text(group.ifBlank { "Generale" }) },
+                                            headlineContent = { Text(group.ifBlank { "Generale" }, style = MaterialTheme.typography.bodyMedium) },
                                             trailingContent = {
                                                 IconButton(onClick = {
                                                     val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
                                                     favoriteGroups = newFavs
                                                     prefs.edit().putStringSet("favorite_groups", newFavs).apply()
-                                                }) {
+                                                }, modifier = Modifier.size(24.dp)) {
                                                     Icon(
                                                         imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                                         contentDescription = null,
-                                                        tint = if (isFavGroup) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        tint = if (isFavGroup) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(18.dp)
                                                     )
                                                 }
                                             },
@@ -481,6 +485,9 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 Surface(modifier = Modifier.fillMaxSize()) {
+                    val configuration = LocalConfiguration.current
+                    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
                     if (isLoading && allChannels.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -490,43 +497,63 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp, vertical = if (isLandscape) 8.dp else 16.dp)
+                        ) {
+                            // 🔤 Intestazione più piccola e compatta
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = if (isLandscape) 4.dp else 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = title,
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
                                     fontWeight = FontWeight.Bold
                                 )
-                                IconButton(onClick = { showSettingsDialog = true }) {
-                                    Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = MaterialTheme.colorScheme.onSurface)
+                                IconButton(
+                                    onClick = { showSettingsDialog = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Settings,
+                                        contentDescription = "Impostazioni",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
 
+                            // 🔍 Barra di ricerca più stretta/bassa (altezza 44.dp)
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
-                                placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .padding(bottom = if (isLandscape) 4.dp else 8.dp),
+                                placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodySmall) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }) {
-                                            Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
                                         }
                                     }
                                 },
                                 singleLine = true,
-                                textStyle = MaterialTheme.typography.bodyMedium
+                                textStyle = MaterialTheme.typography.bodySmall
                             )
 
+                            // 🎛️ Bottoni / Filtri
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 12.dp),
+                                    .padding(bottom = if (isLandscape) 6.dp else 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -736,7 +763,6 @@ class ChannelsActivity : ComponentActivity() {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 🖼️ Usiamo logoUrl come definito in Channel.kt
                 if (!channel.logoUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = channel.logoUrl,
@@ -906,8 +932,7 @@ class ChannelsActivity : ComponentActivity() {
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         
                                         if (episodeInfo.isNotBlank()) {
@@ -940,15 +965,11 @@ class ChannelsActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                    
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    
                                     Text(
                                         text = timeRange,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
                                         color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
 
