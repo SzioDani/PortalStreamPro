@@ -228,7 +228,7 @@ class ChannelsActivity : ComponentActivity() {
                                 Log.d(TAG, "Canali del portale $portalIdentifier salvati correttamente.")
                                 try {
                                     val refreshedChannels = channelDao.getAllChannelsList()
-                                    val newEpgMap = epgRepository.getAllProgramsForChannels(refreshedChannels)
+                                    val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
                                     if (newEpgMap.isNotEmpty()) {
                                         withContext(Dispatchers.Main) {
                                             epgMap = newEpgMap
@@ -263,7 +263,7 @@ class ChannelsActivity : ComponentActivity() {
                     } else {
                         scope.launch(Dispatchers.IO) {
                             try {
-                                val newEpgMap = epgRepository.getAllProgramsForChannels(existing)
+                                val newEpgMap = epgRepository.getProgramsForChannels(existing)
                                 if (newEpgMap.isNotEmpty()) {
                                     withContext(Dispatchers.Main) { epgMap = newEpgMap }
                                 }
@@ -343,7 +343,7 @@ class ChannelsActivity : ComponentActivity() {
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali!", Toast.LENGTH_LONG).show()
                                                 val refreshedChannels = channelDao.getAllChannelsList()
-                                                val newEpgMap = epgRepository.getAllProgramsForChannels(refreshedChannels)
+                                                val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
                                                 if (newEpgMap.isNotEmpty()) {
                                                     epgMap = newEpgMap
                                                 }
@@ -660,7 +660,7 @@ class ChannelsActivity : ComponentActivity() {
                                 val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
                                 channelDao.insertChannel(updatedChannel)
                                 val refreshedChannels = channelDao.getAllChannelsList()
-                                val newEpgMap = epgRepository.getAllProgramsForChannels(refreshedChannels)
+                                val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
                                 withContext(Dispatchers.Main) {
                                     if (newEpgMap.isNotEmpty()) {
                                         epgMap = newEpgMap
