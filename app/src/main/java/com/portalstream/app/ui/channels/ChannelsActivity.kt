@@ -31,7 +31,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -40,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.data.epg.EpgProgram
@@ -131,7 +129,6 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                // Mappa per la vista standard (anteprima in corso) e mappa per la vista Guida TV completa
                 var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
                 var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
 
@@ -592,7 +589,7 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
-                                        val playAction = {
+                                        val playAction: () -> Unit = {
                                             loadingChannelId = channel.id
                                             scope.launch(Dispatchers.IO) {
                                                 try {
@@ -739,18 +736,6 @@ class ChannelsActivity : ComponentActivity() {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (channel.logo.isNotBlank()) {
-                    AsyncImage(
-                        model = channel.logo,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(logoSize.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = channel.name,
