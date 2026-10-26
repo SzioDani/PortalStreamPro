@@ -665,69 +665,59 @@ class ChannelsActivity : ComponentActivity() {
                                                 }
                                             )
                                         } else {
-                                            ChannelCard(
+                                            ChannelCard(     
                                                 channel = channel,
-                                                epgInfo = epgMap[channel.id] ?: EpgInfo(),
-                                                isFavorite = favoriteIds.contains(channel.id),
-                                                isLoading = loadingChannelId == channel.id,
-                                                channelTextSize = channelTextSize,
-                                                logoSize = logoSize,
-                                                onFavoriteToggle = {
-                                                    val newFavs = if (favoriteIds.contains(channel.id)) favoriteIds - channel.id else favoriteIds + channel.id
-                                                    favoriteIds = newFavs
-                                                    prefs.edit().putStringSet("favorite_ids", newFavs).apply()
-                                                },
+                                                epgPrograms = epgMap[channel.id] ?: emptyList(),
+                                                epgTextSize = channelTextSize, // oppure la variabile che usi per la dimensione testo
                                                 onPlayClick = {
-                                                    loadingChannelId = channel.id
-                                                    scope.launch(Dispatchers.IO) {
-                                                        try {
-                                                            val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
-                                                            val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
+                                                loadingChannelId = channel.id
+                                                scope.launch(Dispatchers.IO) {
+                                                try {    
+                                                    val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                    val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
 
-                                                            val playUrl = when {
-                                                                isStalker || macAddress.isNotBlank() -> {
-                                                                    val portalServer = if (server.isNotBlank()) server else portalUrl
-                                                                    val portalDraft = Portal(
-                                                                        id = 0, server = portalServer, macAddress = macAddress,
-                                                                        useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                                                    )
-                                                                    StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
-                                                                }
-                                                                isXtream -> {
-                                                                    if (channel.url.startsWith("http")) channel.url
-                                                                    else {
-                                                                        val cleanServer = server.trimEnd('/')
-                                                                        val cleanFormat = if (format.isBlank()) "m3u8" else format
-                                                                        val rawId = extractRawId(channel.id)
-                                                                        "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
-                                                                    }
-                                                                }
-                                                                else -> channel.url
-                                                            }
-
-                                                            withContext(Dispatchers.Main) {
-                                                                val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
-                                                                val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                                                    putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
-                                                                    putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                                    putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
-                                                                }
-                                                                startActivity(intent)
-                                                            }
-                                                        } catch (e: Exception) {
-                                                            withContext(Dispatchers.Main) {
-                                                                Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                                                            }
-                                                        } finally {
-                                                            withContext(Dispatchers.Main) { loadingChannelId = null }
+                                                    val playUrl = when {                          
+                                                        isStalker || macAddress.isNotBlank() -> {
+                                                            val portalServer = if (server.isNotBlank()) server else portalUrl
+                                                            val portalDraft = Portal(
+                                                                id = 0, server = portalServer, macAddress = macAddress,
+                                                                useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                                            )
+                                                            StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
                                                         }
+                                                        isXtream -> {
+                                                            if (channel.url.startsWith("http")) channel.url
+                                                            else {
+                                                                val cleanServer = server.trimEnd('/')
+                                                                val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                val rawId = extractRawId(channel.id)
+                                                                "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
+                                                             }
+                                                         }
+                                                         else -> channel.url
                                                     }
-                                                },
-                                                onLongClick = {
-                                                    channelForDetails = channel
-                                                }
-                                            )
-                                        }
+                                                    withContext(Dispatchers.Main) {
+                                                        val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                        val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                            putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                            putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                        }
+                                                        startActivity(intent)
+                                                    }
+                                                 } catch (e: Exception) {
+                                                     withContext(Dispatchers.Main) {
+                                                         Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                     }
+                                                  } finally {
+                                                      withContext(Dispatchers.Main) { loadingChannelId = null }
+                                                  }
+                                                }  
+                                             },
+                                             onLongClick = {
+                                                 channelForDetails = channel
+                                             }
+                                         )                                        
                                     }
                                 }
                             }
