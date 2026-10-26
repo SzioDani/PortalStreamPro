@@ -610,7 +610,7 @@ class ChannelsActivity : ComponentActivity() {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
                                         if (showOnlyEpg) {
-                                            EpgChannelCard(
+                                            ChannelCard(
                                                 channel = channel,
                                                 epgPrograms = epgRepository.getFullScheduleForChannel(channel),
                                                 epgTextSize = epgTextSize,
@@ -768,7 +768,7 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun EpgChannelCard(
+    private fun ChannelCard(
         channel: Channel,
         epgPrograms: List<EpgProgram>,
         epgTextSize: Float,
