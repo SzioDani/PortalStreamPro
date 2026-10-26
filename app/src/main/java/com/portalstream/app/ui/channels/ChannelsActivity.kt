@@ -31,6 +31,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.data.epg.EpgProgram
@@ -595,7 +597,6 @@ class ChannelsActivity : ComponentActivity() {
                                                 try {
                                                     val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
                                                     val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
-
                                                     val playUrl = when {
                                                         isStalker || macAddress.isNotBlank() -> {
                                                             val portalServer = if (server.isNotBlank()) server else portalUrl
@@ -637,7 +638,6 @@ class ChannelsActivity : ComponentActivity() {
                                         }
 
                                         if (showOnlyEpg) {
-                                            // 📺 VISTA GUIDA TV COMPLETA (Attivata solo premendo il filtro "Guida TV" in alto)
                                             ChannelCard(
                                                 channel = channel,
                                                 epgPrograms = epgProgramsMap[channel.id] ?: emptyList(),
@@ -648,7 +648,6 @@ class ChannelsActivity : ComponentActivity() {
                                                 }
                                             )
                                         } else {
-                                            // 📋 VISTA LISTA CANALI STANDARD (Grafica pulita come in 73293.jpg)
                                             StandardChannelCard(
                                                 channel = channel,
                                                 epgInfo = epgInfoMap[channel.id],
@@ -707,7 +706,6 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
-    @Composable
     private fun StandardChannelCard(
         channel: Channel,
         epgInfo: EpgInfo?,
@@ -737,7 +735,6 @@ class ChannelsActivity : ComponentActivity() {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 🖼️ Reintegriamo il logo del canale come in 73293.jpg
                 if (channel.logo.isNotBlank()) {
                     AsyncImage(
                         model = channel.logo,
@@ -901,7 +898,6 @@ class ChannelsActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        // 👈 TITOLO CON WEIGHT E ELLIPSIS PER EVITARE SOVRAPPOSIZIONI
                                         Text(
                                             text = mainTitle,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
@@ -1154,4 +1150,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
-                              
