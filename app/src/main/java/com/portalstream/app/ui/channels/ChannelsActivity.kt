@@ -31,6 +31,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.data.epg.EpgProgram
@@ -55,7 +57,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import org.json.JSONObject
 import java.io.File
 import java.net.URL
 import java.time.format.DateTimeFormatter
@@ -130,9 +131,9 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                var epgMap by remember {
-                    mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap())
-                }
+                // Mappa per la vista standard (anteprima in corso) e mappa per la vista Guida TV completa
+                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
+                var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
 
                 val allGroups = remember(allChannels) {
                     allChannels.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
@@ -228,11 +229,11 @@ class ChannelsActivity : ComponentActivity() {
                                 Log.d(TAG, "Canali del portale $portalIdentifier salvati correttamente.")
                                 try {
                                     val refreshedChannels = channelDao.getAllChannelsList()
-                                    val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
-                                    if (newEpgMap.isNotEmpty()) {
-                                        withContext(Dispatchers.Main) {
-                                            epgMap = newEpgMap
-                                        }
+                                    val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels)
+                                    val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels)
+                                    withContext(Dispatchers.Main) {
+                                        if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
+                                        if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                     }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Errore caricamento EPG", e)
@@ -263,9 +264,11 @@ class ChannelsActivity : ComponentActivity() {
                     } else {
                         scope.launch(Dispatchers.IO) {
                             try {
-                                val newEpgMap = epgRepository.getProgramsForChannels(existing)
-                                if (newEpgMap.isNotEmpty()) {
-                                    withContext(Dispatchers.Main) { epgMap = newEpgMap }
+                                val newInfoMap = epgRepository.getAllCurrentEpg(existing)
+                                val newProgramsMap = epgRepository.getProgramsForChannels(existing)
+                                withContext(Dispatchers.Main) {
+                                    if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
+                                    if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                 }
                             } catch (_: Exception) {}
                         }
@@ -343,10 +346,10 @@ class ChannelsActivity : ComponentActivity() {
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali!", Toast.LENGTH_LONG).show()
                                                 val refreshedChannels = channelDao.getAllChannelsList()
-                                                val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
-                                                if (newEpgMap.isNotEmpty()) {
-                                                    epgMap = newEpgMap
-                                                }
+                                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels)
+                                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels)
+                                                if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
+                                                if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                             }
                                         }
                                     },
@@ -589,60 +592,84 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
-                                        ChannelCard(
-                                            channel = channel,
-                                            epgPrograms = epgMap[channel.id] ?: emptyList(),
-                                            epgTextSize = epgTextSize,
-                                            onPlayClick = {
-                                                loadingChannelId = channel.id
-                                                scope.launch(Dispatchers.IO) {
-                                                    try {
-                                                        val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
-                                                        val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
+                                        val playAction = {
+                                            loadingChannelId = channel.id
+                                            scope.launch(Dispatchers.IO) {
+                                                try {
+                                                    val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
+                                                    val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
 
-                                                        val playUrl = when {
-                                                            isStalker || macAddress.isNotBlank() -> {
-                                                                val portalServer = if (server.isNotBlank()) server else portalUrl
-                                                                val portalDraft = Portal(
-                                                                    id = 0, server = portalServer, macAddress = macAddress,
-                                                                    useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                                                )
-                                                                StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
-                                                            }                
-                                                            isXtream -> {
-                                                                if (channel.url.startsWith("http")) channel.url
-                                                                else {
-                                                                    val cleanServer = server.trimEnd('/')
-                                                                    val cleanFormat = if (format.isBlank()) "m3u8" else format
-                                                                    val rawId = extractRawId(channel.id)
-                                                                    "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
-                                                                }
+                                                    val playUrl = when {
+                                                        isStalker || macAddress.isNotBlank() -> {
+                                                            val portalServer = if (server.isNotBlank()) server else portalUrl
+                                                            val portalDraft = Portal(
+                                                                id = 0, server = portalServer, macAddress = macAddress,
+                                                                useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                                            )
+                                                            StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
+                                                        }                
+                                                        isXtream -> {
+                                                            if (channel.url.startsWith("http")) channel.url
+                                                            else {
+                                                                val cleanServer = server.trimEnd('/')
+                                                                val cleanFormat = if (format.isBlank()) "m3u8" else format
+                                                                val rawId = extractRawId(channel.id)
+                                                                "$cleanServer/live/${username}/${password}/${rawId}.$cleanFormat"
                                                             }
-                                                            else -> channel.url
                                                         }
-
-                                                        withContext(Dispatchers.Main) {
-                                                            val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
-                                                            val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
-                                                                putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
-                                                                putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
-                                                                putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
-                                                            }
-                                                            startActivity(intent)
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        withContext(Dispatchers.Main) {
-                                                            Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    } finally {
-                                                        withContext(Dispatchers.Main) { loadingChannelId = null }
+                                                        else -> channel.url
                                                     }
+
+                                                    withContext(Dispatchers.Main) {
+                                                        val finalUserAgent = if (userAgent.isNullOrBlank()) "MAG250" else userAgent
+                                                        val intent = Intent(this@ChannelsActivity, PlayerActivity::class.java).apply {
+                                                            putExtra(PlayerActivity.EXTRA_STREAM_URL, playUrl)
+                                                            putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
+                                                            putExtra(PlayerActivity.EXTRA_USER_AGENT, finalUserAgent)
+                                                        }
+                                                        startActivity(intent)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    withContext(Dispatchers.Main) {
+                                                        Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } finally {
+                                                    withContext(Dispatchers.Main) { loadingChannelId = null }
                                                 }
-                                            },
-                                            onLongClick = {
-                                                channelForDetails = channel
                                             }
-                                        )
+                                        }
+
+                                        if (showOnlyEpg) {
+                                            // 📺 VISTA GUIDA TV COMPLETA (Attivata solo premendo il filtro "Guida TV" in alto)
+                                            ChannelCard(
+                                                channel = channel,
+                                                epgPrograms = epgProgramsMap[channel.id] ?: emptyList(),
+                                                epgTextSize = epgTextSize,
+                                                onPlayClick = playAction,
+                                                onLongClick = {
+                                                    channelForDetails = channel
+                                                }
+                                            )
+                                        } else {
+                                            // 📋 VISTA LISTA CANALI STANDARD (Grafica pulita come in 73293.jpg)
+                                            StandardChannelCard(
+                                                channel = channel,
+                                                epgInfo = epgInfoMap[channel.id],
+                                                isFavorite = favoriteIds.contains(channel.id),
+                                                isLoading = loadingChannelId == channel.id,
+                                                channelTextSize = channelTextSize,
+                                                logoSize = logoSize,
+                                                onFavoriteToggle = {
+                                                    val newFavs = if (favoriteIds.contains(channel.id)) favoriteIds - channel.id else favoriteIds + channel.id
+                                                    favoriteIds = newFavs
+                                                    prefs.edit().putStringSet("favorite_ids", newFavs).apply()
+                                                },
+                                                onPlayClick = playAction,
+                                                onLongClick = {
+                                                    channelForDetails = channel
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -660,11 +687,11 @@ class ChannelsActivity : ComponentActivity() {
                                 val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
                                 channelDao.insertChannel(updatedChannel)
                                 val refreshedChannels = channelDao.getAllChannelsList()
-                                val newEpgMap = epgRepository.getProgramsForChannels(refreshedChannels)
+                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels)
+                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels)
                                 withContext(Dispatchers.Main) {
-                                    if (newEpgMap.isNotEmpty()) {
-                                        epgMap = newEpgMap
-                                    }
+                                    if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
+                                    if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                 }
                             }
                         }
@@ -679,6 +706,109 @@ class ChannelsActivity : ComponentActivity() {
         val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
         if (epgCacheFile.exists()) {
             epgCacheFile.delete()
+        }
+    }
+
+    @Composable
+    private fun StandardChannelCard(
+        channel: Channel,
+        epgInfo: EpgInfo?,
+        isFavorite: Boolean,
+        isLoading: Boolean,
+        channelTextSize: Float,
+        logoSize: Int,
+        onFavoriteToggle: () -> Unit,
+        onPlayClick: () -> Unit,
+        onLongClick: () -> Unit
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .combinedClickable(
+                    onClick = onPlayClick,
+                    onLongClick = onLongClick
+                ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (channel.logo.isNotBlank()) {
+                    AsyncImage(
+                        model = channel.logo,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(logoSize.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = (channelTextSize + 1f).sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    Spacer(modifier = Modifier.height(2.dp))
+                    
+                    Text(
+                        text = channel.group.ifBlank { "Altro" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "▶ ${epgInfo.currentProgram}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (epgInfo.timeRange.isNotBlank()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = epgInfo.timeRange,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    IconButton(onClick = onFavoriteToggle) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = null,
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -997,7 +1127,7 @@ class ChannelsActivity : ComponentActivity() {
             }
         )
     }
-        
+
     private fun isValidUrl(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         return url.startsWith("http://") || url.startsWith("https://")
