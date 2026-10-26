@@ -707,6 +707,7 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
+    @Composable
     private fun StandardChannelCard(
         channel: Channel,
         epgInfo: EpgInfo?,
@@ -736,6 +737,19 @@ class ChannelsActivity : ComponentActivity() {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 🖼️ Reintegriamo il logo del canale come in 73293.jpg
+                if (channel.logo.isNotBlank()) {
+                    AsyncImage(
+                        model = channel.logo,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(logoSize.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = channel.name,
@@ -887,13 +901,15 @@ class ChannelsActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f)
                                     ) {
+                                        // 👈 TITOLO CON WEIGHT E ELLIPSIS PER EVITARE SOVRAPPOSIZIONI
                                         Text(
                                             text = mainTitle,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         
                                         if (episodeInfo.isNotBlank()) {
@@ -926,11 +942,15 @@ class ChannelsActivity : ComponentActivity() {
                                             }
                                         }
                                     }
+                                    
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    
                                     Text(
                                         text = timeRange,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
                                         color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
                                     )
                                 }
 
@@ -1134,3 +1154,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+                              
