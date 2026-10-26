@@ -597,6 +597,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 try {
                                                     val isStalker = portalType.equals("STALKER", true) || portalType.equals("MAG", true)
                                                     val isXtream = portalType.equals("XTREAM", true) || portalType.equals("XSTREAM", true)
+
                                                     val playUrl = when {
                                                         isStalker || macAddress.isNotBlank() -> {
                                                             val portalServer = if (server.isNotBlank()) server else portalUrl
@@ -735,9 +736,10 @@ class ChannelsActivity : ComponentActivity() {
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (channel.logo.isNotBlank()) {
+                // 🖼️ Usiamo logoUrl come definito in Channel.kt
+                if (!channel.logoUrl.isNullOrBlank()) {
                     AsyncImage(
-                        model = channel.logo,
+                        model = channel.logoUrl,
                         contentDescription = null,
                         modifier = Modifier
                             .size(logoSize.dp)
