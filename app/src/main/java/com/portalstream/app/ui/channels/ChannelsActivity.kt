@@ -768,109 +768,170 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ChannelCard(
+    private fun EpgChannelCard(
         channel: Channel,
-        epgInfo: EpgInfo,
-        isFavorite: Boolean,
-        isLoading: Boolean,
-        channelTextSize: Float,
-        logoSize: Int,
-        onFavoriteToggle: () -> Unit,
+        epgPrograms: List<EpgProgram>,
+        epgTextSize: Float,
         onPlayClick: () -> Unit,
         onLongClick: () -> Unit
     ) {
+        val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+        val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
+        
+        // 🔍 Stato per tracciare quale programma è attualmente espanso
+        var expandedProgramKey by remember { mutableStateOf<String?>(null) }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 6.dp)
                 .combinedClickable(
-                    enabled = !isLoading,
-                    onClick = onPlayClick,
-                    onLongClick = onLongClick
+                    onClick = onPlayClick, // Cliccando sull'intestazione della card avvia il canale
+                    onLongClick = onLongClick // Pressione prolungata per aprire le info / ID EPG
                 ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.size(logoSize.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (!channel.logoUrl.isNullOrBlank() && isValidUrl(channel.logoUrl)) {
-                        AsyncImage(model = channel.logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                    } else {
-                        Text(text = "📺", style = MaterialTheme.typography.titleMedium)
-                    }
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = (epgTextSize + 2f).sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "▶ Avvia",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = channel.name, style = MaterialTheme.typography.bodyLarge.copy(fontSize = channelTextSize.sp), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    
-                    if (channel.group.isNotBlank()) {
-                        Text(text = channel.group, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                if (epgPrograms.isEmpty()) {
+                    Text(
+                        text = "Nessun palinsesto caricato per oggi.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = epgTextSize.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        epgPrograms.forEach { prog ->
+                            val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+                            
+                            val mainTitle = prog.title
+                            val subTitle = prog.subTitle ?: "" 
+                            val episodeInfo = prog.episodeNum ?: ""
+                            
+                            // Chiave unica per identificare il programma
+                            val progKey = "${prog.title}_${prog.startTime}"
+                            val isExpanded = expandedProgramKey == progKey
 
-                    if (epgInfo.currentProgram.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "▶ ${epgInfo.currentProgram}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (epgInfo.timeRange.isNotBlank()) {
-                                Text(
-                                    text = epgInfo.timeRange,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        color = if (isCurrent) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) 
+                                        else
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                    )
+                                    .clickable {
+                                        // 👆 Cliccando sul singolo programma, espande o comprime la descrizione
+                                        expandedProgramKey = if (isExpanded) null else progKey
+                                    }
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = mainTitle,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        
+                                        if (episodeInfo.isNotBlank()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = " $episodeInfo ",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        if (isCurrent) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = " IN CORSO ",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = timeRange,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                if (subTitle.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "• $subTitle",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 1f).sp),
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                if (!prog.description.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = prog.description.replace("\\t", " "),
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 2f).sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        // 📄 Se è espanso mostra tutto, altrimenti tronca a 3 righe
+                                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                                        overflow = if (isExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        LinearProgressIndicator(
-                            progress = { epgInfo.progress },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-
-                        if (epgInfo.nextProgram.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = "⏭ Dopo: ${epgInfo.nextProgram}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(40.dp)) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = null,
-                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }
