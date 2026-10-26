@@ -42,7 +42,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
@@ -417,18 +416,40 @@ class ChannelsActivity : ComponentActivity() {
                                 OutlinedTextField(
                                     value = groupSearchQuery,
                                     onValueChange = { groupSearchQuery = it },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp).padding(bottom = 8.dp),
-                                    placeholder = { Text("Cerca categoria...", style = MaterialTheme.typography.bodySmall) },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp)
+                                        .padding(bottom = 8.dp),
+                                    placeholder = { 
+                                        Text(
+                                            "Cerca categoria...", 
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
+                                        ) 
+                                    },
+                                    leadingIcon = { 
+                                        Icon(
+                                            Icons.Default.Search, 
+                                            contentDescription = null, 
+                                            modifier = Modifier.size(18.dp)
+                                        ) 
+                                    },
                                     trailingIcon = {
                                         if (groupSearchQuery.isNotEmpty()) {
-                                            IconButton(onClick = { groupSearchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                                Icon(Icons.Default.Clear, contentDescription = "Cancella", modifier = Modifier.size(16.dp))
+                                            IconButton(
+                                                onClick = { groupSearchQuery = "" }, 
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Clear, 
+                                                    contentDescription = "Cancella", 
+                                                    modifier = Modifier.size(16.dp)
+                                                )
                                             }
                                         }
                                     },
                                     singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodySmall
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                                 )
 
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
@@ -529,7 +550,7 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // 🔍 Barra di ricerca più stretta/bassa (altezza 44.dp)
+                            // 🔍 Barra di ricerca principale ottimizzata e compatta
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -537,17 +558,36 @@ class ChannelsActivity : ComponentActivity() {
                                     .fillMaxWidth()
                                     .height(44.dp)
                                     .padding(bottom = if (isLandscape) 4.dp else 8.dp),
-                                placeholder = { Text("Cerca canale...", style = MaterialTheme.typography.bodySmall) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                placeholder = { 
+                                    Text(
+                                        "Cerca canale...", 
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
+                                    ) 
+                                },
+                                leadingIcon = { 
+                                    Icon(
+                                        Icons.Default.Search, 
+                                        contentDescription = null, 
+                                        modifier = Modifier.size(18.dp)
+                                    ) 
+                                },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        IconButton(
+                                            onClick = { searchQuery = "" }, 
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear, 
+                                                contentDescription = null, 
+                                                modifier = Modifier.size(16.dp)
+                                            )
                                         }
                                     }
                                 },
                                 singleLine = true,
-                                textStyle = MaterialTheme.typography.bodySmall
+                                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                             )
 
                             // 🎛️ Bottoni / Filtri
