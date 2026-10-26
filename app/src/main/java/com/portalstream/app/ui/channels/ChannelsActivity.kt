@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -414,43 +415,66 @@ class ChannelsActivity : ComponentActivity() {
                         title = { Text("Seleziona Gruppo") },
                         text = {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                OutlinedTextField(
-                                    value = groupSearchQuery,
-                                    onValueChange = { groupSearchQuery = it },
+                                // 🔍 Barra di ricerca gruppi  (dentro il Dialog)
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(44.dp)
                                         .padding(bottom = 8.dp),
-                                    placeholder = { 
-                                        Text(
-                                            "Cerca categoria...", 
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
-                                        ) 
-                                    },
-                                    leadingIcon = { 
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Icon(
-                                            Icons.Default.Search, 
-                                            contentDescription = null, 
-                                            modifier = Modifier.size(18.dp)
-                                        ) 
-                                    },
-                                    trailingIcon = {
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier.weight(1f),
+                                            contentAlignment = Alignment.CenterStart
+                                        ) {
+                                            if (groupSearchQuery.isEmpty()) {
+                                                Text(
+                                                    text = "Cerca categoria...",
+                                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                            BasicTextField(
+                                                value = groupSearchQuery,
+                                                onValueChange = { groupSearchQuery = it },
+                                                singleLine = true,
+                                                textStyle = MaterialTheme.typography.bodySmall.copy(
+                                                    fontSize = 13.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
                                         if (groupSearchQuery.isNotEmpty()) {
                                             IconButton(
-                                                onClick = { groupSearchQuery = "" }, 
+                                                onClick = { groupSearchQuery = "" },
                                                 modifier = Modifier.size(24.dp)
                                             ) {
                                                 Icon(
-                                                    Icons.Default.Clear, 
-                                                    contentDescription = "Cancella", 
-                                                    modifier = Modifier.size(16.dp)
+                                                    imageVector = Icons.Default.Clear,
+                                                    contentDescription = "Cancella",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
-                                    },
-                                    singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
-                                )
+                                    }
+                                }
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
                                     else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
@@ -550,43 +574,65 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             // 🔍 Barra di ricerca principale ottimizzata e compatta
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                            Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(44.dp)
                                     .padding(bottom = if (isLandscape) 4.dp else 8.dp),
-                                placeholder = { 
-                                    Text(
-                                        "Cerca canale...", 
-                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
-                                    ) 
-                                },
-                                leadingIcon = { 
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
-                                        Icons.Default.Search, 
-                                        contentDescription = null, 
-                                        modifier = Modifier.size(18.dp)
-                                    ) 
-                                },
-                                trailingIcon = {
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier.weight(1f),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                text = "Cerca canale...",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                        BasicTextField(
+                                            value = searchQuery,
+                                            onValueChange = { searchQuery = it },
+                                            singleLine = true,
+                                            textStyle = MaterialTheme.typography.bodySmall.copy(
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(
-                                            onClick = { searchQuery = "" }, 
+                                            onClick = { searchQuery = "" },
                                             modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(
-                                                Icons.Default.Clear, 
-                                                contentDescription = null, 
-                                                modifier = Modifier.size(16.dp)
+                                                imageVector = Icons.Default.Clear,
+                                                contentDescription = "Cancella",
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
-                                },
-                                singleLine = true,
-                                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
-                            )
+                                }
+                            }
 
                             // 🎛️ Bottoni / Filtri
                             Row(
@@ -919,6 +965,7 @@ class ChannelsActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                 if (epgPrograms.isEmpty()) {
@@ -931,7 +978,8 @@ class ChannelsActivity : ComponentActivity() {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
                             val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
-                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"    
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+                            
                             val mainTitle = prog.title
                             val subTitle = prog.subTitle ?: "" 
                             val episodeInfo = prog.episodeNum ?: ""
@@ -1213,4 +1261,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_FORMAT = "extra_format"
         const val EXTRA_MAC = "extra_mac"
     }
-}                          
+}
