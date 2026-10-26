@@ -665,7 +665,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 }
                                             )
                                         } else {
-                                            ChannelCard(
+                                            EpgChannelCard(
                                                 channel = channel,
                                                 epgInfo = epgMap[channel.id] ?: EpgInfo(),
                                                 isFavorite = favoriteIds.contains(channel.id),
@@ -768,7 +768,7 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ChannelCard(
+    private fun EpgChannelCard(
         channel: Channel,
         epgPrograms: List<EpgProgram>,
         epgTextSize: Float,
