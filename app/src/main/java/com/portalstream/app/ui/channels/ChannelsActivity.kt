@@ -449,8 +449,7 @@ class ChannelsActivity : ComponentActivity() {
                                         }
                                     },
                                     singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
                                 )
                                 val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
                                     val baseList = if (groupSearchQuery.isBlank()) allGroups
@@ -586,8 +585,7 @@ class ChannelsActivity : ComponentActivity() {
                                     }
                                 },
                                 singleLine = true,
-                                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
                             )
 
                             // 🎛️ Bottoni / Filtri
