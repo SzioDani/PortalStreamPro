@@ -62,33 +62,60 @@ class EpgChannelMapper {
     }
 
     /**
-     * Metodo di controllo diagnostico: stampa log puliti per capire cosa legge l'M3U vs XML
+     * Cerca il miglior riscontro filtrando rigorosamente per nazionalità a monte.
      */
-    fun findBestMatch(channel: Channel): EpgChannelMapping? {
+    fun findBestMatch(channel: Channel, countryCode: String = "IT"): EpgChannelMapping? {
         if (allMappings.isEmpty()) {
-            Log.w(TAG, "⚠️ [DIAG] Nessuna mappatura XML disponibile.")
+            Log.w(TAG, "⚠️ [DIAG] Nessuna mappatura XML disponibile per '${channel.name}'.")
             return null
         }
 
-        // 1. Controllo ID Diretto
+        val targetCountry = countryCode.lowercase()
+        Log.d(TAG, "🌍 [Filtro Nazione] Applicazione filtro per '$targetCountry' sul canale '${channel.name}' (Gruppo: '${channel.group}')")
+
+        // 1. Filtriamo a monte i mapping EPG mantenendo SOLO quelli della nazione scelta
+        val nationalMappings = allMappings.filter { mapping ->
+            val idLower = mapping.siteId.lowercase()
+            idLower.contains(".$targetCountry") || 
+            idLower.contains("_${targetCountry}") || 
+            idLower.startsWith("$targetCountry") ||
+            idLower.contains("/$targetCountry")
+        }
+
+        Log.d(TAG, "📊 Trovati ${nationalMappings.size} canali EPG per la nazione [$countryCode] su un totale di ${allMappings.size}")
+
+        // 2. Controllo ID Diretto tra quelli filtrati per nazione
         val directTvgId = channel.tvgId.ifBlank { channel.customSid }
         if (directTvgId.isNotBlank()) {
-            val match = allMappings.find { it.siteId.equals(directTvgId, ignoreCase = true) }
+            val match = nationalMappings.find { it.siteId.equals(directTvgId, ignoreCase = true) }
             if (match != null) {
-                Log.d(TAG, "✅ [ID Diretto] OK: '${channel.name}' -> ${match.siteId}")
+                Log.d(TAG, "✅ [ID Diretto - Nazione $countryCode] OK: '${channel.name}' -> ${match.siteId}")
                 return match
             } else {
-                Log.w(TAG, "❌ [ID Diretto] FALLITO: Il canale '${channel.name}' ha ID '${directTvgId}' ma non esiste nell'XML.")
+                Log.w(TAG, "❌ [ID Diretto] L'ID '$directTvgId' del canale '${channel.name}' non rientra tra i canali della nazione [$countryCode].")
             }
+        }
+
+        // 3. Ricerca per nome ESCLUSIVAMENTE tra i canali della nazione selezionata
+        val cleanChannelName = channel.name
+            .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT)\\b"), "")
+            .replace(Regex("[^a-zA-Z0-9]"), "")
+            .lowercase()
+
+        Log.v(TAG, "🔍 Ricerca nome pulito '${cleanChannelName}' tra i canali [$countryCode]...")
+
+        val nameMatch = nationalMappings.find { mapping ->
+            val cleanMapName = mapping.name
+                .replace(Regex("[^a-zA-Z0-9]"), "")
+                .lowercase()
+            cleanMapName == cleanChannelName
+        }
+
+        if (nameMatch != null) {
+            Log.d(TAG, "🎯 [Match per Nome - Nazione $countryCode] Trovato: '${channel.name}' -> SiteId: ${nameMatch.siteId} (Nome XML: '${nameMatch.name}')")
+            return nameMatch
         } else {
-            // Se non ha un ID, loggiamo in modo pulito il nome del canale M3U che sta fallendo l'associazione
-            Log.w(TAG, "🔍 [Senza ID] Canale M3U senza tvg-id: '${channel.name}' (Gruppo: '${channel.group}')")
-            
-            // Verifichiamo se per caso esiste un canale nell'XML che ha lo stesso identico nome (senza filtri)
-            val exactNameMatch = allMappings.find { it.name.equals(channel.name, ignoreCase = true) }
-            if (exactNameMatch != null) {
-                Log.i(TAG, "💡 [Suggerimento] Trovato match esatto per nome nell'XML! '${channel.name}' -> SiteId: ${exactNameMatch.siteId}")
-            }
+            Log.w(TAG, "⚪ [Nessun Match] Impossibile trovare una corrispondenza per '${channel.name}' nella nazione [$countryCode]")
         }
 
         return null
