@@ -73,28 +73,29 @@ class EpgChannelMapper {
         val targetCountry = countryCode.lowercase()
         val countryUpper = countryCode.uppercase()
 
-        // 🚀 OPTIMIZATION GENERALE: Se il canale ha un prefisso di nazione esplicito (es. "PL|", "EN|", "GR|", "NL|") 
-        // e NON corrisponde alla nazione selezionata, lo scartiamo in 1 millisecondo!
-        val groupUpper = channel.group.uppercase()
-        val nameUpper = channel.name.uppercase()
+        val groupUpper = channel.group.uppercase().trim()
+        val nameUpper = channel.name.uppercase().trim()
 
-        // Estrae un eventuale prefisso di 2-3 lettere prima del pipe (es. "PL|", "EN|")
-        val prefixMatch = Regex("^[A-Z]{2,3}\\s*\\|").find(nameUpper)
-        if (prefixMatch != null) {
-            val channelCountryPrefix = prefixMatch.value.substringBefore("|").trim()
-            if (channelCountryPrefix != countryUpper && channelCountryPrefix != "IT") {
-                return null // Salta subito il canale estero non pertinente
-            }
+        // 🚀 OPTIMIZATION UNIVERSALE: 
+        // Controlla se il GRUPPO o il NOME iniziano con un prefisso di nazione (es. "ES|", "DE|", "PL|", "NL|") 
+        // o contengono identificatori di altre nazioni (es. ":MAX ES", "DE:", "VIAPLAY NL")
+        val groupPrefix = groupUpper.substringBefore("|").trim()
+        val namePrefix = nameUpper.substringBefore("|").trim()
+
+        // Se il gruppo o il nome hanno un prefisso di 2 lettere (es. "ES", "DE", "PL", "NL", "UK", "FR")
+        // e questo prefisso NON è "IT" (o la nazione target), scarta subito!
+        if (groupPrefix.length == 2 && groupPrefix != countryUpper) {
+            return null
+        }
+        if (namePrefix.length == 2 && namePrefix != countryUpper && nameUpper.contains("|")) {
+            return null
         }
 
-        // Controllo aggiuntivo per blocchi speciali o etichette estere nel nome/gruppo
+        // Ulteriore controllo per canali con tag interni o gruppi particolari
         if (targetCountry == "it") {
-            val isForeign = nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|") || nameUpper.startsWith("NL|") ||
-                            nameUpper.startsWith("PL|") || nameUpper.startsWith("FL|") || nameUpper.startsWith("GR|") ||
-                            nameUpper.startsWith("AL|") || nameUpper.startsWith("BG|") || nameUpper.startsWith("SR|") ||
-                            nameUpper.startsWith("EN|") || nameUpper.startsWith("BLUE|") || nameUpper.startsWith("DE|") ||
-                            nameUpper.startsWith("ES|") || nameUpper.startsWith("FR|") || nameUpper.startsWith("UK|") ||
-                            nameUpper.contains("TURKIYE") || nameUpper.contains("PUNJABI") || nameUpper.contains("VIAPLAY NL")
+            val isForeign = groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || 
+                            nameUpper.contains("VIAPLAY NL") || nameUpper.contains(":MAX ES") || 
+                            nameUpper.contains("| DE:") || nameUpper.contains("PUNJABI")
             if (isForeign) {
                 return null
             }
