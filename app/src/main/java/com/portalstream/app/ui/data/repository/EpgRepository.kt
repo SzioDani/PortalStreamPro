@@ -191,43 +191,42 @@ class EpgRepository(private val context: Context) {
      */
     suspend fun autoAssociateAllChannels(
         channelDao: com.portalstream.app.data.local.ChannelDao, 
-        countryCode: String = "it"
+        countryCode: String = "IT"
     ): Int = withContext(Dispatchers.Default) {
         var matchedCount = 0
         try {
-            Log.d(TAG, "🤖 [autoAssociateAllChannels] Avvio auto-associazione...")
+            Log.d(TAG, "🤖 [autoAssociateAllChannels] Avvio auto-associazione massiva per la nazione: [$countryCode]")
             
             if (cachedPrograms.isEmpty()) {
-                val result = downloader.downloadEpg(countryCode)
+                Log.d(TAG, "📥 Cache programmi vuota. Download EPG per [$countryCode] in corso...")
+                val result = downloader.downloadEpg(countryCode.lowercase())
                 result.getOrNull()?.let { xmlContent ->
                     cachedPrograms = parser.parseXmlTv(xmlContent, ZoneId.of("Europe/Rome"))
                     mapper.loadMappingsFromXml(xmlContent)
-                }
+                    Log.d(TAG, "✅ Download e parsing completati: ${cachedPrograms.size} programmi caricati.")
+                } ?: Log.e(TAG, "❌ Download EPG fallito per [$countryCode]")
             }
 
             val channels = channelDao.getAllChannelsList()
-            Log.d(TAG, "📋 [autoAssociateAllChannels] Canali letti dal DB: ${channels.size}")
+            Log.d(TAG, "📋 Canali letti dal database locale per l'associazione: ${channels.size}")
 
             if (channels.isNotEmpty() && cachedPrograms.isNotEmpty()) {
                 val updatedList = channels.map { channel ->
-                    val mapping = mapper.findBestMatch(channel)
+                    val mapping = mapper.findBestMatch(channel, countryCode)
                     if (mapping != null) {
                         matchedCount++
-                        Log.d(TAG, "🎯 [AutoAssocia] Trovato match per '${channel.name}' -> SiteId: '${mapping.siteId}'")
                         channel.copy(tvgId = mapping.siteId)
                     } else {
-                        Log.v(TAG, "⚪ [AutoAssocia] Nessun match per '${channel.name}'")
                         channel
                     }
                 }
                 channelDao.insertChannels(updatedList)
-                Log.d(TAG, "✅ Auto-associazione completata: aggiornati $matchedCount canali.")
+                Log.d(TAG, "✅ [AutoAssocia] Completato con successo! Aggiornati e salvati $matchedCount canali su ${channels.size}.")
             } else {
-                Log.w(TAG, "⚠️ [autoAssociateAllChannels] Saltato: canali DB o cache programmi vuoti.")
+                Log.w(TAG, "⚠️ [autoAssociateAllChannels] Saltato: la lista dei canali dal DB o la cache EPG sono vuote.")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Errore durante l'auto-associazione EPG massiva", e)
+            Log.e(TAG, "❌ Errore critico durante l'auto-associazione EPG massiva", e)
         }
         matchedCount
     }
-}
