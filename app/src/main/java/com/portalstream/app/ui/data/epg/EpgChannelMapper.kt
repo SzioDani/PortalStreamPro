@@ -71,6 +71,21 @@ class EpgChannelMapper {
         }
 
         val targetCountry = countryCode.lowercase()
+
+        // 🚀 OPTIMIZATION: Se stiamo cercando IT ma il canale/gruppo è esplicitamente di un'altra nazione, saltiamo subito
+        val groupUpper = channel.group.uppercase()
+        val nameUpper = channel.name.uppercase()
+        
+        if (targetCountry == "it") {
+            val isForeign = groupUpper.startsWith("TR|") || groupUpper.startsWith("ID|") || 
+                            groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") ||
+                            nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|")
+            if (isForeign) {
+                // Salta all'istante l'elaborazione dei canali palesemente non italiani
+                return null
+            }
+        }
+
         Log.d(TAG, "🌍 [Filtro Nazione] Applicazione filtro per '$targetCountry' sul canale '${channel.name}' (Gruppo: '${channel.group}')")
 
         // 1. Filtriamo a monte i mapping EPG mantenendo SOLO quelli della nazione scelta
@@ -97,8 +112,10 @@ class EpgChannelMapper {
         }
 
         // 3. Ricerca per nome ESCLUSIVAMENTE tra i canali della nazione selezionata
+        // 🧼 Pulizia profonda: rimuove prefissi di gruppo (es. "IT| ", "TR| "), marchi di risoluzione e caratteri speciali
         val cleanChannelName = channel.name
-            .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT)\\b"), "")
+            .replace(Regex("(?i)^[a-z0-9_#-]+\\s*\\|\\s*"), "") // Rimuove prefissi del tipo "IT| ", "VD| ", "TR| "
+            .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT|SD|RAW|1080P)\\b"), "")
             .replace(Regex("[^a-zA-Z0-9]"), "")
             .lowercase()
 
@@ -106,6 +123,7 @@ class EpgChannelMapper {
 
         val nameMatch = nationalMappings.find { mapping ->
             val cleanMapName = mapping.name
+                .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT|SD)\\b"), "")
                 .replace(Regex("[^a-zA-Z0-9]"), "")
                 .lowercase()
             cleanMapName == cleanChannelName
