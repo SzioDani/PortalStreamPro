@@ -41,9 +41,10 @@ class EpgRepository(private val context: Context) {
      */
     fun getFullScheduleForChannel(
         channel: Channel,
+        countryCode: String = "IT",
         timeZone: ZoneId = ZoneId.of("Europe/Rome")
     ): List<EpgProgram> {
-        val mapping = mapper.findBestMatch(channel)
+        val mapping = mapper.findBestMatch(channel, countryCode)
         val targetId = mapping?.siteId ?: channel.tvgId.ifBlank { return emptyList() }
 
         val cleanTargetId = targetId
@@ -78,7 +79,7 @@ class EpgRepository(private val context: Context) {
                 }
             }
             channels.forEach { channel ->
-                resultMap[channel.id] = getFullScheduleForChannel(channel, timeZone)
+                resultMap[channel.id] = getFullScheduleForChannel(channel, countryCode, timeZone)
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore in getProgramsForChannels", e)
@@ -93,10 +94,10 @@ class EpgRepository(private val context: Context) {
     ): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
         val resultMap = mutableMapOf<String, EpgInfo>()
         try {
-            Log.d(TAG, "📥 [getAllCurrentEpg] Avvio elaborazione per ${channels.size} canali.")
+            Log.d(TAG, "📥 [getAllCurrentEpg] Avvio elaborazione per ${channels.size} canali con nazione [$countryCode].")
             
             if (cachedPrograms.isEmpty()) {
-                Log.d(TAG, "Cache programmi vuota. Avvio download EPG...")
+                Log.d(TAG, "Cache programmi vuota. Avvio download EPG per [$countryCode]...")
                 val result = downloader.downloadEpg(countryCode)
                 result.getOrNull()?.let { xmlContent ->
                     // 1. Parsa i programmi TV passando correttamente il fuso orario
@@ -118,7 +119,7 @@ class EpgRepository(private val context: Context) {
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
             channels.forEach { channel ->
-                val mapping = mapper.findBestMatch(channel)
+                val mapping = mapper.findBestMatch(channel, countryCode)
                 val targetId = mapping?.siteId
 
                 if (targetId != null) {
@@ -142,7 +143,7 @@ class EpgRepository(private val context: Context) {
                     if (currentIndex != -1) {
                         val prog = channelProgs[currentIndex]
                         
-                        // 🏷️ Mostra anche l'episodio nel titolo "In Corso" se disponibile (es. The Last Ship (S2 E13))
+                        // 🏷️ Mostra anche l'episodio nel titolo "In Corso" se disponibile
                         var current = prog.title
                         if (!prog.episodeNum.isNullOrBlank()) {
                             current += " (${prog.episodeNum})"
@@ -230,3 +231,4 @@ class EpgRepository(private val context: Context) {
         }
         matchedCount
     }
+}
