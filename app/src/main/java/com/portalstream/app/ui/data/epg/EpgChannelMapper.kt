@@ -71,20 +71,31 @@ class EpgChannelMapper {
         }
 
         val targetCountry = countryCode.lowercase()
+        val countryUpper = countryCode.uppercase()
 
-        // 🚀 OPTIMIZATION: Se stiamo cercando IT ma il canale/gruppo è esplicitamente di un'altra nazione, saltiamo subito
+        // 🚀 OPTIMIZATION GENERALE: Se il canale ha un prefisso di nazione esplicito (es. "PL|", "EN|", "GR|", "NL|") 
+        // e NON corrisponde alla nazione selezionata, lo scartiamo in 1 millisecondo!
         val groupUpper = channel.group.uppercase()
         val nameUpper = channel.name.uppercase()
-        
+
+        // Estrae un eventuale prefisso di 2-3 lettere prima del pipe (es. "PL|", "EN|")
+        val prefixMatch = Regex("^[A-Z]{2,3}\\s*\\|").find(nameUpper)
+        if (prefixMatch != null) {
+            val channelCountryPrefix = prefixMatch.value.substringBefore("|").trim()
+            if (channelCountryPrefix != countryUpper && channelCountryPrefix != "IT") {
+                return null // Salta subito il canale estero non pertinente
+            }
+        }
+
+        // Controllo aggiuntivo per blocchi speciali o etichette estere nel nome/gruppo
         if (targetCountry == "it") {
-            val isForeign = groupUpper.startsWith("TR|") || groupUpper.startsWith("ID|") || groupUpper.startsWith("NL|") ||
-                            groupUpper.startsWith("DE|") || groupUpper.startsWith("ES|") || groupUpper.startsWith("FR|") ||
-                            groupUpper.startsWith("UK|") || groupUpper.startsWith("US|") ||
-                            groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || groupUpper.contains("VIAPLAY NL") ||
-                            nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|") || nameUpper.startsWith("NL|") ||
-                            nameUpper.contains("VIAPLAY NL")
+            val isForeign = nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|") || nameUpper.startsWith("NL|") ||
+                            nameUpper.startsWith("PL|") || nameUpper.startsWith("FL|") || nameUpper.startsWith("GR|") ||
+                            nameUpper.startsWith("AL|") || nameUpper.startsWith("BG|") || nameUpper.startsWith("SR|") ||
+                            nameUpper.startsWith("EN|") || nameUpper.startsWith("BLUE|") || nameUpper.startsWith("DE|") ||
+                            nameUpper.startsWith("ES|") || nameUpper.startsWith("FR|") || nameUpper.startsWith("UK|") ||
+                            nameUpper.contains("TURKIYE") || nameUpper.contains("PUNJABI") || nameUpper.contains("VIAPLAY NL")
             if (isForeign) {
-                // Salta all'istante l'elaborazione dei canali palesemente non italiani
                 return null
             }
         }
