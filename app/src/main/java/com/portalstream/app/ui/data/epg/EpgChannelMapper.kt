@@ -77,9 +77,12 @@ class EpgChannelMapper {
         val nameUpper = channel.name.uppercase()
         
         if (targetCountry == "it") {
-            val isForeign = groupUpper.startsWith("TR|") || groupUpper.startsWith("ID|") || 
-                            groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") ||
-                            nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|")
+            val isForeign = groupUpper.startsWith("TR|") || groupUpper.startsWith("ID|") || groupUpper.startsWith("NL|") ||
+                            groupUpper.startsWith("DE|") || groupUpper.startsWith("ES|") || groupUpper.startsWith("FR|") ||
+                            groupUpper.startsWith("UK|") || groupUpper.startsWith("US|") ||
+                            groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || groupUpper.contains("VIAPLAY NL") ||
+                            nameUpper.startsWith("TR|") || nameUpper.startsWith("VD|") || nameUpper.startsWith("NL|") ||
+                            nameUpper.contains("VIAPLAY NL")
             if (isForeign) {
                 // Salta all'istante l'elaborazione dei canali palesemente non italiani
                 return null
