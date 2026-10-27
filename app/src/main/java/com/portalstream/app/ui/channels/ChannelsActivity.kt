@@ -340,19 +340,48 @@ class ChannelsActivity : ComponentActivity() {
                                 Divider()
 
                                 Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                
+                                // 🌍 Selettore Nazionalità per il filtraggio a monte
+                                Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                
+                                var selectedCountry by remember { 
+                                    mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
+                                        val isSelected = selectedCountry.equals(country, ignoreCase = true)
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                selectedCountry = country
+                                                appPrefs.edit().putString("epg_country_filter", country).apply()
+                                            },
+                                            label = { Text(country, style = MaterialTheme.typography.labelMedium) },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
                                 Button(
                                     onClick = {
                                         showSettingsDialog = false
+                                        val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
                                         scope.launch(Dispatchers.IO) {
                                             withContext(Dispatchers.Main) {
-                                                Toast.makeText(this@ChannelsActivity, "⏳ Ricerca e associazione EPG in corso...", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(this@ChannelsActivity, "⏳ Ricerca EPG per [$countryToUse] in corso...", Toast.LENGTH_SHORT).show()
                                             }
-                                            val count = epgRepository.autoAssociateAllChannels(channelDao)
+                                            val count = epgRepository.autoAssociateAllChannels(channelDao, countryToUse)
                                             withContext(Dispatchers.Main) {
-                                                Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali!", Toast.LENGTH_LONG).show()
+                                                Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
                                                 val refreshedChannels = channelDao.getAllChannelsList()
-                                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels)
-                                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels)
+                                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
+                                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)
                                                 if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
                                                 if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                             }
@@ -361,7 +390,7 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                 ) {
-                                    Text("🔄 Forza Auto-Associa EPG")
+                                    Text("🔄 Auto-Associa EPG [$selectedCountry]")
                                 }
 
                                 Divider()
