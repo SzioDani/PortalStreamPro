@@ -26,31 +26,49 @@ class EpgDownloader(private val context: Context) {
 
     suspend fun downloadEpg(countryCode: String = "it"): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Avvio download EPG Italia da epgshare01 (.gz)...")
+            val country = countryCode.lowercase()
+            Log.d(TAG, "🌍 Avvio download EPG per la nazione: [$country]...")
 
-            val epgContent = fetchXmlOrGzip(EPG_PRIMARY_IT) 
-                ?: fetchXmlOrGzip(EPG_BACKUP_IT)
+            // 🔗 URL dinamici basati sulla nazione selezionata
+            val primaryUrl = when (country) {
+                "uk" -> "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz"
+                "fr" -> "https://epgshare01.online/epgshare01/epg_ripper_FR1.xml.gz"
+                "de" -> "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"
+                "es" -> "https://epgshare01.online/epgshare01/epg_ripper_ES1.xml.gz"
+                else -> "https://epgshare01.online/epgshare01/epg_ripper_IT1.xml.gz" // Default IT
+            }
+
+            val backupUrl = when (country) {
+                "uk" -> "https://www.open-epg.com/files/uk3.xml"
+                "fr" -> "https://www.open-epg.com/files/france3.xml"
+                "de" -> "https://www.open-epg.com/files/germany3.xml"
+                "es" -> "https://www.open-epg.com/files/spain3.xml"
+                else -> "https://www.open-epg.com/files/italy3.xml" // Default IT
+            }
+
+            val epgContent = fetchXmlOrGzip(primaryUrl) 
+                ?: fetchXmlOrGzip(backupUrl)
 
             if (!epgContent.isNullOrBlank()) {
-                Log.d(TAG, "EPG scaricato e decompresso con successo! Dimensioni: ${epgContent.length} caratteri")
+                Log.d(TAG, "✅ EPG per [$country] scaricato con successo! Dimensioni: ${epgContent.length} caratteri")
                 
-                // Sovrascrive forzatamente la cache locale con i dati aggiornati
-                saveEpgLocallyOverwrite(epgContent, countryCode)
+                // Salva nella cache locale nominandola con la nazione (es. uk.xml, it.xml)
+                saveEpgLocallyOverwrite(epgContent, country)
                 
                 Result.success(epgContent)
             } else {
-                Log.w(TAG, "Download fallito da entrambe le sorgenti. Tentativo recupero da cache locale...")
-                val cachedEpg = loadCachedEpg(countryCode)
+                Log.w(TAG, "⚠️ Download fallito da entrambe le sorgenti per [$country]. Tentativo recupero da cache locale...")
+                val cachedEpg = loadCachedEpg(country)
                 if (cachedEpg != null) {
-                    Log.d(TAG, "Usando EPG presente in cache locale come fallback.")
+                    Log.d(TAG, "📦 Usando EPG presente in cache locale per [$country] come fallback.")
                     Result.success(cachedEpg)
                 } else {
-                    Log.e(TAG, "Impossibile scaricare o trovare EPG in cache.")
-                    Result.failure(Exception("EPG non disponibile"))
+                    Log.e(TAG, "❌ Impossibile scaricare o trovare EPG in cache per [$country].")
+                    Result.failure(Exception("EPG non disponibile per $country"))
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Eccezione critica nel download EPG", e)
+            Log.e(TAG, "❌ Eccezione critica nel download EPG", e)
             Result.failure(e)
         }
     }
