@@ -76,29 +76,37 @@ class EpgChannelMapper {
         val groupUpper = channel.group.uppercase().trim()
         val nameUpper = channel.name.uppercase().trim()
 
-        // 🚀 OPTIMIZATION UNIVERSALE: 
-        // Controlla se il GRUPPO o il NOME iniziano con un prefisso di nazione (es. "ES|", "DE|", "PL|", "NL|") 
-        // o contengono identificatori di altre nazioni (es. ":MAX ES", "DE:", "VIAPLAY NL")
+        // 🚀 OTTIMIZZAZIONE UNIVERSALE DEFINITIVA:
+        // Se stiamo cercando la nazione "IT", scartiamo all'istante qualsiasi canale il cui nome o gruppo 
+        // indichi palesemente un'altra nazione (es. "U.S|", "ARG|", "ES|", "DE|", "FR|", "UK|", "USA", "LAT|")
+        if (targetCountry == "it") {
+            // Controlla se il nome inizia con un prefisso estero (es. "U.S|", "ARG|", con qualsiasi numero di lettere/punti)
+            val hasForeignPrefix = Regex("^[A-Z\\.]{2,5}\\s*\\|").find(nameUpper)
+            if (hasForeignPrefix != null) {
+                val prefix = hasForeignPrefix.value.substringBefore("|").replace(".", "").trim()
+                if (prefix != "IT" && prefix != "RAI" && prefix != "SKY") {
+                    return null // Scarta all'istante il canale estero
+                }
+            }
+
+            // Scarta gruppi macro o esteri palesi
+            if (groupUpper.contains("USA") || groupUpper.contains("LAT|") || groupUpper.contains("ARG|") ||
+                groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || groupUpper.startsWith("ES|") ||
+                groupUpper.startsWith("DE|") || groupUpper.startsWith("FR|") || groupUpper.startsWith("UK|") ||
+                groupUpper.startsWith("NL|") || groupUpper.startsWith("PL|") || groupUpper.startsWith("GR|")) {
+                return null
+            }
+        }
+
+        // Controlli standard sui prefissi di 2 lettere
         val groupPrefix = groupUpper.substringBefore("|").trim()
         val namePrefix = nameUpper.substringBefore("|").trim()
 
-        // Se il gruppo o il nome hanno un prefisso di 2 lettere (es. "ES", "DE", "PL", "NL", "UK", "FR")
-        // e questo prefisso NON è "IT" (o la nazione target), scarta subito!
         if (groupPrefix.length == 2 && groupPrefix != countryUpper) {
             return null
         }
         if (namePrefix.length == 2 && namePrefix != countryUpper && nameUpper.contains("|")) {
             return null
-        }
-
-        // Ulteriore controllo per canali con tag interni o gruppi particolari
-        if (targetCountry == "it") {
-            val isForeign = groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || 
-                            nameUpper.contains("VIAPLAY NL") || nameUpper.contains(":MAX ES") || 
-                            nameUpper.contains("| DE:") || nameUpper.contains("PUNJABI")
-            if (isForeign) {
-                return null
-            }
         }
 
         Log.d(TAG, "🌍 [Filtro Nazione] Applicazione filtro per '$targetCountry' sul canale '${channel.name}' (Gruppo: '${channel.group}')")
