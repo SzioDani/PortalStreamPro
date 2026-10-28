@@ -24,16 +24,27 @@ data class StalkerProfile(
     val isExpired: Boolean = false
 )
 
-object StalkerClient {
+class StalkerClient {
 
-    private const val TAG = "StalkerClient"
+    private val TAG = "StalkerClient"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private const val DEFAULT_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stb app version: 2f rev: 1812 Safari/533.3"
+    // 🟢 Rimosso il default hardcoded obsoleto. Usiamo un fallback standard pulito se non viene specificato nulla
+    private val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+
+    private fun resolveUserAgent(portal: Portal): String {
+        val ua = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
+            portal.userAgent
+        } else {
+            FALLBACK_USER_AGENT
+        }
+        Log.d(TAG, "🌐 [User-Agent Selezionato] -> $ua (Personalizzato: ${portal.useCustomUserAgent})")
+        return ua
+    }
 
     private fun getPortalBaseUrl(portal: Portal): String? {
         var rawServer = portal.server.trim()
@@ -50,20 +61,17 @@ object StalkerClient {
         if (!baseUrl.endsWith("portal.php")) {
             baseUrl = if (baseUrl.endsWith("/c")) "$baseUrl/portal.php" else "$baseUrl/portal.php"
         }
+        Log.d(TAG, "🔗 [Base URL Risolto] -> $baseUrl")
         return baseUrl
     }
 
-    // ⭐ CORREZIONE DECISIVA: Ora non si ferma più alla virgola se il testo è tra virgolette!
     private fun estraiCampoTestuale(json: String, campo: String): String {
         return try {
-            // 1. Prova prima a leggere il valore se è tra virgolette (salva l'anno anche se c'è la virgola!)
             var m = Regex("\"" + campo + "\"\\s*:\\s*\"([^\"]+)\"").find(json)
             if (m != null) {
                 val found = m.groupValues[1].trim()
                 if (found.isNotBlank() && found != "null") return found
             }
-
-            // 2. Se non è tra virgolette (es. numero timestamp puro "exp_date":123456789)
             m = Regex("\"" + campo + "\"\\s*:\\s*([^,}\\]]+)").find(json)
             val found2 = m?.groupValues?.get(1)?.trim() ?: "-"
             if (found2 == "null") "-" else found2
@@ -75,18 +83,11 @@ object StalkerClient {
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext StalkerProfile()
 
-        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
-            portal.userAgent
-        } else {
-            DEFAULT_USER_AGENT
-        }
-
+        val userAgent = resolveUserAgent(portal)
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
-            // =================================================================
-            // 1. HANDSHAKE E TOKEN
-            // =================================================================
+            Log.d(TAG, "🚀 [AccountInfo] Inizio handshake per MAC: $mac")
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
             val handshakeReq = Request.Builder()
                 .url(handshakeUrl)
@@ -106,16 +107,18 @@ object StalkerClient {
                 }
             }
 
-            val token = parseToken(handshakeResp.body?.string() ?: "")
+            val handshakeBody = handshakeResp.body?.string() ?: ""
+            Log.d(TAG, "📥 [Handshake Response] -> $handshakeBody")
 
-            // =================================================================
-            // 2. CHIAMATE AL SERVER
-            // =================================================================
+            val token = parseToken(handshakeBody)
+            Log.d(TAG, "🔑 [Token Estratto] -> '$token'")
+
             var jsonResponseStr = ""
 
             fun faiRichiesta(urlParams: String): String {
                 return try {
                     val reqUrl = "$baseUrl$urlParams" + if (token.isNotBlank()) "&token=$token" else ""
+                    Log.d(TAG, "📤 [Richiesta Account] -> $reqUrl")
                     val req = Request.Builder()
                         .url(reqUrl)
                         .addHeader("User-Agent", userAgent)
@@ -126,8 +129,12 @@ object StalkerClient {
                     val resp = client.newCall(req).execute()
                     val b = resp.body?.string() ?: ""
                     resp.close()
+                    Log.d(TAG, "📥 [Risposta Account] -> $b")
                     b
-                } catch (e: Exception) { "" }
+                } catch (e: Exception) { 
+                    Log.e(TAG, "❌ Errore richiesta account: ${e.message}")
+                    "" 
+                }
             }
 
             val req1 = faiRichiesta("?type=account_info&JsHttpRequest=1-xml")
@@ -149,18 +156,14 @@ object StalkerClient {
             jsonResponseStr += req3 
 
             if (jsonResponseStr.isBlank()) {
+                Log.w(TAG, "⚠️ [AccountInfo] Risposta JSON vuota per il profilo!")
                 return@withContext StalkerProfile(expireDate = "Non disponibile")
             }
 
-            // =================================================================
-            // 3. ESTRAZIONE DATI TESTUALE
-            // =================================================================
-            
             var tariffPlan = estraiCampoTestuale(jsonResponseStr, "tariff_plan")
             if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(jsonResponseStr, "package_name")
             if (tariffPlan == "-") tariffPlan = "Standard"
 
-            // SCADENZA
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
@@ -178,22 +181,9 @@ object StalkerClient {
                 } else {
                     formattedExpireDate = expTs
                 }
-            } else {
-                val phoneField = estraiCampoTestuale(jsonResponseStr, "phone")
-                if (phoneField != "-") {
-                    val dateFromPhone = extractDateFromCustomString(phoneField)
-                    if (dateFromPhone != null) {
-                        isExpired = dateFromPhone.before(Date())
-                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(dateFromPhone)
-                    } else {
-                        formattedExpireDate = phoneField
-                    }
-                }
             }
 
-            // ATTIVAZIONE
             var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(Date())
-            
             var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
             if (createdTs == "-") createdTs = estraiCampoTestuale(jsonResponseStr, "activation_date")
 
@@ -216,7 +206,7 @@ object StalkerClient {
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "Errore recupero info account Stalker", e)
+            Log.e(TAG, "❌ Errore critico recupero info account Stalker", e)
             return@withContext StalkerProfile(expireDate = "Errore di connessione")
         }
     }
@@ -245,15 +235,11 @@ object StalkerClient {
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext emptyList()
 
-        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
-            portal.userAgent
-        } else {
-            DEFAULT_USER_AGENT
-        }
-
+        val userAgent = resolveUserAgent(portal)
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
+            Log.d(TAG, "🚀 [FetchChannels] Inizio connessione per canali - MAC: $mac")
             val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
 
             val handshakeRequest = Request.Builder()
@@ -279,6 +265,7 @@ object StalkerClient {
             }
 
             val handshakeBody = handshakeResponse.body?.string() ?: ""
+            Log.d(TAG, "📥 [Channels Handshake Body] -> $handshakeBody")
             checkPayloadForErrors(handshakeBody)
 
             val token = parseToken(handshakeBody)
@@ -287,34 +274,36 @@ object StalkerClient {
             val channelsUrl = "$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml" +
                     if (token.isNotBlank()) "&token=$token" else ""
 
+            Log.d(TAG, "📤 [Richiesta Canali URL] -> $channelsUrl")
             val channelsRequest = Request.Builder()
                 .url(channelsUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
-                 .build()
+                .build()
 
             val response = client.newCall(channelsRequest).execute()
             checkHttpResponseCode(response.code)
 
             val responseBody = response.body?.string() ?: ""
+            Log.d(TAG, "📥 [Risposta Canali Grezza - primi 500 char] -> ${responseBody.take(500)}")
             checkPayloadForErrors(responseBody)
 
             var channels = parseChannels(responseBody, categoriesMap)
+            Log.d(TAG, "📊 Canali parsati con get_all_channels: ${channels.size}")
 
             if (channels.isEmpty()) {
+                Log.w(TAG, "⚠️ Nessun canale trovato con get_all_channels, provo fallback get_ordered_channels...")
                 channels = fetchOrderedChannels(baseUrl, userAgent, sessionCookie, token, categoriesMap)
+                Log.d(TAG, "📊 Canali parsati con fallback: ${channels.size}")
             }
 
             return@withContext channels
         } catch (e: PortalException) {
+            Log.e(TAG, "❌ PortalException durante fetchChannels: ${e.message}")
             throw e
-        } catch (e: UnknownHostException) {
-            throw PortalException.ServerUnreachable()
-        } catch (e: SocketTimeoutException) {
-            throw PortalException.ServerUnreachable()
         } catch (e: Exception) {
-            Log.e(TAG, "Errore Stalker: ${e.localizedMessage}", e)
+            Log.e(TAG, "❌ Errore imprevisto fetchChannels: ${e.localizedMessage}", e)
             throw e
         }
     }
@@ -324,12 +313,7 @@ object StalkerClient {
         val mac = portal.macAddress.trim()
         if (mac.isBlank()) return@withContext null
 
-        val userAgent = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
-            portal.userAgent
-        } else {
-            DEFAULT_USER_AGENT
-        }
-
+        val userAgent = resolveUserAgent(portal)
         var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
         try {
@@ -392,14 +376,8 @@ object StalkerClient {
                 val finalUrl = streamCmd.trim()
                 return@withContext if (finalUrl.isNotBlank()) finalUrl else null
             }
-        } catch (e: PortalException) {
-            throw e
-        } catch (e: UnknownHostException) {
-            throw PortalException.ServerUnreachable()
-        } catch (e: SocketTimeoutException) {
-            throw PortalException.ServerUnreachable()
         } catch (e: Exception) {
-            Log.e(TAG, "Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
+            Log.e(TAG, "❌ Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
         }
     }
