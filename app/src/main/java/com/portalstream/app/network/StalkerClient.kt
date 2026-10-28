@@ -24,16 +24,16 @@ data class StalkerProfile(
     val isExpired: Boolean = false
 )
 
-class StalkerClient {
+// 🟢 Riportato a object per mantenere la compatibilità con le chiamate in PortalsActivity e ChannelsActivity
+object StalkerClient {
 
-    private val TAG = "StalkerClient"
+    private const val TAG = "StalkerClient"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // 🟢 Rimosso il default hardcoded obsoleto. Usiamo un fallback standard pulito se non viene specificato nulla
     private val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
     private fun resolveUserAgent(portal: Portal): String {
