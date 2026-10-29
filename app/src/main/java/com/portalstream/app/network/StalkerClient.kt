@@ -29,9 +29,11 @@ object StalkerClient {
 
     private const val TAG = "StalkerClient"
 
+    // 🟢 Client OkHttp ottimizzato per gestire automaticamente la decompressione gzip trasparente
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val FALLBACK_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
@@ -82,7 +84,7 @@ object StalkerClient {
     // 🟢 PARSER TOKEN ROBUSTO (con Regex, dal primo codice)
     // =========================================================================
     private fun parseToken(jsonStr: String?): String {
-        if (jsonStr == null) return ""
+        if (jsonStr.isNullOrBlank()) return ""
         return try {
             Regex("\"token\"\\s*:\\s*\"([^\"]+)\"").find(jsonStr)?.groupValues?.get(1) ?: ""
         } catch (e: Exception) {
@@ -108,7 +110,6 @@ object StalkerClient {
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -138,7 +139,6 @@ object StalkerClient {
                         .url(reqUrl)
                         .addHeader("User-Agent", userAgent)
                         .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
-                        .addHeader("Accept-Encoding", "gzip, deflate")
                         .addHeader("Cookie", sessionCookie)
                     
                     if (token.isNotBlank()) {
@@ -289,7 +289,6 @@ object StalkerClient {
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -321,7 +320,6 @@ object StalkerClient {
             val reqBuilder = Request.Builder()
                 .url(channelsUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
 
             if (token.isNotBlank()) {
@@ -367,7 +365,6 @@ object StalkerClient {
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
@@ -396,7 +393,6 @@ object StalkerClient {
             val requestBuilder = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
 
             if (token.isNotBlank()) {
@@ -456,7 +452,6 @@ object StalkerClient {
             val reqBuilder = Request.Builder()
                 .url(genresUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
 
             if (token.isNotBlank()) {
@@ -496,7 +491,6 @@ object StalkerClient {
             val reqBuilder = Request.Builder()
                 .url(url)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
 
             if (token.isNotBlank()) {
