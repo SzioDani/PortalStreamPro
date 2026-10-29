@@ -365,11 +365,13 @@ object StalkerClient {
                 .url(handshakeUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
                 .build()
 
             val handshakeResponse = client.newCall(handshakeRequest).execute()
-            
+            checkHttpResponseCode(handshakeResponse.code)
+
             val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
             if (setCookieHeaders.isNotEmpty()) {
                 val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
@@ -389,37 +391,32 @@ object StalkerClient {
             val createLinkUrl = "$baseUrl?type=itv&action=create_link&cmd=$encodedCmd&series_id=0&JsHttpRequest=1-xml" +
                     if (token.isNotBlank()) "&token=$token" else ""
 
-            val requestBuilder = Request.Builder()
+            val request = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
-                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
+                .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
+                .build()
 
-            if (token.isNotBlank()) {
-                requestBuilder.addHeader("Authorization", "Bearer $token")
-            }
+            client.newCall(request).execute().use { response ->
+                checkHttpResponseCode(response.code)
 
-            client.newCall(requestBuilder.build()).execute().use { response ->
                 val bodyStr = response.body?.string() ?: return@withContext null
+                checkPayloadForErrors(bodyStr)
 
                 val json = JSONObject(bodyStr)
                 val js = json.optJSONObject("js") ?: return@withContext null
                 var streamCmd = js.optString("cmd", "")
 
-                // Pulizia rigorosa del comando stream
                 if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
                 if (streamCmd.startsWith("ffmpeg ")) streamCmd = streamCmd.removePrefix("ffmpeg ")
-                if (streamCmd.startsWith("auto ")) streamCmd = streamCmd.removePrefix("auto ")
 
                 if (streamCmd.contains("http")) {
                     val index = streamCmd.indexOf("http")
                     streamCmd = streamCmd.substring(index)
                 }
 
-                // Rimuove eventuali spazi o caratteri di ritorno a capo finali
-                val finalUrl = streamCmd.trim().split(" ").firstOrNull() ?: streamCmd.trim()
-                
-                Log.d(TAG, "🔗 [Stream URL Risolto] -> $finalUrl")
+                val finalUrl = streamCmd.trim()
                 return@withContext if (finalUrl.isNotBlank()) finalUrl else null
             }
         } catch (e: Exception) {
