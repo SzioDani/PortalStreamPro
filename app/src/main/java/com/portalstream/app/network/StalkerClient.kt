@@ -369,8 +369,7 @@ object StalkerClient {
                 .build()
 
             val handshakeResponse = client.newCall(handshakeRequest).execute()
-            checkHttpResponseCode(handshakeResponse.code)
-
+            
             val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
             if (setCookieHeaders.isNotEmpty()) {
                 val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
@@ -393,6 +392,7 @@ object StalkerClient {
             val requestBuilder = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
                 .addHeader("Cookie", sessionCookie)
 
             if (token.isNotBlank()) {
@@ -400,24 +400,26 @@ object StalkerClient {
             }
 
             client.newCall(requestBuilder.build()).execute().use { response ->
-                checkHttpResponseCode(response.code)
-
                 val bodyStr = response.body?.string() ?: return@withContext null
-                checkPayloadForErrors(bodyStr)
 
                 val json = JSONObject(bodyStr)
                 val js = json.optJSONObject("js") ?: return@withContext null
                 var streamCmd = js.optString("cmd", "")
 
+                // Pulizia rigorosa del comando stream
                 if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
                 if (streamCmd.startsWith("ffmpeg ")) streamCmd = streamCmd.removePrefix("ffmpeg ")
+                if (streamCmd.startsWith("auto ")) streamCmd = streamCmd.removePrefix("auto ")
 
                 if (streamCmd.contains("http")) {
                     val index = streamCmd.indexOf("http")
                     streamCmd = streamCmd.substring(index)
                 }
 
-                val finalUrl = streamCmd.trim()
+                // Rimuove eventuali spazi o caratteri di ritorno a capo finali
+                val finalUrl = streamCmd.trim().split(" ").firstOrNull() ?: streamCmd.trim()
+                
+                Log.d(TAG, "🔗 [Stream URL Risolto] -> $finalUrl")
                 return@withContext if (finalUrl.isNotBlank()) finalUrl else null
             }
         } catch (e: Exception) {
