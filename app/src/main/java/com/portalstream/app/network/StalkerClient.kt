@@ -78,6 +78,21 @@ object StalkerClient {
         } catch (e: Exception) { "-" }
     }
 
+    // =========================================================================
+    // 🟢 PARSER TOKEN ROBUSTO (con Regex, dal primo codice)
+    // =========================================================================
+    private fun parseToken(jsonStr: String?): String {
+        if (jsonStr == null) return ""
+        return try {
+            Regex("\"token\"\\s*:\\s*\"([^\"]+)\"").find(jsonStr)?.groupValues?.get(1) ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    // =========================================================================
+    // 🟢 SCADENZA ACCOUNT (Esatta replica della logica del file memorizzato)
+    // =========================================================================
     suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext StalkerProfile()
         val mac = portal.macAddress.trim()
@@ -119,14 +134,18 @@ object StalkerClient {
                 return try {
                     val reqUrl = "$baseUrl$urlParams" + if (token.isNotBlank()) "&token=$token" else ""
                     Log.d(TAG, "📤 [Richiesta Account] -> $reqUrl")
-                    val req = Request.Builder()
+                    val reqBuilder = Request.Builder()
                         .url(reqUrl)
                         .addHeader("User-Agent", userAgent)
                         .addHeader("X-User-Agent", "Model: MAG250; Link: WiFi")
                         .addHeader("Accept-Encoding", "gzip, deflate")
                         .addHeader("Cookie", sessionCookie)
-                        .build()
-                    val resp = client.newCall(req).execute()
+                    
+                    if (token.isNotBlank()) {
+                        reqBuilder.addHeader("Authorization", "Bearer $token")
+                    }
+
+                    val resp = client.newCall(reqBuilder.build()).execute()
                     val b = resp.body?.string() ?: ""
                     resp.close()
                     Log.d(TAG, "📥 [Risposta Account] -> $b")
@@ -152,7 +171,7 @@ object StalkerClient {
                 }
             }
 
-            val req3 = faiRichiesta("?type=stb&action=get_profile&JsHttpRequest=1-xml")
+            val req3 = faiRichiesta("?type=stb&action=get_profile&hd=1&num_banks=2&not_valid_token=0&JsHttpRequest=1-xml")
             jsonResponseStr += req3 
 
             if (jsonResponseStr.isBlank()) {
@@ -165,12 +184,12 @@ object StalkerClient {
             if (tariffPlan == "-") tariffPlan = "Standard"
 
             // =========================================================================
-            // 🟢 GESTIONE SCADENZA (Aggiornata con la logica standardizzata e sicura)
+            // 🟢 ESTRAZIONE SCADENZA (Esatta dal primo file)
             // =========================================================================
             val expTs = estraiCampoTestuale(jsonResponseStr, "exp_date")
-            val scadPhone = Regex("\"phone\":\"([^\"]+)\"").find(jsonResponseStr)
+            val scadPhone = Regex("\"phone\"\\s*:\\s*\"([^\"]+)\"").find(jsonResponseStr)
                 ?.groupValues?.get(1)?.trim() ?: "-"
-            
+
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
@@ -188,13 +207,21 @@ object StalkerClient {
                         isExpired = d.before(Date())
                         formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
                     }
-                } catch (e: Exception) { }
+                } catch (e: Exception) {
+                    try {
+                        val d2 = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH).parse(scadPhone)
+                        if (d2 != null) {
+                            isExpired = d2.before(Date())
+                            formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d2)
+                        }
+                    } catch (_: Exception) {}
+                }
             } else if (expTs != "-") {
                 formattedExpireDate = expTs
             }
 
             // =========================================================================
-            // 🟢 ATTIVAZIONE (INVARIATA come da tua esplicita richiesta)
+            // 🟢 ATTIVAZIONE (Invariata come da richiesta)
             // =========================================================================
             var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(Date())
             var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
@@ -219,7 +246,7 @@ object StalkerClient {
             )
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Errore critico recupero info account Stalker", e)
+            Log.e(TAG, "❌ Errore recupero info account Stalker", e)
             return@withContext StalkerProfile(expireDate = "Errore di connessione")
         }
     }
@@ -243,6 +270,9 @@ object StalkerClient {
         return null
     }
 
+    // =========================================================================
+    // 🟢 RICHIESTA E SCARICAMENTO CANALI (Senza blocchi fasulli e con parsing flessibile)
+    // =========================================================================
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         val baseUrl = getPortalBaseUrl(portal) ?: return@withContext emptyList()
         val mac = portal.macAddress.trim()
@@ -279,31 +309,30 @@ object StalkerClient {
 
             val handshakeBody = handshakeResponse.body?.string() ?: ""
             Log.d(TAG, "📥 [Channels Handshake Body] -> $handshakeBody")
-            checkPayloadForErrors(handshakeBody)
 
             val token = parseToken(handshakeBody)
             val categoriesMap = fetchGenres(baseUrl, userAgent, sessionCookie, token)
 
-            // =========================================================================
-            // 🟢 RICHIESTA CANALI (Ottimizzata e allineata allo standard di richiesta sicuro)
-            // =========================================================================
+            // URL Richiesta Canali
             val channelsUrl = "$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml" +
                     if (token.isNotBlank()) "&token=$token" else ""
 
             Log.d(TAG, "📤 [Richiesta Canali URL] -> $channelsUrl")
-            val channelsRequest = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(channelsUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
-                .build()
 
-            val response = client.newCall(channelsRequest).execute()
+            if (token.isNotBlank()) {
+                reqBuilder.addHeader("Authorization", "Bearer $token")
+            }
+
+            val response = client.newCall(reqBuilder.build()).execute()
             checkHttpResponseCode(response.code)
 
             val responseBody = response.body?.string() ?: ""
             Log.d(TAG, "📥 [Risposta Canali Grezza - primi 500 char] -> ${responseBody.take(500)}")
-            checkPayloadForErrors(responseBody)
 
             var channels = parseChannels(responseBody, categoriesMap)
             Log.d(TAG, "📊 Canali parsati con get_all_channels: ${channels.size}")
@@ -320,7 +349,7 @@ object StalkerClient {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore imprevisto fetchChannels: ${e.localizedMessage}", e)
-            throw e
+            return@withContext emptyList()
         }
     }
 
@@ -364,14 +393,17 @@ object StalkerClient {
             val createLinkUrl = "$baseUrl?type=itv&action=create_link&cmd=$encodedCmd&series_id=0&JsHttpRequest=1-xml" +
                     if (token.isNotBlank()) "&token=$token" else ""
 
-            val request = Request.Builder()
+            val requestBuilder = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", sessionCookie)
-                .build()
 
-            client.newCall(request).execute().use { response ->
+            if (token.isNotBlank()) {
+                requestBuilder.addHeader("Authorization", "Bearer $token")
+            }
+
+            client.newCall(requestBuilder.build()).execute().use { response ->
                 checkHttpResponseCode(response.code)
 
                 val bodyStr = response.body?.string() ?: return@withContext null
@@ -415,16 +447,6 @@ object StalkerClient {
         }
     }
 
-    private fun parseToken(jsonStr: String): String {
-        return try {
-            val root = JSONObject(jsonStr)
-            val jsObj = root.optJSONObject("js")
-            jsObj?.optString("token", "") ?: root.optString("token", "")
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
     private fun fetchGenres(baseUrl: String, userAgent: String, cookie: String, token: String): Map<String, String> {
         val map = mutableMapOf<String, String>()
         val genresUrl = "$baseUrl?type=itv&action=get_genres&JsHttpRequest=1-xml" +
@@ -436,6 +458,10 @@ object StalkerClient {
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
+
+            if (token.isNotBlank()) {
+                reqBuilder.addHeader("Authorization", "Bearer $token")
+            }
 
             val response = client.newCall(reqBuilder.build()).execute()
             val body = response.body?.string() ?: return map
@@ -472,6 +498,10 @@ object StalkerClient {
                 .addHeader("User-Agent", userAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
                 .addHeader("Cookie", cookie)
+
+            if (token.isNotBlank()) {
+                reqBuilder.addHeader("Authorization", "Bearer $token")
+            }
 
             val response = client.newCall(reqBuilder.build()).execute()
             val body = response.body?.string() ?: return emptyList()
