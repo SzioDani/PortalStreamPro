@@ -164,25 +164,38 @@ object StalkerClient {
             if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(jsonResponseStr, "package_name")
             if (tariffPlan == "-") tariffPlan = "Standard"
 
+            // =========================================================================
+            // 🟢 GESTIONE SCADENZA (Aggiornata con la logica standardizzata e sicura)
+            // =========================================================================
+            val expTs = estraiCampoTestuale(jsonResponseStr, "exp_date")
+            val scadPhone = Regex("\"phone\":\"([^\"]+)\"").find(jsonResponseStr)
+                ?.groupValues?.get(1)?.trim() ?: "-"
+            
             var formattedExpireDate = "Illimitato"
             var isExpired = false
 
-            var expTs = estraiCampoTestuale(jsonResponseStr, "exp_date")
-            if (expTs == "-") expTs = estraiCampoTestuale(jsonResponseStr, "expire_date")
-
-            if (expTs != "-") {
-                if (expTs.matches(Regex("\\d+"))) {
-                    val timestampSec = expTs.toLongOrNull()
-                    if (timestampSec != null && timestampSec > 0) {
-                        val d = Date(timestampSec * 1000)
-                        isExpired = d.before(Date())
-                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(d)
-                    }
-                } else {
-                    formattedExpireDate = expTs
+            if (expTs.matches(Regex("\\d+"))) {
+                val timestampSec = expTs.toLongOrNull()
+                if (timestampSec != null && timestampSec > 0) {
+                    val d = Date(timestampSec * 1000)
+                    isExpired = d.before(Date())
+                    formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
                 }
+            } else if (scadPhone != "-" && scadPhone.matches(Regex(".*\\d{4}.*"))) {
+                try {
+                    val d = SimpleDateFormat("MMMM d, yyyy, h:mm a", Locale.ENGLISH).parse(scadPhone)
+                    if (d != null) {
+                        isExpired = d.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
+                    }
+                } catch (e: Exception) { }
+            } else if (expTs != "-") {
+                formattedExpireDate = expTs
             }
 
+            // =========================================================================
+            // 🟢 ATTIVAZIONE (INVARIATA come da tua esplicita richiesta)
+            // =========================================================================
             var formattedActivationDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALIAN).format(Date())
             var createdTs = estraiCampoTestuale(jsonResponseStr, "created")
             if (createdTs == "-") createdTs = estraiCampoTestuale(jsonResponseStr, "activation_date")
@@ -271,6 +284,9 @@ object StalkerClient {
             val token = parseToken(handshakeBody)
             val categoriesMap = fetchGenres(baseUrl, userAgent, sessionCookie, token)
 
+            // =========================================================================
+            // 🟢 RICHIESTA CANALI (Ottimizzata e allineata allo standard di richiesta sicuro)
+            // =========================================================================
             val channelsUrl = "$baseUrl?type=itv&action=get_all_channels&JsHttpRequest=1-xml" +
                     if (token.isNotBlank()) "&token=$token" else ""
 
