@@ -1193,7 +1193,7 @@ class ChannelsActivity : ComponentActivity() {
                     OutlinedTextField(
                         value = editableTvgId,
                         onValueChange = { editableTvgId = it },
-                        label = { Text("ID EPG Associato (tvg-id)") },
+                        label = { Text("ID EPG Associato carico il palinsesto...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
