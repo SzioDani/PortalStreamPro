@@ -130,7 +130,7 @@ class ChannelsActivity : ComponentActivity() {
                     mutableStateOf(prefs.getStringSet("favorite_groups", emptySet())?.toSet() ?: emptySet())
                 }
 
-                var isLoading by remember { mutableStateOf(true) }
+                var isLoading by remember { mutableStateOf(allChannels.isEmpty()) }
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
 
@@ -213,11 +213,14 @@ class ChannelsActivity : ComponentActivity() {
 
                                 else -> emptyList()
                             }
-
+                            
                             if (fetched.isNotEmpty()) {
                                 val existingChannels = channelDao.getAllChannelsList()
                                 val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
                                 val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
+                                
+                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = "ch_${portalIdentifier.hashCode()}_${if (channel.id.isBlank()) "${index}_${channel.name.hashCode()}" else channel.id}"
 
@@ -226,10 +229,13 @@ class ChannelsActivity : ComponentActivity() {
                                     val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
-                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
-                                val otherPortalsChannels = existingChannels.filter { !it.id.startsWith(portalPrefix) }
-                                val combinedChannels = otherPortalsChannels + validFetched
-                                channelDao.insertChannels(combinedChannels)
+
+                                // 🟢 CANCELLAZIONE CHIRURGICA: Rimuove dal DB solo i vecchi canali di questo specifico portale
+                                channelDao.deleteChannelsByPrefix(portalPrefix)
+
+                                // Inserisce direttamente i nuovi canali ripuliti e aggiornati
+                                channelDao.insertChannels(validFetched)
+
                                 epgRepository.autoAssociateAllChannels(channelDao)
                                 Log.d(TAG, "Canali del portale $portalIdentifier salvati correttamente.")
                                 try {
