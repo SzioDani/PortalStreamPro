@@ -30,6 +30,9 @@ interface ChannelDao {
     @Query("DELETE FROM channels WHERE playlistId = :playlistId")
     suspend fun deleteChannelsByPlaylist(playlistId: Int)
 
+    @Query("DELETE FROM channels WHERE id LIKE :prefix || '%'")
+    suspend fun deleteChannelsByPrefix(prefix: String)
+
     @Query("DELETE FROM channels")
     suspend fun clearAll()
 }
