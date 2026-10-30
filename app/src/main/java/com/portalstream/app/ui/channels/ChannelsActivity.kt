@@ -130,7 +130,7 @@ class ChannelsActivity : ComponentActivity() {
                     mutableStateOf(prefs.getStringSet("favorite_groups", emptySet())?.toSet() ?: emptySet())
                 }
 
-                var isLoading by remember { mutableStateOf(allChannels.isEmpty()) }
+                var isLoading by remember { mutableStateOf(true) }
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
 
