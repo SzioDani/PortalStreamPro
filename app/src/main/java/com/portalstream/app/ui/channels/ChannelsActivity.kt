@@ -272,24 +272,29 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(Unit) {
+                LaunchedEffect(portalIdentifier) {
+                    isLoading = true
                     val existing = channelDao.getAllChannelsList()
                     val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
                     val hasCurrentPortalChannels = existing.any { it.id.startsWith(portalPrefix) }
+                    
                     if (existing.isEmpty() || !hasCurrentPortalChannels) {
                         fetchChannelsAction(false)
                     } else {
                         scope.launch(Dispatchers.IO) {
                             try {
-                                val newInfoMap = epgRepository.getAllCurrentEpg(existing)
-                                val newProgramsMap = epgRepository.getProgramsForChannels(existing)
+                                val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
+                                val newInfoMap = epgRepository.getAllCurrentEpg(existing, countryToUse)
+                                val newProgramsMap = epgRepository.getProgramsForChannels(existing, countryToUse)
                                 withContext(Dispatchers.Main) {
                                     if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
                                     if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                 }
                             } catch (_: Exception) {}
+                            withContext(Dispatchers.Main) {
+                                isLoading = false
+                            }
                         }
-                        isLoading = false
                     }
                 }
 
