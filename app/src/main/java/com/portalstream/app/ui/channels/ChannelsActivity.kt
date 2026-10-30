@@ -140,9 +140,12 @@ class ChannelsActivity : ComponentActivity() {
                 var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
                 var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
 
-                val allGroups = remember(allChannels) {
-                    allChannels.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
-                }
+                val allGroups = remember(allChannels, portalIdentifier) {
+                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+                    allChannels.filter { channel ->
+                        channel.id.startsWith(portalPrefix) || !channel.id.startsWith("ch_")
+                    }.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
+                }      
 
                 val currentChannels = remember(
                     allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
