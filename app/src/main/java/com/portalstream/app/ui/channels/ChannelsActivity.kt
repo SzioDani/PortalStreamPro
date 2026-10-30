@@ -580,7 +580,7 @@ class ChannelsActivity : ComponentActivity() {
                     val configuration = LocalConfiguration.current
                     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-                    if (isLoading && allChannels.isEmpty()) {
+                    if (isLoading) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator()
