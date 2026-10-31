@@ -175,7 +175,7 @@ class ChannelsActivity : ComponentActivity() {
                             val isStalker = portalType.equals("STALKER", ignoreCase = true) ||
                                     portalType.equals("MAG", ignoreCase = true)
                             val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                    portalType.equals("XSTREAM", ignoreCase = true)
+                                   portalType.equals("XSTREAM", ignoreCase = true)
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
                                     val portalServer = if (server.isNotBlank()) server else portalUrl
