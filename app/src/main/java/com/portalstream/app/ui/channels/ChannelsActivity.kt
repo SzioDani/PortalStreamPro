@@ -286,6 +286,7 @@ class ChannelsActivity : ComponentActivity() {
                     if (existing.isEmpty() || !hasCurrentPortalChannels) {
                         fetchChannelsAction(false)
                     } else {
+                        isEpgLoading = true
                         scope.launch(Dispatchers.IO) {
                             try {
                                 val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
@@ -295,9 +296,13 @@ class ChannelsActivity : ComponentActivity() {
                                     if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
                                     if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                 }
-                            } catch (_: Exception) {}
-                            withContext(Dispatchers.Main) {
-                                isLoading = false
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Errore caricamento EPG", e)
+                            } finally {
+                                withContext(Dispatchers.Main) {
+                                    isLoading = false
+                                    isEpgLoading = false
+                                }
                             }
                         }
                     }
