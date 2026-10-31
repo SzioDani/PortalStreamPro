@@ -131,6 +131,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 var isLoading by remember { mutableStateOf(true) }
+                var isEpgLoading by remember { mutableStateOf(false) }
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
 
