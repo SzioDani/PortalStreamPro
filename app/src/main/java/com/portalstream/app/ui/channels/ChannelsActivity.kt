@@ -201,7 +201,7 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                     XtreamClient.fetchLiveChannels(portalDraft)
                                 }
-                                portalUrl.isNotEmpty() -> {
+                                portalUrl.isNotEmpty() ->
                                     var formattedUrl = portalUrl.trim()
                                     if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
                                         formattedUrl = "http://$formattedUrl"
