@@ -113,7 +113,6 @@ class ChannelsActivity : ComponentActivity() {
                 val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
                 val scope = rememberCoroutineScope()
 
-                // 🔄 Stati salvati con rememberSaveable per persistere alla rotazione dello schermo
                 var selectedGroup by rememberSaveable { mutableStateOf<String?>(null) }
                 var searchQuery by rememberSaveable { mutableStateOf("") }
                 var showOnlyFavorites by rememberSaveable { mutableStateOf(false) }
@@ -201,7 +200,7 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                     XtreamClient.fetchLiveChannels(portalDraft)
                                 }
-                                portalUrl.isNotEmpty() ->
+                                portalUrl.isNotEmpty() -> {
                                     var formattedUrl = portalUrl.trim()
                                     if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
                                         formattedUrl = "http://$formattedUrl"
@@ -232,7 +231,6 @@ class ChannelsActivity : ComponentActivity() {
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
                                 
-                                // 1. Salvataggio rapido in Room
                                 channelDao.deleteChannelsByPrefix(portalPrefix)
                                 channelDao.insertChannels(validFetched)
                                 Log.d(TAG, "Canali salvati correttamente.")
@@ -244,7 +242,6 @@ class ChannelsActivity : ComponentActivity() {
                                     }
                                 }
 
-                                // 2. EPG in background sicuro
                                 try {
                                     epgRepository.autoAssociateAllChannels(channelDao)
                                     val refreshedChannels = channelDao.getAllChannelsList()
@@ -338,7 +335,6 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 
-                                // 🌍 Selettore Nazionalità per il filtraggio a monte
                                 Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 var selectedCountry by remember { 
                                     mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
@@ -441,7 +437,6 @@ class ChannelsActivity : ComponentActivity() {
                         title = { Text("Seleziona Gruppo") },
                         text = {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                // 🔍 Barra di ricerca gruppi  (dentro il Dialog)
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -573,7 +568,6 @@ class ChannelsActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp, vertical = if (isLandscape) 8.dp else 16.dp)
                         ) {
-                            // 🔤 Intestazione più piccola e compatta
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -599,7 +593,6 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // 🔍 Barra di ricerca principale ottimizzata e compatta
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -660,7 +653,6 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // 🎛️ Bottoni / Filtri
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
