@@ -161,8 +161,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
-                    // Usiamo lifecycleScope (o lo scope dell'Activity) per evitare memory leak
-                    scope.launch(Dispatchers.IO) {
+                        // Usiamo una coroutine legata a Dispatchers.IO che non si interrompe se la UI sussulta
                         try {
                             withContext(Dispatchers.Main) { 
                                 isLoading = true 
