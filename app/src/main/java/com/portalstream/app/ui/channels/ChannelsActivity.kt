@@ -137,8 +137,8 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>(emptyMap()) }
-                var epgProgramsMap by remember { mutableStateOf<Map<String, ListEpgProgram>(emptyMap()) }
+                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
+                var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
 
                 val allGroups = remember(allChannels, portalIdentifier) {
                     val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
