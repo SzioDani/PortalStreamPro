@@ -160,8 +160,7 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                
-                if (shval fetchChannelsAction = { isManualRefresh: Boolean ->
+                val fetchChannelsAction = { isManualRefresh: Boolean ->
                         scope.launch(Dispatchers.IO) {
                         try {
                             withContext(Dispatchers.Main) { 
