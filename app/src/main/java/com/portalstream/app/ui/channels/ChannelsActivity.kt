@@ -165,7 +165,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
-                    scope.launch(Dispatchers.IO) {
+                    CoroutineScope(Dispatchers.IO).launch {
                         try {
                             withContext(Dispatchers.Main) { isLoading = true }
                             Log.d(TAG, "Inizio caricamento canali per il portale: $portalIdentifier (Tipo: $portalType)")
