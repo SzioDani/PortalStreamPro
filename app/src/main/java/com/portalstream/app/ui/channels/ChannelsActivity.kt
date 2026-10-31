@@ -162,6 +162,7 @@ class ChannelsActivity : ComponentActivity() {
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
                         // Usiamo una coroutine legata a Dispatchers.IO che non si interrompe se la UI sussulta
+                        scope.launch(Dispatchers.IO) {
                         try {
                             withContext(Dispatchers.Main) { 
                                 isLoading = true 
@@ -265,6 +266,9 @@ class ChannelsActivity : ComponentActivity() {
                                 isLoading = false 
                                 isEpgLoading = false 
                             }
+                        }
+                        LaunchedEffect(Unit) {
+                            fetchChannelsAction(false)
                         }
                     }
                 }
