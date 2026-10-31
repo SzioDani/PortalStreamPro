@@ -232,29 +232,34 @@ class ChannelsActivity : ComponentActivity() {
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
 
-                                // 🟢 PULIZIA CHIRURGICA: Rimuove dal DB solo i vecchi canali di questo specifico portale
+                                // 🟢 1. PULIZIA E SALVATAGGIO RAPIDO DEI CANALI
                                 channelDao.deleteChannelsByPrefix(portalPrefix)
 
                                 // Inserisce i nuovi canali puliti per questo portale
                                 channelDao.insertChannels(validFetched)
-
-                                // Esegue l'auto-associazione EPG sui canali aggiornati
-                                epgRepository.autoAssociateAllChannels(channelDao)
                                 Log.d(TAG, "Canali del portale $portalIdentifier salvati correttamente.")
-
-                                try {
-                                    val refreshedChannels = channelDao.getAllChannelsList()
-                                    val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
-                                    val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
-                                    val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)
-                                    withContext(Dispatchers.Main) {
-                                        if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
-                                        if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
+                                withContext(Dispatchers.Main) {
+                                    isLoading = false
+                                    if (isManualRefresh) {
+                                        Toast.makeText(this@ChannelsActivity, "✅ Lista canali caricata!", Toast.LENGTH_SHORT).show()
                                     }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Errore caricamento EPG", e)
                                 }
-
+                                // Esegue l'auto-associazione EPG sui canali aggiornati
+                                scope.launch(Dispatchers.IO) {              
+                                    try {
+                                        epgRepository.autoAssociateAllChannels(channelDao)
+                                        val refreshedChannels = channelDao.getAllChannelsList()
+                                        val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
+                                        val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
+                                        val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)
+                                        withContext(Dispatchers.Main) {
+                                            if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
+                                            if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
+                                       }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Errore caricamento EPG", e)
+                                    }
+                                }
                                 if (isManualRefresh) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(this@ChannelsActivity, "✅ Lista aggiornata e associata automaticamente!", Toast.LENGTH_SHORT).show()
