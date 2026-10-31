@@ -137,8 +137,8 @@ class ChannelsActivity : ComponentActivity() {
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
 
-                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
-                var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
+                var epgInfoMap by remember { mutableStateOf>(emptyMap()) }
+                var epgProgramsMap by remember { mutableStateOf>>(emptyMap()) }
 
                 val allGroups = remember(allChannels, portalIdentifier) {
                     val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
@@ -164,6 +164,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
+                    // Usiamo lifecycleScope (o lo scope dell'Activity) per evitare memory leak
                     scope.launch(Dispatchers.IO) {
                         try {
                             withContext(Dispatchers.Main) { 
@@ -171,11 +172,12 @@ class ChannelsActivity : ComponentActivity() {
                                 statusMessage = ""
                             }
                             Log.d(TAG, "Inizio caricamento canali per il portale: $portalIdentifier (Tipo: $portalType)")
-                            
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) ||
-                                    portalType.equals("MAG", ignoreCase = true)
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
-                                   portalType.equals("XSTREAM", ignoreCase = true)
+
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || 
+                                          portalType.equals("MAG", ignoreCase = true)
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || 
+                                         portalType.equals("XSTREAM", ignoreCase = true)
+
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
                                     val portalServer = if (server.isNotBlank()) server else portalUrl
@@ -219,9 +221,10 @@ class ChannelsActivity : ComponentActivity() {
                             if (fetched.isNotEmpty()) {
                                 val existingChannels = channelDao.getAllChannelsList()
                                 val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
-                                val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }             
-                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+                                val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
                                 
+                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+
                                 val validFetched = fetched.mapIndexed { index, channel ->
                                     val safeId = "ch_${portalIdentifier.hashCode()}_${if (channel.id.isBlank()) "${index}_${channel.name.hashCode()}" else channel.id}"
                                     val lookupKey = "${portalIdentifier}_${channel.name}"
@@ -229,32 +232,39 @@ class ChannelsActivity : ComponentActivity() {
                                     val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
                                     channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
                                 }
-                                
+
+                                // 🟢 1. SCRITTURA PULITA NEL DB ROOM
                                 channelDao.deleteChannelsByPrefix(portalPrefix)
                                 channelDao.insertChannels(validFetched)
-                                Log.d(TAG, "Canali salvati correttamente.")
-                                
+                                Log.d(TAG, "Canali del portale $portalIdentifier salvati con successo.")
+
+                                // 🟢 2. SPEGNIMENTO IMMEDIATO DELLA ROTELLINA PRINCIPALE
                                 withContext(Dispatchers.Main) {
                                     isLoading = false
                                     if (isManualRefresh) {
-                                        Toast.makeText(this@ChannelsActivity, "✅ Lista canali caricata!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@ChannelsActivity, "✅ Lista aggiornata!", Toast.LENGTH_SHORT).show()
                                     }
                                 }
 
+                                // 🟢 3. EPG IN BACKGROUND PROTETTO
+                                withContext(Dispatchers.Main) { isEpgLoading = true }
                                 try {
                                     epgRepository.autoAssociateAllChannels(channelDao)
                                     val refreshedChannels = channelDao.getAllChannelsList()
                                     val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
                                     val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
                                     val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)
+                                    
                                     withContext(Dispatchers.Main) {
                                         if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
                                         if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "Errore caricamento EPG", e)
+                                    Log.e(TAG, "Errore EPG in background", e)
+                                } finally {
+                                    withContext(Dispatchers.Main) { isEpgLoading = false }
                                 }
-
+                                 
                             } else {
                                 withContext(Dispatchers.Main) {
                                     statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
@@ -264,7 +274,7 @@ class ChannelsActivity : ComponentActivity() {
                             withContext(Dispatchers.Main) {
                                 statusMessage = "Errore: ${e.localizedMessage}"
                             }
-                            Log.e(TAG, "Errore caricamento canali", e)
+                            Log.e(TAG, "Errore generale caricamento canali", e)
                         } finally {
                             withContext(Dispatchers.Main) { 
                                 isLoading = false 
@@ -998,7 +1008,7 @@ class ChannelsActivity : ComponentActivity() {
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             
                             val mainTitle = prog.title
-                            val subTitle = prog.subTitle ?: "" 
+                            val subTitle = prog.subTitle ?: ""
                             val episodeInfo = prog.episodeNum ?: ""
                             
                             val progKey = "${prog.title}_${prog.startTime}"
@@ -1280,3 +1290,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_MAC = "extra_mac"
     }
 }
+                          
