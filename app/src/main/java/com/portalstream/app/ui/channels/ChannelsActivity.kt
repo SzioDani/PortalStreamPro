@@ -172,8 +172,10 @@ class ChannelsActivity : ComponentActivity() {
                             }
                             Log.d(TAG, "Inizio caricamento canali per il portale: $portalIdentifier (Tipo: $portalType)")
                             
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
+                            val isStalker = portalType.equals("STALKER", ignoreCase = true) ||
+                                    portalType.equals("MAG", ignoreCase = true)
+                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) ||
+                                    portalType.equals("XSTREAM", ignoreCase = true)
                             val fetched = when {
                                 isStalker || macAddress.isNotBlank() -> {
                                     val portalServer = if (server.isNotBlank()) server else portalUrl
