@@ -160,8 +160,8 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
-                val fetchChannelsAction = { isManualRefresh: Boolean ->
-                        // Usiamo una coroutine legata a Dispatchers.IO che non si interrompe se la UI sussulta
+                
+                if (shval fetchChannelsAction = { isManualRefresh: Boolean ->
                         scope.launch(Dispatchers.IO) {
                         try {
                             withContext(Dispatchers.Main) { 
@@ -267,12 +267,11 @@ class ChannelsActivity : ComponentActivity() {
                                 isEpgLoading = false 
                             }
                         }
-                        LaunchedEffect(Unit) {
-                            fetchChannelsAction(false)
-                        }
                     }
                 }
-
+                LaunchedEffect(Unit) {
+                    fetchChannelsAction(false)
+                }
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
