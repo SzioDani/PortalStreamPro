@@ -389,7 +389,7 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
-                                    Text("🔄 Aggiorna Lista Canali dal Server")
+                                    Text("🔄 Aggiorna Lista Canali")
                                 }
 
                                 Divider()
