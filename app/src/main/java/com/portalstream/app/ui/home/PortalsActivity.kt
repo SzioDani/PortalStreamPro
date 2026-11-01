@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalStore
 import com.portalstream.app.data.PortalType
+import com.portalstream.app.data.epg.EpgMappingStore
+import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.ui.channels.ChannelsActivity
@@ -36,10 +37,12 @@ import java.util.Locale
 class PortalsActivity : ComponentActivity() {
 
     private lateinit var store: PortalStore
+    private lateinit var epgMappingStore: EpgMappingStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PortalStore(this)
+        epgMappingStore = EpgMappingStore(this)
         setContentView(ComposeView(this).apply {
             setContent {
                 val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
@@ -175,8 +178,16 @@ class PortalsActivity : ComponentActivity() {
                                         }
                                         Spacer(Modifier.width(4.dp))
                                         TextButton(onClick = {
-                                            store.delete(portal.id)
+                                            val idToDelete = portal.id
+                                            store.delete(idToDelete)
                                             portals = store.load()
+                                            // 🗑️ Pulizia completa di epg_mappings.json e dei canali nel DB Room!
+                                            scope.launch(Dispatchers.IO) {
+                                                epgMappingStore.deletePortalMappings(idToDelete)
+                                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
+                                                dao.deleteChannelsByPlaylist(idToDelete)
+                                                dao.deleteChannelsByPrefix("ch_${idToDelete}_")
+                                            }
                                         }) {
                                             Text(
                                                 text = "Elimina",
@@ -202,7 +213,6 @@ class PortalsActivity : ComponentActivity() {
             )
         }
 
-        // Salvataggio NUOVO portale con associazione corretta Attivazione e Scadenza
         formType?.let { type ->
             PortalFormDialog(
                 existing = null,
@@ -216,7 +226,6 @@ class PortalsActivity : ComponentActivity() {
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isStalker = finalType == PortalType.MAG || portalToSave.macAddress.isNotBlank()
-
                             var finalPortal = portalToSave
 
                             if (isStalker) {
@@ -246,7 +255,6 @@ class PortalsActivity : ComponentActivity() {
             )
         }
 
-        // Salvataggio MODIFICA portale esistente con associazione corretta Attivazione e Scadenza
         editing?.let { portal ->
             PortalFormDialog(
                 existing = portal,
@@ -260,7 +268,6 @@ class PortalsActivity : ComponentActivity() {
                     scope.launch(Dispatchers.IO) {
                         try {
                             val isStalker = finalType == PortalType.MAG || portalToUpdate.macAddress.isNotBlank()
-
                             var finalPortal = portalToUpdate
 
                             if (isStalker) {
@@ -269,6 +276,21 @@ class PortalsActivity : ComponentActivity() {
                                     expireDate = if (profile.expireDate.isNotBlank()) profile.expireDate else portal.expireDate,
                                     activationDate = if (profile.activationDate.isNotBlank()) profile.activationDate else portal.activationDate
                                 )
+                            }
+
+                            // ♻️ Se l'utente ha cambiato MAC (es. da :03 a :05), URL, Server o Utente,
+                            // puliamo i vecchi canali e i vecchi ID EPG di questo portale!
+                            val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
+                                    portal.url.trim() != finalPortal.url.trim() ||
+                                    portal.server.trim() != finalPortal.server.trim() ||
+                                    portal.username.trim() != finalPortal.username.trim() ||
+                                    portal.password != finalPortal.password
+
+                            if (credentialsChanged) {
+                                epgMappingStore.deletePortalMappings(finalPortal.id)
+                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
+                                dao.deleteChannelsByPlaylist(finalPortal.id)
+                                dao.deleteChannelsByPrefix("ch_${finalPortal.id}_")
                             }
 
                             store.update(finalPortal)
@@ -303,6 +325,7 @@ class PortalsActivity : ComponentActivity() {
         val ua = if (portal.useCustomUserAgent) portal.userAgent else null
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
+                putExtra(ChannelsActivity.EXTRA_PORTAL_ID, portal.id)
                 putExtra(ChannelsActivity.EXTRA_TITLE, portal.name.ifBlank { "Portale ${portal.id}" })
                 putExtra(ChannelsActivity.EXTRA_URL, portal.url)
                 putExtra(ChannelsActivity.EXTRA_USER_AGENT, ua)
@@ -312,6 +335,7 @@ class PortalsActivity : ComponentActivity() {
                 putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
                 putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
                 putExtra(ChannelsActivity.EXTRA_MAC, portal.macAddress)
+                putExtra(ChannelsActivity.EXTRA_EXPIRE_DATE, portal.expireDate)
             }
         )
     }
