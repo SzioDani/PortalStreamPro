@@ -128,45 +128,59 @@ class EpgRepository(private val context: Context) {
                         val currentIndex = channelProgs.indexOfFirst {
                             now.isAfter(it.startTime) && now.isBefore(it.endTime)
                         }
+                        if (!targetId.isNullOrBlank()) {
+                val cleanTargetId = normalizeEpgId(targetId)
+                val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
 
-                        if (currentIndex != -1) {
-                            val prog = channelProgs[currentIndex]
-                            var current = prog.title
-                            if (!prog.episodeNum.isNullOrBlank()) {
-                                current += " (${prog.episodeNum})"
-                            }
+                if (channelProgs.isNotEmpty()) {
+                    val currentIndex = channelProgs.indexOfFirst {
+                        now.isAfter(it.startTime) && now.isBefore(it.endTime)
+                    }
 
-                            val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
-                            var next = nextProg?.title ?: ""
-                            if (nextProg != null && !nextProg.episodeNum.isNullOrBlank()) {
-                                next += " (${nextProg.episodeNum})"
-                            }
+                    if (currentIndex != -1) {
+                        val prog = channelProgs[currentIndex]
+                        var current = prog.title
+                        if (!prog.episodeNum.isNullOrBlank()) {
+                            current += " (${prog.episodeNum})"
+                        }
 
-                            val nextTimeRange = if (nextProg != null) {
-                                "${nextProg.startTime.format(timeFormatter)} - ${nextProg.endTime.format(timeFormatter)}"
-                            } else {
-                                ""
-                            }
+                        // 👇 Prende SOLO il titolo del programma successivo (SENZA numero episodio)
+                        val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
+                        val next = nextProg?.title ?: ""
 
-                            val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
-                            val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
-                            val nowEpoch = now.atZone(timeZone).toEpochSecond()
-
-                            val totalDuration = (endEpoch - startEpoch).toFloat()
-                            val elapsed = (nowEpoch - startEpoch).toFloat()
-                            val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
-                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
-
-                            resultMap[channel.id] = EpgInfo(current, next, progress, timeRange)
+                        // 👇 Calcola l'orario di inizio e fine per il programma successivo
+                        val nextTimeRange = if (nextProg != null) {
+                            "${nextProg.startTime.format(timeFormatter)} - ${nextProg.endTime.format(timeFormatter)}"
                         } else {
-                            val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
-                            val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
-                            var current = firstOrUpcoming?.title ?: ""
-                            if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
-                                current += " (${firstOrUpcoming.episodeNum})"
-                            }
-                            val timeRange = if (upcoming != null) upcoming.startTime.format(timeFormatter) else ""
-                            resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange)
+                            ""
+                        }
+
+                        val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
+                        val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
+                        val nowEpoch = now.atZone(timeZone).toEpochSecond()
+
+                        val totalDuration = (endEpoch - startEpoch).toFloat()
+                        val elapsed = (nowEpoch - startEpoch).toFloat()
+                        val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
+                        val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+
+                        // 👇 Passiamo tutti e 5 i valori, incluso nextTimeRange!
+                        resultMap[channel.id] = EpgInfo(
+                            currentProgram = current,
+                            nextProgram = next,
+                            progress = progress,
+                            timeRange = timeRange,
+                            nextTimeRange = nextTimeRange
+                        )
+                    } else {
+                        val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
+                        val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
+                        var current = firstOrUpcoming?.title ?: ""
+                        if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
+                            current += " (${firstOrUpcoming.episodeNum})"
+                        }
+                        val timeRange = if (upcoming != null) upcoming.startTime.format(timeFormatter) else ""
+                        resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange, "")
                         }
                     }
                 }
