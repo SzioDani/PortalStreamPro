@@ -459,7 +459,7 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                 ) {
-                                    Text("🔄 Ricalcola e Salva EPG [$selectedCountry]")
+                                    Text("🔄 Aggiorna EPG [$selectedCountry]")
                                 }
 
                                 Divider()
