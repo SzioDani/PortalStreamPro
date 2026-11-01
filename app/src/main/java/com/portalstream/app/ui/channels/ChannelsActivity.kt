@@ -824,27 +824,30 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
-                                        Spacer(modifier = Modifier.height(12.dp))
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            strokeWidth = 3.dp
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "⏳ Sto cercando la Guida TV (EPG)...\nAttendi qualche istante.",
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            text = "Sto cercando la Guida TV (EPG)...",
+                                            style = MaterialTheme.typography.bodyLarge,
                                             textAlign = TextAlign.Center,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                    }
-                                }
-                            } else if (currentChannels.isEmpty()) {
-                                // ❌ CASO LISTA VUOTA NORMALE
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = if (statusMessage.isNotBlank()) statusMessage else "🔍 Nessun canale trovato",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                                        Text(
+                                            text = "Attendi qualche istante.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }         
+                                }        
                             } else {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(currentChannels, key = { it.id.ifEmpty { it.url + it.name } }) { channel ->
