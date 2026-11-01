@@ -8,7 +8,21 @@ import org.json.JSONObject
 // Portali in JSON interno. Campi nuovi con opt* + default: retrocompatibile.
 class PortalStore(context: Context) {
 
-    private val file = File(context.filesDir, "portals.json")
+    // 🚀 Crea la cartella visibile in Android/data/com.portalstream.app/files/
+    // e trasferisce automaticamente i vecchi portali se presenti nella memoria nascosta!
+    private val file: File = run {
+        val externalDir = context.getExternalFilesDir(null) ?: context.filesDir
+        val visibleFile = File(externalDir, "portals.json")
+        val hiddenFile = File(context.filesDir, "portals.json")
+
+        if (!visibleFile.exists() && hiddenFile.exists()) {
+            try {
+                hiddenFile.copyTo(visibleFile, overwrite = true)
+                hiddenFile.delete()
+            } catch (_: Exception) {}
+        }
+        visibleFile
+    }
 
     fun load(): List<Portal> {
         if (!file.exists()) return emptyList()
