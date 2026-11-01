@@ -28,42 +28,58 @@ class EpgRepository(private val context: Context) {
     private val mapper = EpgChannelMapper()
 
     private var cachedPrograms: List<EpgProgram> = emptyList()
+    // 🚀 Indice ultra-veloce O(1) per non filtrare mai più l'intera lista per ogni singolo canale
+    private var programsByChannelMap: Map<String, List<EpgProgram>> = emptyMap()
+    private var loadedCountry: String = ""
 
-    /**
-     * 🚀 Espone il mapper per consentire la ricerca manuale degli ID nel dialog.
-     */
-    fun getMapper(): EpgChannelMapper {
-        return mapper
+    fun getMapper(): EpgChannelMapper = mapper
+
+    private fun normalizeEpgId(id: String): String {
+        return id.substringBefore("@").replace(" ", "").lowercase()
+    }
+
+    private suspend fun ensureEpgLoaded(countryCode: String, timeZone: ZoneId) {
+        val country = countryCode.lowercase()
+        if (cachedPrograms.isEmpty() || loadedCountry != country) {
+            val result = downloader.downloadEpg(country)
+            result.getOrNull()?.let { xmlContent ->
+                val parsed = parser.parseXmlTv(xmlContent, timeZone)
+                cachedPrograms = parsed
+                programsByChannelMap = parsed
+                    .groupBy { normalizeEpgId(it.channelId) }
+                    .mapValues { entry -> entry.value.sortedBy { it.startTime } }
+                mapper.loadMappingsFromXml(xmlContent)
+                loadedCountry = country
+                Log.d(TAG, "✅ EPG [$country] indicizzato: ${cachedPrograms.size} programmi in ${programsByChannelMap.size} canali.")
+            }
+        }
     }
 
     /**
-     * Restituisce l'elenco completo dei programmi EPG della giornata per un canale
+     * Usa direttamente l'ID salvato nel canale (dal nostro JSON).
+     * Cerca con findBestMatch SOLO se il canale è sprovvisto di ID.
      */
+    private fun resolveTargetEpgId(channel: Channel, countryCode: String, allowAutoSearch: Boolean = false): String? {
+        val savedId = channel.tvgId.ifBlank { channel.customSid }
+        if (savedId.isNotBlank()) {
+            return savedId
+        }
+        if (allowAutoSearch) {
+            return mapper.findBestMatch(channel, countryCode)?.siteId
+        }
+        return null
+    }
+
     fun getFullScheduleForChannel(
         channel: Channel,
         countryCode: String = "IT",
         timeZone: ZoneId = ZoneId.of("Europe/Rome")
     ): List<EpgProgram> {
-        val mapping = mapper.findBestMatch(channel, countryCode)
-        val targetId = mapping?.siteId ?: channel.tvgId.ifBlank { return emptyList() }
-
-        val cleanTargetId = targetId
-            .substringBefore("@")
-            .replace(" ", "")
-            .lowercase()
-
-        return cachedPrograms.filter { prog ->
-            val cleanProgId = prog.channelId
-                .substringBefore("@")
-                .replace(" ", "")
-                .lowercase()
-            cleanProgId == cleanTargetId
-        }.sortedBy { it.startTime }
+        val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false) ?: return emptyList()
+        val cleanTargetId = normalizeEpgId(targetId)
+        return programsByChannelMap[cleanTargetId] ?: emptyList()
     }
 
-    /**
-     * Restituisce la mappa completa dei programmi giornalieri per una lista di canali
-     */
     suspend fun getProgramsForChannels(
         channels: List<Channel>,
         countryCode: String = "it",
@@ -71,15 +87,14 @@ class EpgRepository(private val context: Context) {
     ): Map<String, List<EpgProgram>> = withContext(Dispatchers.Default) {
         val resultMap = mutableMapOf<String, List<EpgProgram>>()
         try {
-            if (cachedPrograms.isEmpty()) {
-                val result = downloader.downloadEpg(countryCode)
-                result.getOrNull()?.let { xmlContent ->
-                    cachedPrograms = parser.parseXmlTv(xmlContent, timeZone)
-                    mapper.loadMappingsFromXml(xmlContent)
-                }
-            }
+            ensureEpgLoaded(countryCode, timeZone)
+            if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
+
             channels.forEach { channel ->
-                resultMap[channel.id] = getFullScheduleForChannel(channel, countryCode, timeZone)
+                val schedule = getFullScheduleForChannel(channel, countryCode, timeZone)
+                if (schedule.isNotEmpty()) {
+                    resultMap[channel.id] = schedule
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore in getProgramsForChannels", e)
@@ -94,93 +109,62 @@ class EpgRepository(private val context: Context) {
     ): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
         val resultMap = mutableMapOf<String, EpgInfo>()
         try {
-            Log.d(TAG, "📥 [getAllCurrentEpg] Avvio elaborazione per ${channels.size} canali con nazione [$countryCode].")
-            
-            if (cachedPrograms.isEmpty()) {
-                Log.d(TAG, "Cache programmi vuota. Avvio download EPG per [$countryCode]...")
-                val result = downloader.downloadEpg(countryCode)
-                result.getOrNull()?.let { xmlContent ->
-                    // 1. Parsa i programmi TV passando correttamente il fuso orario
-                    cachedPrograms = parser.parseXmlTv(xmlContent, timeZone)
-                    
-                    // 2. Inizializza i canali ed effettua il mapping direttamente dall'XML scaricato
-                    mapper.loadMappingsFromXml(xmlContent)
-                    
-                    Log.d(TAG, "Totale programmi parsati dal file EPG: ${cachedPrograms.size}")
-                }
-            }
-
-            if (cachedPrograms.isEmpty()) {
-                Log.e(TAG, "ATTENZIONE: cachedPrograms è vuota! Nessun programma disponibile in memoria.")
-                return@withContext emptyMap()
-            }
+            ensureEpgLoaded(countryCode, timeZone)
+            if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
 
             val now = LocalDateTime.now(timeZone)
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
             channels.forEach { channel ->
-                val mapping = mapper.findBestMatch(channel, countryCode)
-                val targetId = mapping?.siteId
+                // ⚡ Usa l'ID già salvato senza rifare la ricerca lenta!
+                val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false)
 
-                if (targetId != null) {
-                    val cleanTargetId = targetId
-                        .substringBefore("@")
-                        .replace(" ", "")
-                        .lowercase()
+                if (!targetId.isNullOrBlank()) {
+                    val cleanTargetId = normalizeEpgId(targetId)
+                    val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
 
-                    val channelProgs = cachedPrograms.filter { prog ->
-                        val cleanProgId = prog.channelId
-                            .substringBefore("@")
-                            .replace(" ", "")
-                            .lowercase()
-                        cleanProgId == cleanTargetId
-                    }.sortedBy { it.startTime }
+                    if (channelProgs.isNotEmpty()) {
+                        val currentIndex = channelProgs.indexOfFirst {
+                            now.isAfter(it.startTime) && now.isBefore(it.endTime)
+                        }
 
-                    val currentIndex = channelProgs.indexOfFirst { 
-                        now.isAfter(it.startTime) && now.isBefore(it.endTime) 
+                        if (currentIndex != -1) {
+                            val prog = channelProgs[currentIndex]
+                            var current = prog.title
+                            if (!prog.episodeNum.isNullOrBlank()) {
+                                current += " (${prog.episodeNum})"
+                            }
+
+                            val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
+                            var next = nextProg?.title ?: ""
+                            if (nextProg != null && !nextProg.episodeNum.isNullOrBlank()) {
+                                next += " (${nextProg.episodeNum})"
+                            }
+
+                            val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
+                            val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
+                            val nowEpoch = now.atZone(timeZone).toEpochSecond()
+
+                            val totalDuration = (endEpoch - startEpoch).toFloat()
+                            val elapsed = (nowEpoch - startEpoch).toFloat()
+                            val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+
+                            resultMap[channel.id] = EpgInfo(current, next, progress, timeRange)
+                        } else {
+                            val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
+                            val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
+                            var current = firstOrUpcoming?.title ?: ""
+                            if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
+                                current += " (${firstOrUpcoming.episodeNum})"
+                            }
+                            val timeRange = if (upcoming != null) upcoming.startTime.format(timeFormatter) else ""
+                            resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange)
+                        }
                     }
-
-                    if (currentIndex != -1) {
-                        val prog = channelProgs[currentIndex]
-                        
-                        // 🏷️ Mostra anche l'episodio nel titolo "In Corso" se disponibile
-                        var current = prog.title
-                        if (!prog.episodeNum.isNullOrBlank()) {
-                            current += " (${prog.episodeNum})"
-                        }
-
-                        val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
-                        var next = nextProg?.title ?: ""
-                        if (nextProg != null && !nextProg.episodeNum.isNullOrBlank()) {
-                            next += " (${nextProg.episodeNum})"
-                        }
-
-                        val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
-                        val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
-                        val nowEpoch = now.atZone(timeZone).toEpochSecond()
-
-                        val totalDuration = (endEpoch - startEpoch).toFloat()
-                        val elapsed = (nowEpoch - startEpoch).toFloat()
-                        val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
-                        val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
-
-                        resultMap[channel.id] = EpgInfo(current, next, progress, timeRange)
-                    } else {
-                        val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
-                        var current = upcoming?.title ?: channelProgs.firstOrNull()?.title ?: ""
-                        val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
-                        if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
-                            current += " (${firstOrUpcoming.episodeNum})"
-                        }
-
-                        val timeRange = if (upcoming != null) "${upcoming.startTime.format(timeFormatter)}" else ""
-                        resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange)
-                    }
-                } else {
-                    Log.v(TAG, "⚠️ [getAllCurrentEpg] Nessun mapping trovato per il canale: '${channel.name}' (id: ${channel.id})")
                 }
             }
-            Log.d(TAG, "✅ Mappa EPG generata con successo per ${resultMap.size} canali su ${channels.size}.")
+            Log.d(TAG, "⚡ Mappa EPG istantanea generata per ${resultMap.size} canali su ${channels.size}.")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore critico in getAllCurrentEpg", e)
         }
@@ -188,31 +172,24 @@ class EpgRepository(private val context: Context) {
     }
 
     /**
-     * Esegue l'auto-associazione EPG di massa per tutti i canali presenti nel DB
+     * Esegue l'auto-associazione EPG SOLO per i canali del portale corrente (e non per tutti i portali del DB!).
      */
-    suspend fun autoAssociateAllChannels(
-        channelDao: com.portalstream.app.data.local.ChannelDao, 
-        countryCode: String = "IT"
-    ): Int = withContext(Dispatchers.Default) {
-        var matchedCount = 0
+    suspend fun autoAssociatePortalChannels(
+        portalChannels: List<Channel>,
+        countryCode: String = "IT",
+        forceOverwrite: Boolean = false
+    ): List<Channel> = withContext(Dispatchers.Default) {
         try {
-            Log.d(TAG, "🤖 [autoAssociateAllChannels] Avvio auto-associazione massiva per la nazione: [$countryCode]")
-            
-            if (cachedPrograms.isEmpty()) {
-                Log.d(TAG, "📥 Cache programmi vuota. Download EPG per [$countryCode] in corso...")
-                val result = downloader.downloadEpg(countryCode.lowercase())
-                result.getOrNull()?.let { xmlContent ->
-                    cachedPrograms = parser.parseXmlTv(xmlContent, ZoneId.of("Europe/Rome"))
-                    mapper.loadMappingsFromXml(xmlContent)
-                    Log.d(TAG, "✅ Download e parsing completati: ${cachedPrograms.size} programmi caricati.")
-                } ?: Log.e(TAG, "❌ Download EPG fallito per [$countryCode]")
-            }
+            ensureEpgLoaded(countryCode, ZoneId.of("Europe/Rome"))
+            if (portalChannels.isEmpty() || cachedPrograms.isEmpty()) return@withContext portalChannels
 
-            val channels = channelDao.getAllChannelsList()
-            Log.d(TAG, "📋 Canali letti dal database locale per l'associazione: ${channels.size}")
-
-            if (channels.isNotEmpty() && cachedPrograms.isNotEmpty()) {
-                val updatedList = channels.map { channel ->
+            var matchedCount = 0
+            val updatedList = portalChannels.map { channel ->
+                // Se ha già un ID (es. salvato manualmente) e non stiamo forzando, lo preserviamo!
+                if (!forceOverwrite && channel.tvgId.isNotBlank()) {
+                    matchedCount++
+                    channel
+                } else {
                     val mapping = mapper.findBestMatch(channel, countryCode)
                     if (mapping != null) {
                         matchedCount++
@@ -221,14 +198,12 @@ class EpgRepository(private val context: Context) {
                         channel
                     }
                 }
-                channelDao.insertChannels(updatedList)
-                Log.d(TAG, "✅ [AutoAssocia] Completato con successo! Aggiornati e salvati $matchedCount canali su ${channels.size}.")
-            } else {
-                Log.w(TAG, "⚠️ [autoAssociateAllChannels] Saltato: la lista dei canali dal DB o la cache EPG sono vuote.")
             }
+            Log.d(TAG, "✅ [AutoAssocia Portale] Trovati $matchedCount ID EPG su ${portalChannels.size} canali.")
+            updatedList
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Errore critico durante l'auto-associazione EPG massiva", e)
+            Log.e(TAG, "❌ Errore durante autoAssociatePortalChannels", e)
+            portalChannels
         }
-        matchedCount
     }
 }
