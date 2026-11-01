@@ -104,31 +104,23 @@ class EpgRepository(private val context: Context) {
     }
 
     suspend fun getAllCurrentEpg(
-        channels: List<Channel>,
-        countryCode: String = "it",
-        timeZone: ZoneId = ZoneId.of("Europe/Rome")
-    ): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
-        val resultMap = mutableMapOf<String, EpgInfo>()
-        try {
-            ensureEpgLoaded(countryCode, timeZone)
-            if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
+    channels: List<Channel>,
+    countryCode: String = "it",
+    timeZone: ZoneId = ZoneId.of("Europe/Rome")
+): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
+    val resultMap = mutableMapOf<String, EpgInfo>()
+    try {
+        ensureEpgLoaded(countryCode, timeZone)
+        if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
 
-            val now = LocalDateTime.now(timeZone)
-            val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        val now = LocalDateTime.now(timeZone)
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-            channels.forEach { channel ->
-                // ⚡ Usa l'ID già salvato senza rifare la ricerca lenta!
-                val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false)
+        channels.forEach { channel ->
+            // ⚡ Usa l'ID già salvato senza rifare la ricerca lenta!
+            val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false)
 
-                if (!targetId.isNullOrBlank()) {
-                    val cleanTargetId = normalizeEpgId(targetId)
-                    val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
-
-                    if (channelProgs.isNotEmpty()) {
-                        val currentIndex = channelProgs.indexOfFirst {
-                            now.isAfter(it.startTime) && now.isBefore(it.endTime)
-                        }
-                        if (!targetId.isNullOrBlank()) {
+            if (!targetId.isNullOrBlank()) {
                 val cleanTargetId = normalizeEpgId(targetId)
                 val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
 
@@ -173,14 +165,14 @@ class EpgRepository(private val context: Context) {
                             nextTimeRange = nextTimeRange
                         )
                     } else {
-                        val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
-                        val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
-                        var current = firstOrUpcoming?.title ?: ""
-                        if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
-                            current += " (${firstOrUpcoming.episodeNum})"
-                        }
-                        val timeRange = if (upcoming != null) upcoming.startTime.format(timeFormatter) else ""
-                        resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange, "")
+                            val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
+                            val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
+                            var current = firstOrUpcoming?.title ?: ""
+                            if (firstOrUpcoming != null && !firstOrUpcoming.episodeNum.isNullOrBlank()) {
+                                current += " (${firstOrUpcoming.episodeNum})"
+                            }
+                            val timeRange = if (upcoming != null) upcoming.startTime.format(timeFormatter) else ""
+                            resultMap[channel.id] = EpgInfo(current, "", 0f, timeRange, "")
                         }
                     }
                 }
