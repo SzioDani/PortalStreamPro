@@ -17,7 +17,8 @@ data class EpgInfo(
     val currentProgram: String = "",
     val nextProgram: String = "",
     val progress: Float = 0f,
-    val timeRange: String = ""
+    val timeRange: String = "",
+    val nextTimeRange: String = ""
 )
 
 class EpgRepository(private val context: Context) {
