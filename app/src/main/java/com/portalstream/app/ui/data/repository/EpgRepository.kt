@@ -142,6 +142,12 @@ class EpgRepository(private val context: Context) {
                                 next += " (${nextProg.episodeNum})"
                             }
 
+                            val nextTimeRange = if (nextProg != null) {
+                                "${nextProg.startTime.format(timeFormatter)} - ${nextProg.endTime.format(timeFormatter)}"
+                            } else {
+                                ""
+                            }
+
                             val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
                             val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
                             val nowEpoch = now.atZone(timeZone).toEpochSecond()
