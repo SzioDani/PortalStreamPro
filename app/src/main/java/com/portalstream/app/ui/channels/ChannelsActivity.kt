@@ -48,7 +48,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
+import com.portalstream.app.data.epg.EpgMappingStore
 import com.portalstream.app.data.epg.EpgProgram
+import com.portalstream.app.data.epg.PortalIdentity
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
@@ -61,7 +63,6 @@ import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import java.io.File
 import java.net.URL
 import java.time.format.DateTimeFormatter
@@ -72,12 +73,13 @@ import java.time.ZoneId
 class ChannelsActivity : ComponentActivity() {
 
     private val TAG = "ChannelsActivity"
-    private val client = OkHttpClient()
     private val epgRepository by lazy { EpgRepository(this) }
+    private val epgMappingStore by lazy { EpgMappingStore(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val portalId = intent.getIntExtra(EXTRA_PORTAL_ID, 0)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: "Canali"
         val portalUrl = intent.getStringExtra(EXTRA_URL) ?: ""
         val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
@@ -87,14 +89,27 @@ class ChannelsActivity : ComponentActivity() {
         val password = intent.getStringExtra(EXTRA_PASSWORD) ?: ""
         val format = intent.getStringExtra(EXTRA_FORMAT) ?: "m3u8"
         val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
+        val expireDate = intent.getStringExtra(EXTRA_EXPIRE_DATE) ?: ""
 
-        val portalIdentifier = server.ifBlank { portalUrl }
+        // 🔑 Impronta Digitale Unica del portale (distingue anche due MAC :03 e :05 sullo stesso server!)
+        val portalIdentity = PortalIdentity(
+            portalId = portalId,
+            name = title,
+            type = portalType,
+            url = portalUrl,
+            server = server,
+            mac = macAddress,
+            username = username,
+            password = password,
+            expireDate = expireDate
+        )
+
+        val portalPrefix = "ch_${portalId}_${portalIdentity.signature.hashCode()}_"
 
         val db = AppDatabase.getDatabase(this)
         val channelDao = db.channelDao()
         val prefs = getSharedPreferences("portal_stream_prefs", Context.MODE_PRIVATE)
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-        val epgCacheFile = File(filesDir, "epg_iptv_org_cache.json")
 
         setContent {
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
@@ -137,119 +152,167 @@ class ChannelsActivity : ComponentActivity() {
                 var groupSearchQuery by remember { mutableStateOf("") }
                 var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
                 var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
-                val allGroups = remember(allChannels, portalIdentifier) {
-                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
+
+                // Filtra rigorosamente SOLO i canali appartenenti a QUESTO portale
+                val portalChannelsOnly = remember(allChannels, portalPrefix, portalId) {
                     allChannels.filter { channel ->
-                        channel.id.startsWith(portalPrefix) || !channel.id.startsWith("ch_")
-                    }.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
-                }      
+                        channel.id.startsWith(portalPrefix) || (portalId == 0 && !channel.id.startsWith("ch_"))
+                    }
+                }
+
+                val allGroups = remember(portalChannelsOnly) {
+                    portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
+                }
 
                 val currentChannels = remember(
-                    allChannels, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds, portalIdentifier
+                    portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
-                    val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
-                    allChannels.filter { channel ->
-                        val matchesPortal = channel.id.startsWith(portalPrefix) || !channel.id.startsWith("ch_")
+                    portalChannelsOnly.filter { channel ->
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
                                 channel.name.contains(searchQuery, ignoreCase = true)
                         val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
                         val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
-                        matchesPortal && matchesGroup && matchesSearch && matchesFavorites && matchesEpg
+                        matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }
                 }
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
-                        scope.launch(Dispatchers.IO) {
+                    scope.launch(Dispatchers.IO) {
                         try {
-                            withContext(Dispatchers.Main) { 
-                                isLoading = true 
+                            withContext(Dispatchers.Main) {
+                                isLoading = true
                                 statusMessage = ""
                             }
-                            Log.d(TAG, "Inizio caricamento canali per il portale: $portalIdentifier (Tipo: $portalType)")
-                            val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
-                            val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
-                            val fetched = when {
-                                isStalker || macAddress.isNotBlank() -> {
-                                    val portalServer = if (server.isNotBlank()) server else portalUrl
-                                    if (portalServer.isBlank() || macAddress.isBlank()) {
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
-                                        }
-                                        emptyList()
-                                    } else {
-                                        val portalDraft = Portal(
-                                            id = 0, server = portalServer, macAddress = macAddress,
-                                            useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                        )
-                                        StalkerClient.fetchChannels(portalDraft)
-                                    }
-                                }
-                                isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
-                                    val portalDraft = Portal(
-                                        id = 0, server = server, username = username, password = password,
-                                        streamFormat = format, useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
-                                    )
-                                    XtreamClient.fetchLiveChannels(portalDraft)
-                                }
-                                portalUrl.isNotEmpty() -> {
-                                    var formattedUrl = portalUrl.trim()
-                                    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
-                                        formattedUrl = "http://$formattedUrl"
-                                    }
-                                    val connection = URL(formattedUrl).openConnection()
-                                    if (!userAgent.isNullOrBlank()) {
-                                        connection.setRequestProperty("User-Agent", userAgent)
-                                    }
-                                    val inputStream = connection.getInputStream()
-                                    val tempBuffer = mutableListOf<Channel>()
-                                    M3UParser.parseStreaming(inputStream) { tempBuffer.add(it) }
-                                    tempBuffer
-                                }
-                                else -> emptyList()
+
+                            // 1. Controlliamo subito il nostro file JSON visibile (epg_mappings.json)
+                            val savedJsonMappings = epgMappingStore.getSavedMappings(portalIdentity)
+
+                            // Se non è un refresh manuale e abbiamo già i canali di QUESTO portale nel DB,
+                            // evitiamo persino di riscaricare la lista da internet!
+                            val existingPortalChannels = channelDao.getAllChannelsList().filter {
+                                it.id.startsWith(portalPrefix)
                             }
-                            if (fetched.isNotEmpty()) {
-                                val existingChannels = channelDao.getAllChannelsList()
-                                val savedTvgMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.tvgId }
-                                val savedSidMap = existingChannels.associate { "${portalIdentifier}_${it.name}" to it.customSid }
-                                val portalPrefix = "ch_${portalIdentifier.hashCode()}_"
-                                val validFetched = fetched.mapIndexed { index, channel ->
-                                    val safeId = "ch_${portalIdentifier.hashCode()}_${if (channel.id.isBlank()) "${index}_${channel.name.hashCode()}" else channel.id}"
-                                    val lookupKey = "${portalIdentifier}_${channel.name}"
-                                    val preservedTvgId = savedTvgMap[lookupKey] ?: channel.tvgId
-                                    val preservedSid = savedSidMap[lookupKey] ?: channel.customSid
-                                    channel.copy(id = safeId, tvgId = preservedTvgId, customSid = preservedSid)
+
+                            val portalChannelsToUse: List<Channel> = if (!isManualRefresh && existingPortalChannels.isNotEmpty() && savedJsonMappings != null) {
+                                Log.d(TAG, "⚡ Lista canali e ID EPG già pronti per il portale $portalId! Caricamento istantaneo.")
+                                existingPortalChannels.map { ch ->
+                                    val jsonEpgId = savedJsonMappings[ch.id]
+                                    if (!jsonEpgId.isNullOrBlank() && ch.tvgId != jsonEpgId) {
+                                        ch.copy(tvgId = jsonEpgId)
+                                    } else ch
                                 }
-                                // 🟢 1. SCRITTURA PULITA NEL DB ROOM
-                                channelDao.deleteChannelsByPrefix(portalPrefix)
-                                channelDao.insertChannels(validFetched)
-                                Log.d(TAG, "Canali del portale $portalIdentifier salvati con successo.")
-                                // 🟢 2. SPEGNIMENTO IMMEDIATO DELLA ROTELLINA PRINCIPALE
+                            } else {
+                                Log.d(TAG, "📥 Scaricamento canali dal server per il portale: ${portalIdentity.signature}")
+                                val isStalker = portalType.equals("STALKER", ignoreCase = true) || portalType.equals("MAG", ignoreCase = true)
+                                val isXtream = portalType.equals("XTREAM", ignoreCase = true) || portalType.equals("XSTREAM", ignoreCase = true)
+
+                                val fetched = when {
+                                    isStalker || macAddress.isNotBlank() -> {
+                                        val portalServer = if (server.isNotBlank()) server else portalUrl
+                                        if (portalServer.isBlank() || macAddress.isBlank()) {
+                                            withContext(Dispatchers.Main) {
+                                                Toast.makeText(this@ChannelsActivity, "⚠️ Server o MAC vuoti!", Toast.LENGTH_LONG).show()
+                                            }
+                                            emptyList()
+                                        } else {
+                                            val portalDraft = Portal(
+                                                id = portalId, server = portalServer, macAddress = macAddress,
+                                                useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                            )
+                                            StalkerClient.fetchChannels(portalDraft)
+                                        }
+                                    }
+                                    isXtream || (username.isNotBlank() && password.isNotBlank()) -> {
+                                        val portalDraft = Portal(
+                                            id = portalId, server = server, username = username, password = password,
+                                            streamFormat = format, useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
+                                        )
+                                        XtreamClient.fetchLiveChannels(portalDraft)
+                                    }
+                                    portalUrl.isNotEmpty() -> {
+                                        var formattedUrl = portalUrl.trim()
+                                        if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
+                                            formattedUrl = "http://$formattedUrl"
+                                        }
+                                        val connection = URL(formattedUrl).openConnection()
+                                        if (!userAgent.isNullOrBlank()) {
+                                            connection.setRequestProperty("User-Agent", userAgent)
+                                        }
+                                        val inputStream = connection.getInputStream()
+                                        val tempBuffer = mutableListOf<Channel>()
+                                        M3UParser.parseStreaming(inputStream) { tempBuffer.add(it) }
+                                        tempBuffer
+                                    }
+                                    else -> emptyList()
+                                }
+
+                                if (fetched.isNotEmpty()) {
+                                    val validFetched = fetched.mapIndexed { index, channel ->
+                                        val rawPart = if (channel.id.isBlank()) "${index}_${channel.name.hashCode()}" else channel.id
+                                        val safeId = "$portalPrefix$rawPart"
+                                        // Se esiste già un ID EPG nel nostro JSON per questo preciso safeId, lo applichiamo subito!
+                                        val savedTvgId = savedJsonMappings?.get(safeId) ?: channel.tvgId
+                                        channel.copy(
+                                            id = safeId,
+                                            playlistId = portalId,
+                                            tvgId = savedTvgId
+                                        )
+                                    }
+                                    // Pulisce vecchi canali di questo portale e salva quelli nuovi
+                                    channelDao.deleteChannelsByPlaylist(portalId)
+                                    channelDao.deleteChannelsByPrefix("ch_${portalId}_")
+                                    channelDao.insertChannels(validFetched)
+                                    validFetched
+                                } else {
+                                    emptyList()
+                                }
+                            }
+
+                            if (portalChannelsToUse.isNotEmpty()) {
                                 withContext(Dispatchers.Main) {
                                     isLoading = false
                                     if (isManualRefresh) {
                                         Toast.makeText(this@ChannelsActivity, "✅ Lista aggiornata!", Toast.LENGTH_SHORT).show()
                                     }
                                 }
-                                // 🟢 3. EPG IN BACKGROUND PROTETTO
+
+                                // 🟢 GESTIONE INTELLIGENTE EPG TRAMITE IL FILE JSON
                                 withContext(Dispatchers.Main) { isEpgLoading = true }
                                 try {
-                                    epgRepository.autoAssociateAllChannels(channelDao)
-                                    val refreshedChannels = channelDao.getAllChannelsList()
                                     val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
-                                    val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
-                                    val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)                
+
+                                    // Se NON avevamo ancora il portale nel file JSON (prima apertura o MAC cambiato),
+                                    // facciamo la ricerca automatica SOLO per questo portale e salviamo tutto nel JSON!
+                                    val finalPortalChannels = if (savedJsonMappings == null) {
+                                        Log.d(TAG, "🔍 Prima configurazione EPG per portale $portalId: avvio ricerca automatica e salvataggio su JSON...")
+                                        val associated = epgRepository.autoAssociatePortalChannels(
+                                            portalChannels = portalChannelsToUse,
+                                            countryCode = countryToUse,
+                                            forceOverwrite = false
+                                        )
+                                        channelDao.insertChannels(associated)
+                                        epgMappingStore.savePortalMappings(portalIdentity, associated)
+                                        associated
+                                    } else {
+                                        Log.d(TAG, "⚡ ID EPG già presenti in epg_mappings.json! Salto la ricerca lenta.")
+                                        portalChannelsToUse
+                                    }
+
+                                    // Calcola i programmi SOLO per i canali di QUESTO portale!
+                                    val newInfoMap = epgRepository.getAllCurrentEpg(finalPortalChannels, countryToUse)
+                                    val newProgramsMap = epgRepository.getProgramsForChannels(finalPortalChannels, countryToUse)
+
                                     withContext(Dispatchers.Main) {
-                                        if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
-                                        if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
+                                        epgInfoMap = newInfoMap
+                                        epgProgramsMap = newProgramsMap
                                     }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Errore EPG in background", e)
                                 } finally {
                                     withContext(Dispatchers.Main) { isEpgLoading = false }
                                 }
-                                 
                             } else {
                                 withContext(Dispatchers.Main) {
                                     statusMessage = "❌ Nessun canale caricato. Verifica server e credenziali."
@@ -261,16 +324,18 @@ class ChannelsActivity : ComponentActivity() {
                             }
                             Log.e(TAG, "Errore generale caricamento canali", e)
                         } finally {
-                            withContext(Dispatchers.Main) { 
-                                isLoading = false 
-                                isEpgLoading = false 
+                            withContext(Dispatchers.Main) {
+                                isLoading = false
+                                isEpgLoading = false
                             }
                         }
                     }
                 }
+
                 LaunchedEffect(Unit) {
                     fetchChannelsAction(false)
                 }
+
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
@@ -364,21 +429,32 @@ class ChannelsActivity : ComponentActivity() {
                                             withContext(Dispatchers.Main) {
                                                 Toast.makeText(this@ChannelsActivity, "⏳ Ricerca EPG per [$countryToUse] in corso...", Toast.LENGTH_SHORT).show()
                                             }
-                                            val count = epgRepository.autoAssociateAllChannels(channelDao, countryToUse)
+                                            val currentPortalList = channelDao.getAllChannelsList().filter {
+                                                it.id.startsWith(portalPrefix)
+                                            }
+                                            val updated = epgRepository.autoAssociatePortalChannels(
+                                                portalChannels = currentPortalList,
+                                                countryCode = countryToUse,
+                                                forceOverwrite = true
+                                            )
+                                            channelDao.insertChannels(updated)
+                                            // Salva nel JSON visibile!
+                                            epgMappingStore.savePortalMappings(portalIdentity, updated)
+
+                                            val matchedCount = updated.count { it.tvgId.isNotBlank() }
+                                            val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
+                                            val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
                                             withContext(Dispatchers.Main) {
-                                                Toast.makeText(this@ChannelsActivity, "✅ Associati con successo $count canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
-                                                val refreshedChannels = channelDao.getAllChannelsList()
-                                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels, countryToUse)
-                                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels, countryToUse)
-                                                if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
-                                                if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
+                                                Toast.makeText(this@ChannelsActivity, "✅ Salvati nel JSON $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
+                                                epgInfoMap = newInfoMap
+                                                epgProgramsMap = newProgramsMap
                                             }
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                 ) {
-                                    Text("🔄 Auto-Associa EPG [$selectedCountry]")
+                                    Text("🔄 Ricalcola e Salva EPG [$selectedCountry]")
                                 }
 
                                 Divider()
@@ -607,7 +683,7 @@ class ChannelsActivity : ComponentActivity() {
                                     Icon(
                                         imageVector = Icons.Default.Search,
                                         contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
+                                            modifier = Modifier.size(18.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -728,7 +804,7 @@ class ChannelsActivity : ComponentActivity() {
                                                         isStalker || macAddress.isNotBlank() -> {
                                                             val portalServer = if (server.isNotBlank()) server else portalUrl
                                                             val portalDraft = Portal(
-                                                                id = 0, server = portalServer, macAddress = macAddress,
+                                                                id = portalId, server = portalServer, macAddress = macAddress,
                                                                 useCustomUserAgent = !userAgent.isNullOrBlank(), userAgent = userAgent ?: ""
                                                             )
                                                             StalkerClient.getStreamUrl(portalDraft, channel.url) ?: channel.url
@@ -809,12 +885,18 @@ class ChannelsActivity : ComponentActivity() {
                             scope.launch(Dispatchers.IO) {
                                 val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
                                 channelDao.insertChannel(updatedChannel)
-                                val refreshedChannels = channelDao.getAllChannelsList()
-                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedChannels)
-                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedChannels)
+                                // 💾 Salva immediatamente l'ID manuale anche dentro epg_mappings.json!
+                                epgMappingStore.saveSingleChannelMapping(portalIdentity, updatedChannel, newTvgId)
+
+                                val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
+                                val refreshedPortalChannels = channelDao.getAllChannelsList().filter {
+                                    it.id.startsWith(portalPrefix)
+                                }
+                                val newInfoMap = epgRepository.getAllCurrentEpg(refreshedPortalChannels, countryToUse)
+                                val newProgramsMap = epgRepository.getProgramsForChannels(refreshedPortalChannels, countryToUse)
                                 withContext(Dispatchers.Main) {
-                                    if (newInfoMap.isNotEmpty()) epgInfoMap = newInfoMap
-                                    if (newProgramsMap.isNotEmpty()) epgProgramsMap = newProgramsMap
+                                    epgInfoMap = newInfoMap
+                                    epgProgramsMap = newProgramsMap
                                 }
                             }
                         }
@@ -1256,16 +1338,12 @@ class ChannelsActivity : ComponentActivity() {
         )
     }
 
-    private fun isValidUrl(url: String?): Boolean {
-        if (url.isNullOrBlank()) return false
-        return url.startsWith("http://") || url.startsWith("https://")
-    }
-
     private fun extractRawId(safeId: String): String {
         return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
 
     companion object {
+        const val EXTRA_PORTAL_ID = "extra_portal_id"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_URL = "extra_url"
         const val EXTRA_USER_AGENT = "extra_user_agent"
@@ -1275,6 +1353,7 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_PASSWORD = "extra_password"
         const val EXTRA_FORMAT = "extra_format"
         const val EXTRA_MAC = "extra_mac"
+        const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-                          
+                                            
