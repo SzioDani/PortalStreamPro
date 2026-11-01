@@ -102,7 +102,6 @@ class EpgMappingStore(context: Context) {
                         ch.id,
                         JSONObject().apply {
                             put("rawName", ch.name)
-                            put("number", ch.number)
                             put("epgId", finalEpgId)
                         }
                     )
@@ -157,7 +156,6 @@ class EpgMappingStore(context: Context) {
                             channel.id,
                             JSONObject().apply {
                                 put("rawName", channel.name)
-                                put("number", channel.number)
                                 put("epgId", newEpgId)
                             }
                         )
