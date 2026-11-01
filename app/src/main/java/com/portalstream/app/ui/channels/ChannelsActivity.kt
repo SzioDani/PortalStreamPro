@@ -427,27 +427,32 @@ class ChannelsActivity : ComponentActivity() {
                                         val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
                                         scope.launch(Dispatchers.IO) {
                                             withContext(Dispatchers.Main) {
-                                                Toast.makeText(this@ChannelsActivity, "⏳ Ricerca EPG per [$countryToUse] in corso...", Toast.LENGTH_SHORT).show()
+                                                isEpgLoading = true // 👈 Attiva il bannerino!
                                             }
-                                            val currentPortalList = channelDao.getAllChannelsList().filter {
-                                                it.id.startsWith(portalPrefix)
-                                            }
-                                            val updated = epgRepository.autoAssociatePortalChannels(
-                                                portalChannels = currentPortalList,
-                                                countryCode = countryToUse,
-                                                forceOverwrite = true
-                                            )
-                                            channelDao.insertChannels(updated)
-                                            // Salva nel JSON visibile!
-                                            epgMappingStore.savePortalMappings(portalIdentity, updated)
+                                            try {
+                                                val currentPortalList = channelDao.getAllChannelsList().filter {
+                                                    it.id.startsWith(portalPrefix)
+                                                }
+                                                val updated = epgRepository.autoAssociatePortalChannels(
+                                                    portalChannels = currentPortalList,
+                                                    countryCode = countryToUse,
+                                                    forceOverwrite = true
+                                                )
+                                                channelDao.insertChannels(updated)
+                                                epgMappingStore.savePortalMappings(portalIdentity, updated)
 
-                                            val matchedCount = updated.count { it.tvgId.isNotBlank() }
-                                            val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
-                                            val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
-                                            withContext(Dispatchers.Main) {
-                                                Toast.makeText(this@ChannelsActivity, "✅ Salvati nel JSON $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
-                                                epgInfoMap = newInfoMap
-                                                epgProgramsMap = newProgramsMap
+                                                val matchedCount = updated.count { it.tvgId.isNotBlank() }
+                                                val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
+                                                val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(this@ChannelsActivity, "✅ Salvati nel JSON $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
+                                                    epgInfoMap = newInfoMap
+                                                    epgProgramsMap = newProgramsMap
+                                                }
+                                            } finally {
+                                                withContext(Dispatchers.Main) {
+                                                    isEpgLoading = false // 👈 Nasconde il bannerino quando ha finito!
+                                                }
                                             }
                                         }
                                     },
@@ -781,7 +786,57 @@ class ChannelsActivity : ComponentActivity() {
                                 )
                             }
 
-                            if (currentChannels.isEmpty()) {
+                            // 🟡 BANNERINO DISCRETO IN ALTO DURANTE IL CARICAMENTO EPG
+                            if (isEpgLoading) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 8.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "⏳ Ricerca Guida TV (EPG) in background...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (showOnlyEpg && isEpgLoading && epgProgramsMap.isEmpty()) {
+                                // 📺 SCHERMATA DEDICATA SE PREMI "GUIDA TV" MENTRE L'EPG STA ANCORA ARRIVANDO
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "⏳ Sto cercando la Guida TV (EPG)...\nAttendi qualche istante.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            } else if (currentChannels.isEmpty()) {
+                                // ❌ CASO LISTA VUOTA NORMALE
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text(
                                         text = if (statusMessage.isNotBlank()) statusMessage else "🔍 Nessun canale trovato",
