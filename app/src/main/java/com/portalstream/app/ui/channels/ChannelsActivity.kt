@@ -978,6 +978,7 @@ class ChannelsActivity : ComponentActivity() {
 
                     if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
+                        // 🟢 PROGRAMMA IN CORSO
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "▶ ${epgInfo.currentProgram}",
@@ -995,6 +996,30 @@ class ChannelsActivity : ComponentActivity() {
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+
+                        // ⏭️ PROGRAMMA SUCCESSIVO ("Dopo:")
+                        if (epgInfo.nextProgram.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "⏭ Dopo: ${epgInfo.nextProgram}", // Puoi usare "⏭" oppure ">>|"
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                if (epgInfo.nextTimeRange.isNotBlank()) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = epgInfo.nextTimeRange,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    )
+                                }
                             }
                         }
                     }
