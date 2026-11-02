@@ -1068,7 +1068,7 @@ class ChannelsActivity : ComponentActivity() {
                                   )
                                    Spacer(modifier = Modifier.width(4.dp))
                                    Text(
-                                   text = "${epgInfo.nextProgram}",
+                                   text = "Dopo:${epgInfo.nextProgram}",
                                    style = MaterialTheme.typography.labelSmall,
                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                    fontWeight = FontWeight.Medium,
