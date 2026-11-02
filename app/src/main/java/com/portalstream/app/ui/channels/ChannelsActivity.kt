@@ -70,6 +70,8 @@ import java.net.URL
 import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
+import androidx.compose.ui.res.colorResource
+import com.portalstream.app.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
