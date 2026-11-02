@@ -1060,10 +1060,10 @@ class ChannelsActivity : ComponentActivity() {
                               Spacer(modifier = Modifier.height(2.dp))
                               Row(verticalAlignment = Alignment.CenterVertically) {
                                   Icon(
-                                      imageVector = Icons.Default.SkipNext,
+                                      imageVector = Icons.Default.FastForward,
                                       contentDescription = null,
                                       modifier = Modifier.size(14.dp),
-                                      tint = MaterialTheme.colorScheme.secondary // <-- Colore brillante e ben visibile!
+                                      tint = MaterialTheme.colorScheme.secondary
                                   )
                                    Spacer(modifier = Modifier.width(4.dp))
                                    Text(
