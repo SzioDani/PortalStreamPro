@@ -814,7 +814,7 @@ class ChannelsActivity : ComponentActivity() {
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "⏳ Ricerca Guida TV (EPG) in background...",
+                                            text = "Ricerca Guida TV (EPG) in background...",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                                             fontWeight = FontWeight.Medium
@@ -833,7 +833,7 @@ class ChannelsActivity : ComponentActivity() {
                                         CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
-                                            text = "⏳ Sto cercando la Guida TV (EPG)...\nAttendi qualche istante.",
+                                            text = "Sto cercando la Guida TV (EPG)...\nAttendi qualche istante.",
                                             style = MaterialTheme.typography.bodyMedium,
                                             textAlign = TextAlign.Center,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -1054,7 +1054,7 @@ class ChannelsActivity : ComponentActivity() {
                                 text = "${epgInfo.currentProgram}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colorResource(id = R.color.text_pinkcyber),
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
