@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.*
 import androidx.compose.material.icons.filled.SkipNext
