@@ -1056,16 +1056,23 @@ class ChannelsActivity : ComponentActivity() {
 
                         // ⏭️ PROGRAMMA SUCCESSIVO ("Dopo:")
                         if (epgInfo.nextProgram.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "⏭ Dopo: ${epgInfo.nextProgram}", // Puoi usare "⏭" oppure ">>|"
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
+                              Spacer(modifier = Modifier.height(2.dp))
+                              Row(verticalAlignment = Alignment.CenterVertically) {
+                                  Icon(
+                                      imageVector = Icons.Default.SkipNext,
+                                      contentDescription = null,
+                                      modifier = Modifier.size(14.dp),
+                                      tint = MaterialTheme.colorScheme.secondary // <-- Colore brillante e ben visibile!
+                                  )
+                                   Spacer(modifier = Modifier.width(4.dp))
+                                   Text(
+                                   text = "${epgInfo.nextProgram}",
+                                   style = MaterialTheme.typography.labelSmall,
+                                   color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                   fontWeight = FontWeight.Medium,
+                                   maxLines = 1,
+                                   overflow = TextOverflow.Ellipsis,
+                                   modifier = Modifier.weight(1f, fill = false)
                                 )
                                 if (epgInfo.nextTimeRange.isNotBlank()) {
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1073,8 +1080,8 @@ class ChannelsActivity : ComponentActivity() {
                                         text = epgInfo.nextTimeRange,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                    )
-                                }
+                                     )
+                                 }       
                             }
                         }
                     }
