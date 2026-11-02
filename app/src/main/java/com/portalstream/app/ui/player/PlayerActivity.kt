@@ -263,10 +263,10 @@ class PlayerActivity : ComponentActivity() {
                     }
                     addOption(":http-reconnect")
                     addOption(":clock-jitter=0")
-                    addOption(":http-continuous")
                     addOption(":network-caching=8000")
                     addOption(":live-caching=8000")
-
+                    addOption(":adaptive-logic=highest")
+                    
                     if (!userAgent.isNullOrBlank()) {
                         addOption(":http-user-agent=$userAgent")
                     }
@@ -275,12 +275,13 @@ class PlayerActivity : ComponentActivity() {
                 mp.media = media
                 media.release()
 
-                fun refreshAudioState() {
+                fun refreshAudioState(forceWakeUp: Boolean = false) {
                     val tracks = mp.audioTracks?.toList() ?: emptyList()
                     audioTrackDescriptions = tracks
                     var currentId = mp.audioTrack
                     val validTracks = tracks.filter { it.id != -1 }
                     val isCurrentValid = validTracks.any { it.id == currentId }
+                    
                     if ((!isCurrentValid || currentId == -1) && validTracks.isNotEmpty()) {
                         val targetTrack = validTracks.firstOrNull {
                             it.name.contains("ita", ignoreCase = true)
