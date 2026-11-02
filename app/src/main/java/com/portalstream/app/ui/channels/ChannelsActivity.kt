@@ -1039,7 +1039,10 @@ class ChannelsActivity : ComponentActivity() {
                     if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         // 🟢 PROGRAMMA IN CORSO
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = null,
@@ -1054,7 +1057,7 @@ class ChannelsActivity : ComponentActivity() {
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
+                                modifier = Modifier.weight(1f)
                             )
                             if (epgInfo.timeRange.isNotBlank()) {
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -1068,8 +1071,10 @@ class ChannelsActivity : ComponentActivity() {
 
                         // ⏭️ PROGRAMMA SUCCESSIVO ("Dopo:")
                         if (epgInfo.nextProgram.isNotBlank()) {
-                              Spacer(modifier = Modifier.height(2.dp))
-                              Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                   Icon(
                                       imageVector = Icons.Default.FastForward,
                                       contentDescription = null,
@@ -1084,7 +1089,7 @@ class ChannelsActivity : ComponentActivity() {
                                    fontWeight = FontWeight.Medium,
                                    maxLines = 1,
                                    overflow = TextOverflow.Ellipsis,
-                                   modifier = Modifier.weight(1f, fill = false)
+                                   modifier = Modifier.weight(1f)
                                 )
                                 if (epgInfo.nextTimeRange.isNotBlank()) {
                                     Spacer(modifier = Modifier.width(8.dp))
