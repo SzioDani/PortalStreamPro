@@ -1043,17 +1043,22 @@ class ChannelsActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = colorResource(id = R.color.text_pinkcyber)
-                            )
+                            Box(
+                                modifier = Modifier.width(16.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {   
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = colorResource(id = R.color.text_neonciano)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "${epgInfo.currentProgram}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = colorResource(id = R.color.text_pinkcyber),
+                                color = colorResource(id = R.color.text_neonciano),
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1064,28 +1069,34 @@ class ChannelsActivity : ComponentActivity() {
                                 Text(
                                     text = epgInfo.timeRange,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = colorResource(id = R.color.text_neonciano),
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
-
+                        Spacer(modifier = Modifier.height(2.dp))
                         // ⏭️ PROGRAMMA SUCCESSIVO ("Dopo:")
                         if (epgInfo.nextProgram.isNotBlank()) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
+                                Box(
+                                    modifier = Modifier.width(16.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
                                   Icon(
                                       imageVector = Icons.Default.FastForward,
                                       contentDescription = null,
                                       modifier = Modifier.size(14.dp),
-                                      tint = colorResource(id = R.color.text_neonciano)
+                                      tint = colorResource(id = R.color.text_pinkcyber)
                                   )
+                                }
                                    Spacer(modifier = Modifier.width(4.dp))
                                    Text(
                                    text = "${epgInfo.nextProgram}",
                                    style = MaterialTheme.typography.labelSmall,
-                                   color = colorResource(id = R.color.text_neonciano),
+                                   color = colorResource(id = R.color.text_pinkcyber),
                                    fontWeight = FontWeight.Medium,
                                    maxLines = 1,
                                    overflow = TextOverflow.Ellipsis,
@@ -1096,7 +1107,8 @@ class ChannelsActivity : ComponentActivity() {
                                     Text(
                                         text = epgInfo.nextTimeRange,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                        color = colorResource(id = R.color.text_pinkcyber),
+                                        fontWeight = FontWeight.Medium
                                      )
                                  }       
                             }
