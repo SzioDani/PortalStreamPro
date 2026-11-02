@@ -49,6 +49,7 @@
         <!-- Lista canali del portale selezionato -->
         <activity
             android:name="com.portalstream.app.ui.channels.ChannelsActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="false" />
 
         <!-- Player - Jetpack Compose -->
