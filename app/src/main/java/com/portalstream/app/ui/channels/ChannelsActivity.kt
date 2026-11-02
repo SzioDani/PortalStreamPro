@@ -1064,13 +1064,13 @@ class ChannelsActivity : ComponentActivity() {
                                       imageVector = Icons.Default.FastForward,
                                       contentDescription = null,
                                       modifier = Modifier.size(14.dp),
-                                      tint = MaterialTheme.colorScheme.secondary
+                                      tint = colorResource(id = R.color.text_neonciano)
                                   )
                                    Spacer(modifier = Modifier.width(4.dp))
                                    Text(
                                    text = "Dopo:${epgInfo.nextProgram}",
                                    style = MaterialTheme.typography.labelSmall,
-                                   color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                   color = colorResource(id = R.color.text_neonciano),
                                    fontWeight = FontWeight.Medium,
                                    maxLines = 1,
                                    overflow = TextOverflow.Ellipsis,
