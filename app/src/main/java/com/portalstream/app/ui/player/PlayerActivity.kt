@@ -145,6 +145,7 @@ class PlayerActivity : ComponentActivity() {
             add("--clock-synchro=0")
             add("--udp-timeout=40000")
             add("--http-continuous")
+            add("--adaptive-logic=highest")
         }
 
         libVLC = LibVLC(this, options)
@@ -257,9 +258,12 @@ class PlayerActivity : ComponentActivity() {
 
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
-                    addOption(":http-continuous")
+                    if (!streamUrl.contains(".m3u8", ignoreCase = true)) {
+                        addOption(":http-continuous")
+                    }
                     addOption(":http-reconnect")
                     addOption(":clock-jitter=0")
+                    addOption(":http-continuous")
                     addOption(":network-caching=8000")
                     addOption(":live-caching=8000")
 
@@ -276,11 +280,16 @@ class PlayerActivity : ComponentActivity() {
                     audioTrackDescriptions = tracks
                     var currentId = mp.audioTrack
                     val validTracks = tracks.filter { it.id != -1 }
-
-                    if (currentId == -1 && validTracks.isNotEmpty()) {
-                        val defaultTrackId = validTracks.first().id
-                        mp.audioTrack = defaultTrackId
-                        currentId = defaultTrackId
+                    val isCurrentValid = validTracks.any { it.id == currentId }
+                    if ((!isCurrentValid || currentId == -1) && validTracks.isNotEmpty()) {
+                        val targetTrack = validTracks.firstOrNull {
+                            it.name.contains("ita", ignoreCase = true)
+                        } ?: validTracks.first()
+                        mp.audioTrack = targetTrack.id
+                        currentId = targetTrack.id
+                    } else if (forceWakeUp && currentId != -1) {
+                        mp.audioTrack = -1
+                        mp.audioTrack = currentId
                     }
 
                     currentAudioTrackId = currentId
@@ -315,6 +324,14 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                             refreshAudioState()
+                        }
+                        MediaPlayer.Event.Vout -> {
+                            if (event.voutCount > 0) {
+                                lifecycleScope.launch {
+                                    delay(200)
+                                    refreshAudioState(forceWakeUp = true)
+                                }
+                            }
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
