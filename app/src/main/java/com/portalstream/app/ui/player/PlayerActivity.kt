@@ -145,7 +145,6 @@ class PlayerActivity : ComponentActivity() {
             add("--clock-synchro=0")
             add("--udp-timeout=40000")
             add("--http-continuous")
-            add("--adaptive-logic=highest")
         }
 
         libVLC = LibVLC(this, options)
@@ -258,15 +257,12 @@ class PlayerActivity : ComponentActivity() {
 
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
-                    if (!streamUrl.contains(".m3u8", ignoreCase = true)) {
-                        addOption(":http-continuous")
-                    }
+                    addOption(":http-continuous")
                     addOption(":http-reconnect")
                     addOption(":clock-jitter=0")
                     addOption(":network-caching=8000")
                     addOption(":live-caching=8000")
-                    addOption(":adaptive-logic=highest")
-                    
+
                     if (!userAgent.isNullOrBlank()) {
                         addOption(":http-user-agent=$userAgent")
                     }
@@ -275,32 +271,41 @@ class PlayerActivity : ComponentActivity() {
                 mp.media = media
                 media.release()
 
-                fun refreshAudioState(forceWakeUp: Boolean = false) {
+                fun refreshAudioState() {
                     val tracks = mp.audioTracks?.toList() ?: emptyList()
                     audioTrackDescriptions = tracks
                     var currentId = mp.audioTrack
                     val validTracks = tracks.filter { it.id != -1 }
-                    val isCurrentValid = validTracks.any { it.id == currentId }
-                    
-                    if ((!isCurrentValid || currentId == -1) && validTracks.isNotEmpty()) {
-                        val targetTrack = validTracks.firstOrNull {
-                            it.name.contains("ita", ignoreCase = true)
-                        } ?: validTracks.first()
-                        mp.audioTrack = targetTrack.id
-                        currentId = targetTrack.id
-                    } else if (forceWakeUp && currentId != -1) {
-                        mp.audioTrack = -1
-                        mp.audioTrack = currentId
+                    Log.d("AUDIO-DBG", "PRIMA: tracce=${tracks.map { "${it.id}:${it.name}" }} " +
+                        "corrente=$currentId audioCount=${mp.audioTracksCount} videoCount=${mp.videoTracksCount}")
+                        
+                    if (currentId == -1 && validTracks.isNotEmpty()) {
+                        val defaultTrackId = validTracks.first().id
+                        mp.audioTrack = defaultTrackId
+                        currentId = defaultTrackId
+                        Log.d("AUDIO-DBG", "FORZATA traccia $defaultTrackId")
                     }
 
                     currentAudioTrackId = currentId
                     currentAudioInfo = formatAudioTrackInfo(mp, tracks, currentId)
+                    Log.d("AUDIO-DBG", "DOPO: corrente=$currentId info=$currentAudioInfo")
                 }
 
                 var initialBufferingStarted = false
                 var isFirstPlay = true
 
                 mp.setEventListener { event ->
+                    val name = when (event.type) {
+                        MediaPlayer.Event.Playing -> "Playing"
+                        MediaPlayer.Event.Vout -> "Vout(count=${event.voutCount})"
+                        MediaPlayer.Event.ESAdded -> "ESAdded"
+                        MediaPlayer.Event.ESDeleted -> "ESDeleted"
+                        MediaPlayer.Event.ESSelected -> "ESSelected"
+                        MediaPlayer.Event.EncounteredError -> "ERROR"
+                        else -> null
+                    }
+                    if (name != null) Log.d("AUDIO-DBG", "EVENTO $name")
+                    
                     when (event.type) {
                         MediaPlayer.Event.Buffering -> {
                             if (!initialBufferingStarted) {
@@ -325,14 +330,6 @@ class PlayerActivity : ComponentActivity() {
                                 }
                             }
                             refreshAudioState()
-                        }
-                        MediaPlayer.Event.Vout -> {
-                            if (event.voutCount > 0) {
-                                lifecycleScope.launch {
-                                    delay(200)
-                                    refreshAudioState(forceWakeUp = true)
-                                }
-                            }
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
