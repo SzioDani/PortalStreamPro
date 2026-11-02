@@ -44,6 +44,7 @@
     <color name="text_tertiary">#94A3B8</color>     <!-- Slate 500 -->
     <color name="text_disabled">#64748B</color>     <!-- Slate 600 -->
     <color name="text_neonciano">#0FF0FC</color>    <!-- Slate 700 -->
+    <color name="text_pinkcyber">#FF2DAA</color>    <!-- Slate 800 -->
 
     <!-- NEUTRAL PALETTE -->
     <color name="neutral_50">#F8FAFC</color>
