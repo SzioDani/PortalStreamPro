@@ -1046,7 +1046,8 @@ class ChannelsActivity : ComponentActivity() {
                                 modifier = Modifier.size(14.dp),
                                 tint = colorResource(id = R.color.text_pinkcyber)
                             )
-                                Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
                                 text = "${epgInfo.currentProgram}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colorResource(id = R.color.text_pinkcyber),
