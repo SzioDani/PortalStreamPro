@@ -1057,7 +1057,7 @@ class ChannelsActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "${epgInfo.currentProgram}",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = colorResource(id = R.color.text_neonciano),
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
