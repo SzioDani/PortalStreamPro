@@ -1039,10 +1039,16 @@ class ChannelsActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(4.dp))
                         // 🟢 PROGRAMMA IN CORSO
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "▶ ${epgInfo.currentProgram}",
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = colorResource(id = R.color.text_pinkcyber)
+                            )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                text = "${epgInfo.currentProgram}",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = colorResource(id = R.color.text_pinkcyber),
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1070,7 +1076,7 @@ class ChannelsActivity : ComponentActivity() {
                                   )
                                    Spacer(modifier = Modifier.width(4.dp))
                                    Text(
-                                   text = "Dopo:${epgInfo.nextProgram}",
+                                   text = "${epgInfo.nextProgram}",
                                    style = MaterialTheme.typography.labelSmall,
                                    color = colorResource(id = R.color.text_neonciano),
                                    fontWeight = FontWeight.Medium,
