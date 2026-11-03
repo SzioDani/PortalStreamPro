@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.SurfaceView
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -148,9 +147,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Inizializza LibVLC mantenendo INTATTE tutte le opzioni specifiche per i Portali MAC
-     */
     private fun ensureLibVLCInitialized() {
         if (libVLC != null && mediaPlayer != null) return
         val options = ArrayList<String>().apply {
@@ -173,9 +169,6 @@ class PlayerActivity : ComponentActivity() {
         Log.d("PlayerDebug", "LibVLC inizializzato (Modalità Portale MAC)")
     }
 
-    /**
-     * Inizializza ExoPlayer (Media3) per i flussi HLS (.m3u8) / Mediaset / DASH
-     */
     private fun ensureExoPlayerInitialized(): ExoPlayer {
         exoPlayer?.let { return it }
 
@@ -192,12 +185,7 @@ class PlayerActivity : ComponentActivity() {
             }
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                3000,  // minBufferMs
-                15000, // maxBufferMs
-                1500,  // bufferForPlaybackMs
-                2500   // bufferForPlaybackAfterRebufferMs
-            )
+            .setBufferDurationsMs(3000, 15000, 1500, 2500)
             .build()
 
         return ExoPlayer.Builder(this)
@@ -214,14 +202,8 @@ class PlayerActivity : ComponentActivity() {
             }
     }
 
-    /**
-     * Rileva automaticamente se usare ExoPlayer (HLS/M3U8/Mediaset/MPD)
-     * oppure LibVLC (Portali MAC / .ts / RTSP)
-     */
     private suspend fun shouldUseExoPlayer(urlStr: String, userAgentStr: String?): Boolean = withContext(Dispatchers.IO) {
         val lower = urlStr.lowercase()
-
-        // 1. Se è chiaramente un Portale MAC o flusso TS/RTSP grezzo -> usa LibVLC
         if (lower.contains("live.php") ||
             lower.contains("extension=ts") ||
             lower.endsWith(".ts") ||
@@ -232,7 +214,6 @@ class PlayerActivity : ComponentActivity() {
             return@withContext false
         }
 
-        // 2. Se l'URL mostra già che è un HLS / DASH / Mediaset -> usa ExoPlayer
         if (lower.contains(".m3u8") ||
             lower.contains(".mpd") ||
             lower.contains(".isml") ||
@@ -242,7 +223,6 @@ class PlayerActivity : ComponentActivity() {
             return@withContext true
         }
 
-        // 3. Se l'URL è ambiguo (es. link M3U senza estensione), ispeziona i primi byte/header
         try {
             val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
@@ -272,7 +252,6 @@ class PlayerActivity : ComponentActivity() {
                 if (read >= 7) {
                     val headerStr = String(firstBytes, Charsets.UTF_8)
                     if (headerStr.startsWith("#EXTM3U")) {
-                        Log.d("PlayerDebug", "Rilevato header #EXTM3U nascosto -> Uso ExoPlayer")
                         return@withContext true
                     }
                 }
@@ -328,9 +307,7 @@ class PlayerActivity : ComponentActivity() {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
 
-        // null = rilevamento in corso, true = ExoPlayer (HLS/Mediaset), false = LibVLC (MAC)
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
-
         var isPlaying by remember { mutableStateOf(false) }
         var isBuffering by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -353,7 +330,6 @@ class PlayerActivity : ComponentActivity() {
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
         var composeExoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
-        // Rileva all'avvio quale player usare
         LaunchedEffect(streamUrl) {
             isBuffering = true
             useExoPlayer = shouldUseExoPlayer(streamUrl, userAgent)
@@ -373,7 +349,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Gestione Aspect Ratio e Zoom per ENTRAMBI i player (LibVLC e ExoPlayer)
         LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer, composeExoPlayer, exoPlayerView) {
             if (useExoPlayer == true) {
                 val pv = exoPlayerView ?: return@LaunchedEffect
@@ -393,9 +368,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // 1. MOTORE EXOPLAYER (PER STREAM HLS / M3U8 / MEDIASET)
-        // =========================================================================
         DisposableEffect(useExoPlayer, exoPlayerView) {
             if (useExoPlayer != true) return@DisposableEffect onDispose {}
             val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
@@ -512,9 +484,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // 2. MOTORE LIBVLC (PER PORTALI MAC E FLUSSI TS GREZZI)
-        // =========================================================================
         DisposableEffect(useExoPlayer, vlcVideoLayout) {
             if (useExoPlayer != false) return@DisposableEffect onDispose {}
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
@@ -636,9 +605,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // INTERFACCIA UTENTE COMPOSE
-        // =========================================================================
         DraggableMiniPlayerContainer(
             isMinimized = isMinimized,
             onExpand = { isMinimized = false },
@@ -665,7 +631,6 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
             ) {
-                // Vista Video dinamica in base al motore scelto
                 when (useExoPlayer) {
                     true -> {
                         AndroidView(
@@ -691,9 +656,7 @@ class PlayerActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    null -> {
-                        // In attesa del rilevamento rapido dello stream
-                    }
+                    null -> {}
                 }
 
                 AnimatedVisibility(
@@ -728,13 +691,33 @@ class PlayerActivity : ComponentActivity() {
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                val engineBadge = if (useExoPlayer == true) "ExoPlayer" else "LibVLC"
                                 Text(
-                                    text = "Audio: $currentAudioInfo • [$engineBadge]",
+                                    text = "Audio: $currentAudioInfo",
                                     color = Color.LightGray,
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
+
+                            // ⭐ PULSANTE RAPIDO CAMBIO MOTORE NELLA TOPBAR
+                            Surface(
+                                onClick = {
+                                    isBuffering = true
+                                    errorMessage = null
+                                    useExoPlayer = !(useExoPlayer ?: false)
+                                },
+                                color = Color.White.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    text = if (useExoPlayer == true) "⚡ Exo" else "⚡ VLC",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             IconButton(onClick = { isMinimized = true }) {
                                 Icon(
@@ -907,7 +890,6 @@ class PlayerActivity : ComponentActivity() {
                                         Text("Riprova")
                                     }
 
-                                    // Permette di passare all'altro motore se uno dei due fallisce!
                                     OutlinedButton(onClick = {
                                         errorMessage = null
                                         isBuffering = true
@@ -945,16 +927,6 @@ class PlayerActivity : ComponentActivity() {
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold
                                 )
-                                // Pulsante rapido per cambiare motore (ExoPlayer <-> LibVLC)
-                                TextButton(onClick = {
-                                    isBuffering = true
-                                    errorMessage = null
-                                    useExoPlayer = !(useExoPlayer ?: false)
-                                    showSettingsSheet = false
-                                }) {
-                                    val activeEngine = if (useExoPlayer == true) "ExoPlayer (HLS)" else "LibVLC (MAC)"
-                                    Text("⚙️ $activeEngine (Cambia)", color = MaterialTheme.colorScheme.primary)
-                                }
                                 IconButton(onClick = { showSettingsSheet = false }) {
                                     Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
                                 }
@@ -1023,17 +995,71 @@ class PlayerActivity : ComponentActivity() {
                                             apply()
                                         }
 
-                                        val newScale = when (newRatio) {
-                                            "FILL" -> 1.45f
-                                            "ZOOM110" -> 1.10f
-                                            "ZOOM120" -> 1.20f
-                                            "ZOOM125" -> 1.25f
-                                            "ZOOM130" -> 1.30f
-                                            "ZOOM135" -> 1.35f
-                                            else -> 0f
+                                        val mp = composeMediaPlayer
+                                        if (mp != null && useExoPlayer == false) {
+                                            when (newRatio) {
+                                                "FILL" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.45f
+                                                    currentScale = 1.45f
+                                                    prefs.edit().putFloat("scale", 1.45f).apply()
+                                                }
+                                                "ZOOM110" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.10f
+                                                    currentScale = 1.10f
+                                                    prefs.edit().putFloat("scale", 1.10f).apply()
+                                                }
+                                                "ZOOM120" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.20f
+                                                    currentScale = 1.20f
+                                                    prefs.edit().putFloat("scale", 1.20f).apply()
+                                                }
+                                                "ZOOM125" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.25f
+                                                    currentScale = 1.25f
+                                                    prefs.edit().putFloat("scale", 1.25f).apply()
+                                                }
+                                                "ZOOM130" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.30f
+                                                    currentScale = 1.30f
+                                                    prefs.edit().putFloat("scale", 1.30f).apply()
+                                                }
+                                                "ZOOM135" -> {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = 1.35f
+                                                    currentScale = 1.35f
+                                                    prefs.edit().putFloat("scale", 1.35f).apply()
+                                                }
+                                                null -> {
+                                                    mp.scale = 0f
+                                                    mp.aspectRatio = null
+                                                    currentScale = 0f
+                                                    prefs.edit().putFloat("scale", 0f).apply()
+                                                }
+                                                else -> {
+                                                    mp.scale = 0f
+                                                    mp.aspectRatio = newRatio
+                                                    currentScale = 0f
+                                                    prefs.edit().putFloat("scale", 0f).apply()
+                                                }
+                                            }
+                                        } else {
+                                            val newScale = when (newRatio) {
+                                                "FILL" -> 1.45f
+                                                "ZOOM110" -> 1.10f
+                                                "ZOOM120" -> 1.20f
+                                                "ZOOM125" -> 1.25f
+                                                "ZOOM130" -> 1.30f
+                                                "ZOOM135" -> 1.35f
+                                                else -> 0f
+                                            }
+                                            currentScale = newScale
+                                            prefs.edit().putFloat("scale", newScale).apply()
                                         }
-                                        currentScale = newScale
-                                        prefs.edit().putFloat("scale", newScale).apply()
 
                                         showSettingsSheet = false
                                     }
@@ -1046,9 +1072,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Applica Aspect Ratio e Zoom sulla vista di ExoPlayer
-     */
     private fun applyExoAspectRatioAndScale(
         playerView: PlayerView,
         aspectRatio: String?,
@@ -1101,7 +1124,7 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
+            LazyColumn(modifier = Modifier.heightIn(max = 220.dp).fillMaxWidth()) {
                 items(audioTracks) { track ->
                     Row(
                         modifier = Modifier
@@ -1278,3 +1301,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                                                
