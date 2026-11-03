@@ -132,34 +132,21 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun initializeLibVLC() {
-        // Riconosce se lo stream è una playlist HLS/DASH (es. Mediaset M3U) oppure un flusso continuo MAC
-        val isHlsOrDash = streamUrl.contains(".m3u8", ignoreCase = true) ||
-                streamUrl.contains(".mpd", ignoreCase = true) ||
-                streamUrl.contains("mediaset", ignoreCase = true) ||
-                streamUrl.contains("manifest", ignoreCase = true)
-
         val options = ArrayList<String>().apply {
-            add("-vvv")
+            add("--no-drop-late-frames")
+            add("--no-skip-frames")
             add("--rtsp-tcp")
             add("--http-reconnect")
             add("--network-caching=8000")
             add("--live-caching=8000")
             add("--disc-caching=8000")
             add("--file-caching=8000")
+            add("--clock-jitter=-1")
+            add("--clock-synchro=0")
             add("--udp-timeout=40000")
-
-            if (!isHlsOrDash) {
-                // 🛡️ OPZIONI TURBO ESCLUSIVE PER PORTALI MAC / FLUSSO CONTINUO
-                // (Disattivate sugli .m3u8 perché interrompono la traccia audio separata dopo 3 secondi!)
-                add("--no-drop-late-frames")
-                add("--no-skip-frames")
-                add("--clock-jitter=-1")
-                add("--clock-synchro=0")
-                add("--http-continuous")
-            }
+            add("--http-continuous")
         }
 
-        Log.d("AUDIO-DBG", "Inizializzazione LibVLC -> isHlsOrDash=$isHlsOrDash | url=$streamUrl")
         libVLC = LibVLC(this, options)
         mediaPlayer = MediaPlayer(libVLC)
     }
@@ -201,6 +188,91 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun prepareCleanHlsUri(rawUrl: String, userAgentStr: String?): Uri = withContext(Dispatchers.IO) {
+        if (!rawUrl.contains(".m3u8", ignoreCase = true)) {
+            return@withContext Uri.parse(rawUrl)
+        }
+        try {
+            val urlObj = URL(rawUrl)
+            val conn = (urlObj.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 4000
+                readTimeout = 4000
+                userAgentStr?.let { setRequestProperty("User-Agent", it) }
+            }
+
+            if (conn.responseCode != 200) {
+                conn.disconnect()
+                return@withContext Uri.parse(rawUrl)
+            }
+
+            val finalBaseUrl = conn.url
+            val content = conn.inputStream.bufferedReader().use { it.readText() }
+            conn.disconnect()
+
+            if (!content.contains("#EXT-X-MEDIA:TYPE=AUDIO") || !content.contains("#EXT-X-STREAM-INF")) {
+                return@withContext Uri.parse(rawUrl)
+            }
+
+            val lines = content.lines()
+            val cleanedLines = mutableListOf<String>()
+            var i = 0
+
+            while (i < lines.size) {
+                val line = lines[i].trim()
+
+                when {
+                    line.startsWith("#EXT-X-MEDIA:") -> {
+                        val updatedMediaLine = Regex("""URI="([^"]+)"""").replace(line) { match ->
+                            val relUri = match.groupValues[1]
+                            val absUri = URL(finalBaseUrl, relUri).toString()
+                            """URI="$absUri""""
+                        }
+                        cleanedLines.add(updatedMediaLine)
+                        i++
+                    }
+
+                    line.startsWith("#EXT-X-I-FRAME-STREAM-INF:") -> {
+                        i++
+                    }
+
+                    line.startsWith("#EXT-X-STREAM-INF:") -> {
+                        val nextUrlLine = lines.getOrNull(i + 1)?.trim() ?: ""
+                        val isAudioOnlyVariant = !line.contains("RESOLUTION=", ignoreCase = true) ||
+                                nextUrlLine.contains("audio", ignoreCase = true)
+
+                        if (isAudioOnlyVariant) {
+                            Log.d("AUDIO-DBG", "🧹 Rimossa variante trappola solo-audio: $nextUrlLine")
+                            i += 2
+                        } else {
+                            cleanedLines.add(line)
+                            if (nextUrlLine.isNotEmpty() && !nextUrlLine.startsWith("#")) {
+                                val absVariantUrl = URL(finalBaseUrl, nextUrlLine).toString()
+                                cleanedLines.add(absVariantUrl)
+                                i += 2
+                            } else {
+                                i++
+                            }
+                        }
+                    }
+
+                    else -> {
+                        cleanedLines.add(line)
+                        i++
+                    }
+                }
+            }
+
+            val cleanFile = java.io.File(cacheDir, "clean_master_playlist.m3u8")
+            cleanFile.writeText(cleanedLines.joinToString("\n"))
+            Log.d("AUDIO-DBG", "✅ Master Playlist Mediaset/HLS ripulita con successo!")
+            Uri.fromFile(cleanFile)
+        } catch (e: Exception) {
+            Log.e("AUDIO-DBG", "Errore pulizia M3U8, uso URL originale", e)
+            Uri.parse(rawUrl)
+        }
+    }
+    
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
@@ -241,7 +313,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // CORRETTO: Gestione pulita e immediata dell'applicazione di scala e aspect ratio senza ritardi superflui
         LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
             if (mp != null) {
@@ -264,26 +335,17 @@ class PlayerActivity : ComponentActivity() {
             try {
                 val vlc = libVLC ?: throw Exception("LibVLC non inizializzato")
                 val mp = mediaPlayer ?: throw Exception("MediaPlayer non inizializzato")
-
+               
                 composeMediaPlayer = mp
                 mp.attachViews(layout, null, false, true)
 
-                val isHlsOrDash = streamUrl.contains(".m3u8", ignoreCase = true) ||
-                        streamUrl.contains(".isml", ignoreCase = true) ||
-                        streamUrl.contains(".mpd", ignoreCase = true) ||
-                        streamUrl.contains("mediaset", ignoreCase = true) ||
-                        streamUrl.contains("manifest", ignoreCase = true)
-
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
+                    addOption(":http-continuous")
                     addOption(":http-reconnect")
+                    addOption(":clock-jitter=0")
                     addOption(":network-caching=8000")
                     addOption(":live-caching=8000")
-
-                    if (!isHlsOrDash) {
-                        addOption(":http-continuous")
-                        addOption(":clock-jitter=0")
-                    }
 
                     if (!userAgent.isNullOrBlank()) {
                         addOption(":http-user-agent=$userAgent")
@@ -293,53 +355,19 @@ class PlayerActivity : ComponentActivity() {
                 mp.media = media
                 media.release()
 
-                fun dumpVlcDetails(eventName: String) {
-                    val aTracks = mp.audioTracks?.map { "${it.id}:${it.name}" } ?: emptyList()
-                    val vTracks = mp.videoTracks?.map { "${it.id}:${it.name}" } ?: emptyList()
-                    val mediaTracksInfo = mutableListOf<String>()
-                    try {
-                        val m = mp.media
-                        if (m != null) {
-                            for (i in 0 until m.trackCount) {
-                                val t = m.getTrack(i)
-                                if (t != null) {
-                                    mediaTracksInfo.add("[type=${t.type} id=${t.id} codec=${t.codec} bitrate=${t.bitrate}]")
-                                }
-                            }
-                            m.release()
-                        }
-                    } catch (_: Exception) {}
-
-                    Log.d(
-                        "AUDIO-DBG",
-                        "📊 [$eventName] " +
-                        "AudioSel=${mp.audioTrack} ( tot=${mp.audioTracksCount} $aTracks ) | " +
-                        "VideoSel=${mp.videoTrack} ( tot=${mp.videoTracksCount} $vTracks ) | " +
-                        "Vol=${mp.volume} Rate=${mp.rate} | " +
-                        "MediaTracks=$mediaTracksInfo"
-                    )
-                }
-
                 fun refreshAudioState() {
                     val tracks = mp.audioTracks?.toList() ?: emptyList()
                     audioTrackDescriptions = tracks
                     var currentId = mp.audioTrack
                     val validTracks = tracks.filter { it.id != -1 }
-
-                    Log.d(
-                        "AUDIO-DBG",
-                        "PRIMA: tracce=${tracks.map { "${it.id}:${it.name}" }} corrente=$currentId audioCount=${mp.audioTracksCount} videoCount=${mp.videoTracksCount}"
-                    )
-
-                    val isCurrentValid = validTracks.any { it.id == currentId }
-
-                    if ((!isCurrentValid || currentId == -1) && validTracks.isNotEmpty()) {
-                        val defaultTrackId = validTracks.firstOrNull {
-                            it.name.contains("ita", ignoreCase = true)
-                        }?.id ?: validTracks.first().id
+                    Log.d("AUDIO-DBG", "PRIMA: tracce=${tracks.map { "${it.id}:${it.name}" }} " +
+                        "corrente=$currentId audioCount=${mp.audioTracksCount} videoCount=${mp.videoTracksCount}")
+                        
+                    if (currentId == -1 && validTracks.isNotEmpty()) {
+                        val defaultTrackId = validTracks.first().id
                         mp.audioTrack = defaultTrackId
                         currentId = defaultTrackId
-                        Log.d("AUDIO-DBG", "⚠️ FORZATA traccia $defaultTrackId")
+                        Log.d("AUDIO-DBG", "FORZATA traccia $defaultTrackId")
                     }
 
                     currentAudioTrackId = currentId
@@ -351,21 +379,25 @@ class PlayerActivity : ComponentActivity() {
                 var isFirstPlay = true
 
                 mp.setEventListener { event ->
+                    val name = when (event.type) {
+                        MediaPlayer.Event.Playing -> "Playing"
+                        MediaPlayer.Event.Vout -> "Vout(count=${event.voutCount})"
+                        MediaPlayer.Event.ESAdded -> "ESAdded"
+                        MediaPlayer.Event.ESDeleted -> "ESDeleted"
+                        MediaPlayer.Event.ESSelected -> "ESSelected"
+                        MediaPlayer.Event.EncounteredError -> "ERROR"
+                        else -> null
+                    }
+                    if (name != null) Log.d("AUDIO-DBG", "EVENTO $name")
+                    
                     when (event.type) {
-                        MediaPlayer.Event.Opening -> {
-                            dumpVlcDetails("Opening")
-                        }
                         MediaPlayer.Event.Buffering -> {
                             if (!initialBufferingStarted) {
                                 initialBufferingStarted = true
                             }
-                            if (event.buffering == 0f || event.buffering == 100f) {
-                                Log.d("AUDIO-DBG", "⏳ Buffering=${event.buffering}%")
-                            }
                             isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
                         }
                         MediaPlayer.Event.Playing -> {
-                            dumpVlcDetails("Playing")
                             isBuffering = false
                             isPlaying = true
                             errorMessage = null
@@ -383,41 +415,18 @@ class PlayerActivity : ComponentActivity() {
                             }
                             refreshAudioState()
                         }
-                        MediaPlayer.Event.Vout -> {
-                            dumpVlcDetails("Vout(count=${event.voutCount})")
-                            if (event.voutCount > 0) {
-                                refreshAudioState()
-                            }
-                        }
                         MediaPlayer.Event.Paused -> {
-                            dumpVlcDetails("Paused")
                             isPlaying = false
                             pipManager.updatePipParams(false)
                         }
                         MediaPlayer.Event.Stopped -> {
-                            dumpVlcDetails("Stopped")
                             isPlaying = false
                             pipManager.updatePipParams(false)
                         }
-                        MediaPlayer.Event.EndReached -> {
-                            dumpVlcDetails("EndReached")
-                        }
-                        MediaPlayer.Event.ESAdded -> {
-                            dumpVlcDetails("ESAdded")
+                        MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
                             refreshAudioState()
-                        }
-                        MediaPlayer.Event.ESSelected -> {
-                            dumpVlcDetails("ESSelected")
-                            refreshAudioState()
-                        }
-                        MediaPlayer.Event.ESDeleted -> {
-                            dumpVlcDetails("ESDeleted (ignorato per non forzare tracce in chiusura)")
-                            val tracks = mp.audioTracks?.toList() ?: emptyList()
-                            audioTrackDescriptions = tracks
-                            currentAudioTrackId = mp.audioTrack
                         }
                         MediaPlayer.Event.EncounteredError -> {
-                            dumpVlcDetails("EncounteredError")
                             isBuffering = false
                             isPlaying = false
                             pipManager.updatePipParams(false)
@@ -429,6 +438,24 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 lifecycleScope.launch {
+                    val targetUri = prepareCleanHlsUri(streamUrl, userAgent)
+                    val media = Media(vlc, targetUri).apply {
+                        setHWDecoderEnabled(true, true)
+                        addOption(":http-reconnect")
+                        addOption(":network-caching=8000")
+                        addOption(":live-caching=8000")
+                        
+                        if (!streamUrl.contains(".m3u8", ignoreCase = true)) {
+                            addOption(":http-continuous")
+                            addOption(":clock-jitter=0")
+                        }
+                        if (!userAgent.isNullOrBlank()) {
+                            addOption(":http-user-agent=$userAgent")
+                        }
+                    }
+                    mp.media = media
+                    media.release()
+                    
                     delay(500)
                     mp.play()
                 }
@@ -698,7 +725,7 @@ class PlayerActivity : ComponentActivity() {
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .fillMax.padding(16.dp)
                                 .padding(16.dp)
                         ) {
                             Row(
@@ -826,9 +853,6 @@ class PlayerActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-
-                                        // RISOLUZIONE BUG: Chiude immediatamente il menu impostazioni 
-                                        // evitando che il ridimensionamento del layout sovrascriva lo zoom.
                                         showSettingsSheet = false
                                     }
                                 )
@@ -958,7 +982,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        var trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
             .replace("main - ", "")
 
         try {
@@ -1032,4 +1056,8 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
-}
+                                                     }
+                                
+                        
+                            
+                
