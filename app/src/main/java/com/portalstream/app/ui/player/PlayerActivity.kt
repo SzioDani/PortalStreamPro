@@ -350,7 +350,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // =========================================================================
-        // LOGICA SEPARATA 1: Gestione Aspect Ratio / Zoom per LibVLC
+        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER LIBVLC (Anche dopo la rotazione)
         // =========================================================================
         LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
@@ -369,7 +369,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // =========================================================================
-        // LOGICA SEPARATA 2: Gestione Aspect Ratio / Zoom per ExoPlayer
+        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER EXOPLAYER
         // =========================================================================
         LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView) {
             val pv = exoPlayerView
@@ -498,7 +498,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // =========================================================================
-        // SETUP LIBVLC
+        // SETUP LIBVLC (Con ripristino immediato di scala e aspect ratio alla rotazione)
         // =========================================================================
         DisposableEffect(useExoPlayer, vlcVideoLayout) {
             if (useExoPlayer != false) return@DisposableEffect onDispose {}
@@ -511,6 +511,18 @@ class PlayerActivity : ComponentActivity() {
 
                 composeMediaPlayer = mp
                 mp.attachViews(layout, null, false, true)
+
+                // ⭐ RIPRISTINO IMMEDIATO: Forza l'applicazione dello zoom/formato salvato non appena la vista VLC si collega o ruota
+                if (currentScale > 0f) {
+                    mp.aspectRatio = null
+                    mp.scale = currentScale
+                } else if (currentAspectRatio != null) {
+                    mp.scale = 0f
+                    mp.aspectRatio = currentAspectRatio
+                } else {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
+                }
 
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
@@ -1011,7 +1023,6 @@ class PlayerActivity : ComponentActivity() {
                                             apply()
                                         }
 
-                                        // Gestione pulita e separata del cambio formato per ciascun player
                                         if (useExoPlayer == false) {
                                             val mp = composeMediaPlayer
                                             if (mp != null) {
@@ -1078,6 +1089,10 @@ class PlayerActivity : ComponentActivity() {
                                             }
                                             currentScale = newScale
                                             prefs.edit().putFloat("scale", newScale).apply()
+
+                                            exoPlayerView?.let { pv ->
+                                                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                                            }
                                         }
 
                                         showSettingsSheet = false
@@ -1092,8 +1107,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Logica dedicata e corretta per ExoPlayer per gestire le proporzioni 
-     * evitando lo schiacciamento iniziale e supportando la rotazione e il riempi schermo.
+     * Logica dedicata e corretta per ExoPlayer (Evita lo schiacciamento iniziale,
+     * gestisce correttamente i lati e mantiene lo zoom impostato).
      */
     private fun applyExoAspectRatioAndScale(
         playerView: PlayerView,
@@ -1112,9 +1127,20 @@ class PlayerActivity : ComponentActivity() {
         targetView.scaleY = 1f
 
         when (aspectRatio) {
-            null -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            "FILL" -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            "16:9", "4:3", "21:9", "1.85:1", "2.35:1", "2.39:1" -> {
+            // CORRETTO: Avvio pulito senza striscia compressa
+            null -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            "FILL" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            "16:9" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+            }
+            "4:3" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+            }
+            "21:9", "1.85:1", "2.35:1", "2.39:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 val parts = aspectRatio.split(":")
                 if (parts.size == 2) {
@@ -1321,6 +1347,6 @@ class PlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
-        const val EXTRA_USER_AGENT = "extra_user_agent"
+        const val EXTRA_USER_AGENT = "extra_user_agent`"
     }
 }
