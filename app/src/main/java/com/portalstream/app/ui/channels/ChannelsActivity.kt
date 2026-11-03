@@ -649,7 +649,7 @@ class ChannelsActivity : ComponentActivity() {
                                 LottieAnimation(
                                     composition = composition,
                                     iterations = LottieConstants.IterateForever,
-                                    modifier = Modifier.size(80.dp) // Modifica la dimensione a piacimento (es. 64.dp, 80.dp, ecc.)
+                                    modifier = Modifier.size(120.dp) // Modifica la dimensione a piacimento (es. 64.dp, 80.dp, ecc.)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text("Caricamento canali...")
