@@ -1089,7 +1089,10 @@ class PlayerActivity : ComponentActivity() {
         targetView.scaleY = 1f
 
         when (aspectRatio) {
-            null -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            // ⭐ CORRETTO: Se è in formato standard (null), usiamo RESIZE_MODE_ZOOM 
+            // o FILL per evitare che il flusso HLS venga schiacciato nella striscia centrale.
+            null -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        
             "FILL" -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             "16:9", "4:3", "21:9", "1.85:1", "2.35:1", "2.39:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
