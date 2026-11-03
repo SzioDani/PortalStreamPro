@@ -79,6 +79,8 @@ dependencies {
     // ICONE ESTESE 
     implementation("androidx.compose.material:material-icons-extended")
 
+    // ICONE LOTTIE
+    implementation("com.airbnb.android:lottie-compose:6.4.0")
 
      // Motore multimediale nativo LibVLC
     implementation("org.videolan.android:libvlc-all:3.6.0")
