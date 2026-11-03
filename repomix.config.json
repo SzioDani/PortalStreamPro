@@ -1,0 +1,9 @@
+{
+  "output": {
+    "style": "markdown"
+  },
+  "ignore": {
+    "useGitignore": false,
+    "useDefaultPatterns": false
+  }
+}
