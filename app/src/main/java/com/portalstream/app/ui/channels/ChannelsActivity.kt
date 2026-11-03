@@ -639,9 +639,16 @@ class ChannelsActivity : ComponentActivity() {
                     if (isLoading) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
+                                val composition by rememberLottieComposition(
+                                    LottieCompositionSpec.RawRes(R.raw.hourglass)
+                                )
+                                LottieAnimation(
+                                    composition = composition,
+                                    iterations = LottieConstants.IterateForever,
+                                    modifier = Modifier.size(80.dp) // Modifica la dimensione a piacimento (es. 64.dp, 80.dp, ecc.)
+                                )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("⏳ Caricamento canali...")
+                                Text("Caricamento canali...")
                             }
                         }
                     } else {
