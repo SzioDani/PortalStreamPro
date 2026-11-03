@@ -166,7 +166,7 @@ class PlayerActivity : ComponentActivity() {
 
         libVLC = LibVLC(this, options)
         mediaPlayer = MediaPlayer(libVLC)
-        Log.d("PlayerDebug", "LibVLC inizializzato (Modalità Portale MAC)")
+        Log.d("PlayerDebug", "LibVLC inizializzato")
     }
 
     private fun ensureExoPlayerInitialized(): ExoPlayer {
@@ -198,7 +198,7 @@ class PlayerActivity : ComponentActivity() {
                     .setPreferredAudioLanguage("it")
                     .build()
                 exoPlayer = this
-                Log.d("PlayerDebug", "ExoPlayer inizializzato (Modalità HLS/Mediaset)")
+                Log.d("PlayerDebug", "ExoPlayer inizializzato")
             }
     }
 
@@ -259,7 +259,7 @@ class PlayerActivity : ComponentActivity() {
                 conn.disconnect()
             }
         } catch (e: Exception) {
-            Log.w("PlayerDebug", "Controllo rapido tipo stream fallito, fallback su LibVLC", e)
+            Log.w("PlayerDebug", "Controllo tipo stream fallito, fallback su LibVLC", e)
         }
 
         return@withContext false
@@ -349,12 +349,12 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer, composeExoPlayer, exoPlayerView) {
-            if (useExoPlayer == true) {
-                val pv = exoPlayerView ?: return@LaunchedEffect
-                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
-            } else if (useExoPlayer == false) {
-                val mp = composeMediaPlayer ?: return@LaunchedEffect
+        // =========================================================================
+        // LOGICA SEPARATA 1: Gestione Aspect Ratio / Zoom per LibVLC
+        // =========================================================================
+        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
+            val mp = composeMediaPlayer
+            if (mp != null && useExoPlayer == false) {
                 if (currentScale > 0f) {
                     mp.aspectRatio = null
                     mp.scale = currentScale
@@ -368,6 +368,19 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // =========================================================================
+        // LOGICA SEPARATA 2: Gestione Aspect Ratio / Zoom per ExoPlayer
+        // =========================================================================
+        LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView) {
+            val pv = exoPlayerView
+            if (pv != null && useExoPlayer == true) {
+                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+            }
+        }
+
+        // =========================================================================
+        // SETUP EXOPLAYER
+        // =========================================================================
         DisposableEffect(useExoPlayer, exoPlayerView) {
             if (useExoPlayer != true) return@DisposableEffect onDispose {}
             val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
@@ -484,6 +497,9 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // =========================================================================
+        // SETUP LIBVLC
+        // =========================================================================
         DisposableEffect(useExoPlayer, vlcVideoLayout) {
             if (useExoPlayer != false) return@DisposableEffect onDispose {}
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
@@ -698,7 +714,7 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // ⭐ PULSANTE RAPIDO CAMBIO MOTORE NELLA TOPBAR
+                            // Pulsante rapido cambio motore (ExoPlayer <-> LibVLC)
                             Surface(
                                 onClick = {
                                     isBuffering = true
@@ -995,56 +1011,59 @@ class PlayerActivity : ComponentActivity() {
                                             apply()
                                         }
 
-                                        val mp = composeMediaPlayer
-                                        if (mp != null && useExoPlayer == false) {
-                                            when (newRatio) {
-                                                "FILL" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.45f
-                                                    currentScale = 1.45f
-                                                    prefs.edit().putFloat("scale", 1.45f).apply()
-                                                }
-                                                "ZOOM110" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.10f
-                                                    currentScale = 1.10f
-                                                    prefs.edit().putFloat("scale", 1.10f).apply()
-                                                }
-                                                "ZOOM120" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.20f
-                                                    currentScale = 1.20f
-                                                    prefs.edit().putFloat("scale", 1.20f).apply()
-                                                }
-                                                "ZOOM125" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.25f
-                                                    currentScale = 1.25f
-                                                    prefs.edit().putFloat("scale", 1.25f).apply()
-                                                }
-                                                "ZOOM130" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.30f
-                                                    currentScale = 1.30f
-                                                    prefs.edit().putFloat("scale", 1.30f).apply()
-                                                }
-                                                "ZOOM135" -> {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = 1.35f
-                                                    currentScale = 1.35f
-                                                    prefs.edit().putFloat("scale", 1.35f).apply()
-                                                }
-                                                null -> {
-                                                    mp.scale = 0f
-                                                    mp.aspectRatio = null
-                                                    currentScale = 0f
-                                                    prefs.edit().putFloat("scale", 0f).apply()
-                                                }
-                                                else -> {
-                                                    mp.scale = 0f
-                                                    mp.aspectRatio = newRatio
-                                                    currentScale = 0f
-                                                    prefs.edit().putFloat("scale", 0f).apply()
+                                        // Gestione pulita e separata del cambio formato per ciascun player
+                                        if (useExoPlayer == false) {
+                                            val mp = composeMediaPlayer
+                                            if (mp != null) {
+                                                when (newRatio) {
+                                                    "FILL" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.45f
+                                                        currentScale = 1.45f
+                                                        prefs.edit().putFloat("scale", 1.45f).apply()
+                                                    }
+                                                    "ZOOM110" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.10f
+                                                        currentScale = 1.10f
+                                                        prefs.edit().putFloat("scale", 1.10f).apply()
+                                                    }
+                                                    "ZOOM120" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.20f
+                                                        currentScale = 1.20f
+                                                        prefs.edit().putFloat("scale", 1.20f).apply()
+                                                    }
+                                                    "ZOOM125" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.25f
+                                                        currentScale = 1.25f
+                                                        prefs.edit().putFloat("scale", 1.25f).apply()
+                                                    }
+                                                    "ZOOM130" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.30f
+                                                        currentScale = 1.30f
+                                                        prefs.edit().putFloat("scale", 1.30f).apply()
+                                                    }
+                                                    "ZOOM135" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.35f
+                                                        currentScale = 1.35f
+                                                        prefs.edit().putFloat("scale", 1.35f).apply()
+                                                    }
+                                                    null -> {
+                                                        mp.scale = 0f
+                                                        mp.aspectRatio = null
+                                                        currentScale = 0f
+                                                        prefs.edit().putFloat("scale", 0f).apply()
+                                                    }
+                                                    else -> {
+                                                        mp.scale = 0f
+                                                        mp.aspectRatio = newRatio
+                                                        currentScale = 0f
+                                                        prefs.edit().putFloat("scale", 0f).apply()
+                                                    }
                                                 }
                                             }
                                         } else {
@@ -1072,6 +1091,10 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Logica dedicata e corretta per ExoPlayer per gestire le proporzioni 
+     * evitando lo schiacciamento iniziale e supportando la rotazione e il riempi schermo.
+     */
     private fun applyExoAspectRatioAndScale(
         playerView: PlayerView,
         aspectRatio: String?,
@@ -1089,10 +1112,7 @@ class PlayerActivity : ComponentActivity() {
         targetView.scaleY = 1f
 
         when (aspectRatio) {
-            // ⭐ CORRETTO: Se è in formato standard (null), usiamo RESIZE_MODE_ZOOM 
-            // o FILL per evitare che il flusso HLS venga schiacciato nella striscia centrale.
-            null -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-        
+            null -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             "FILL" -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             "16:9", "4:3", "21:9", "1.85:1", "2.35:1", "2.39:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
@@ -1304,4 +1324,3 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
-                                                
