@@ -188,91 +188,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun prepareCleanHlsUri(rawUrl: String, userAgentStr: String?): Uri = withContext(Dispatchers.IO) {
-        if (!rawUrl.contains(".m3u8", ignoreCase = true)) {
-            return@withContext Uri.parse(rawUrl)
-        }
-        try {
-            val urlObj = URL(rawUrl)
-            val conn = (urlObj.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 4000
-                readTimeout = 4000
-                userAgentStr?.let { setRequestProperty("User-Agent", it) }
-            }
-
-            if (conn.responseCode != 200) {
-                conn.disconnect()
-                return@withContext Uri.parse(rawUrl)
-            }
-
-            val finalBaseUrl = conn.url
-            val content = conn.inputStream.bufferedReader().use { it.readText() }
-            conn.disconnect()
-
-            if (!content.contains("#EXT-X-MEDIA:TYPE=AUDIO") || !content.contains("#EXT-X-STREAM-INF")) {
-                return@withContext Uri.parse(rawUrl)
-            }
-
-            val lines = content.lines()
-            val cleanedLines = mutableListOf<String>()
-            var i = 0
-
-            while (i < lines.size) {
-                val line = lines[i].trim()
-
-                when {
-                    line.startsWith("#EXT-X-MEDIA:") -> {
-                        val updatedMediaLine = Regex("""URI="([^"]+)"""").replace(line) { match ->
-                            val relUri = match.groupValues[1]
-                            val absUri = URL(finalBaseUrl, relUri).toString()
-                            """URI="$absUri""""
-                        }
-                        cleanedLines.add(updatedMediaLine)
-                        i++
-                    }
-
-                    line.startsWith("#EXT-X-I-FRAME-STREAM-INF:") -> {
-                        i++
-                    }
-
-                    line.startsWith("#EXT-X-STREAM-INF:") -> {
-                        val nextUrlLine = lines.getOrNull(i + 1)?.trim() ?: ""
-                        val isAudioOnlyVariant = !line.contains("RESOLUTION=", ignoreCase = true) ||
-                                nextUrlLine.contains("audio", ignoreCase = true)
-
-                        if (isAudioOnlyVariant) {
-                            Log.d("AUDIO-DBG", "🧹 Rimossa variante trappola solo-audio: $nextUrlLine")
-                            i += 2
-                        } else {
-                            cleanedLines.add(line)
-                            if (nextUrlLine.isNotEmpty() && !nextUrlLine.startsWith("#")) {
-                                val absVariantUrl = URL(finalBaseUrl, nextUrlLine).toString()
-                                cleanedLines.add(absVariantUrl)
-                                i += 2
-                            } else {
-                                i++
-                            }
-                        }
-                    }
-
-                    else -> {
-                        cleanedLines.add(line)
-                        i++
-                    }
-                }
-            }
-
-            val cleanFile = java.io.File(cacheDir, "clean_master_playlist.m3u8")
-            cleanFile.writeText(cleanedLines.joinToString("\n"))
-            Log.d("AUDIO-DBG", "✅ Master Playlist Mediaset/HLS ripulita con successo!")
-            Uri.fromFile(cleanFile)
-        } catch (e: Exception) {
-            Log.e("AUDIO-DBG", "Errore pulizia M3U8, uso URL originale", e)
-            Uri.parse(rawUrl)
-        }
-    }
-    
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
@@ -313,6 +228,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // CORRETTO: Gestione pulita e immediata dell'applicazione di scala e aspect ratio senza ritardi superflui
         LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
             val mp = composeMediaPlayer
             if (mp != null) {
@@ -335,7 +251,7 @@ class PlayerActivity : ComponentActivity() {
             try {
                 val vlc = libVLC ?: throw Exception("LibVLC non inizializzato")
                 val mp = mediaPlayer ?: throw Exception("MediaPlayer non inizializzato")
-               
+
                 composeMediaPlayer = mp
                 mp.attachViews(layout, null, false, true)
 
@@ -438,24 +354,6 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 lifecycleScope.launch {
-                    val targetUri = prepareCleanHlsUri(streamUrl, userAgent)
-                    val media = Media(vlc, targetUri).apply {
-                        setHWDecoderEnabled(true, true)
-                        addOption(":http-reconnect")
-                        addOption(":network-caching=8000")
-                        addOption(":live-caching=8000")
-                        
-                        if (!streamUrl.contains(".m3u8", ignoreCase = true)) {
-                            addOption(":http-continuous")
-                            addOption(":clock-jitter=0")
-                        }
-                        if (!userAgent.isNullOrBlank()) {
-                            addOption(":http-user-agent=$userAgent")
-                        }
-                    }
-                    mp.media = media
-                    media.release()
-                    
                     delay(500)
                     mp.play()
                 }
@@ -725,7 +623,7 @@ class PlayerActivity : ComponentActivity() {
                     ) {
                         Column(
                             modifier = Modifier
-                                .fillMax.padding(16.dp)
+                                .fillMaxWidth()
                                 .padding(16.dp)
                         ) {
                             Row(
@@ -853,6 +751,9 @@ class PlayerActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+
+                                        // RISOLUZIONE BUG: Chiude immediatamente il menu impostazioni 
+                                        // evitando che il ridimensionamento del layout sovrascriva lo zoom.
                                         showSettingsSheet = false
                                     }
                                 )
@@ -982,7 +883,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+        var trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
             .replace("main - ", "")
 
         try {
@@ -1056,8 +957,5 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
-                                                     }
-                                
+}
                         
-                            
-                
