@@ -139,6 +139,7 @@ class PlayerActivity : ComponentActivity() {
                 streamUrl.contains("manifest", ignoreCase = true)
 
         val options = ArrayList<String>().apply {
+            add("-vvv")
             add("--rtsp-tcp")
             add("--http-reconnect")
             add("--network-caching=8000")
@@ -268,6 +269,7 @@ class PlayerActivity : ComponentActivity() {
                 mp.attachViews(layout, null, false, true)
 
                 val isHlsOrDash = streamUrl.contains(".m3u8", ignoreCase = true) ||
+                        streamUrl.contains(".isml", ignoreCase = true) ||
                         streamUrl.contains(".mpd", ignoreCase = true) ||
                         streamUrl.contains("mediaset", ignoreCase = true) ||
                         streamUrl.contains("manifest", ignoreCase = true)
@@ -291,6 +293,33 @@ class PlayerActivity : ComponentActivity() {
                 mp.media = media
                 media.release()
 
+                fun dumpVlcDetails(eventName: String) {
+                    val aTracks = mp.audioTracks?.map { "${it.id}:${it.name}" } ?: emptyList()
+                    val vTracks = mp.videoTracks?.map { "${it.id}:${it.name}" } ?: emptyList()
+                    val mediaTracksInfo = mutableListOf<String>()
+                    try {
+                        val m = mp.media
+                        if (m != null) {
+                            for (i in 0 until m.trackCount) {
+                                val t = m.getTrack(i)
+                                if (t != null) {
+                                    mediaTracksInfo.add("[type=${t.type} id=${t.id} codec=${t.codec} bitrate=${t.bitrate}]")
+                                }
+                            }
+                            m.release()
+                        }
+                    } catch (_: Exception) {}
+
+                    Log.d(
+                        "AUDIO-DBG",
+                        "📊 [$eventName] " +
+                        "AudioSel=${mp.audioTrack} ( tot=${mp.audioTracksCount} $aTracks ) | " +
+                        "VideoSel=${mp.videoTrack} ( tot=${mp.videoTracksCount} $vTracks ) | " +
+                        "Vol=${mp.volume} Rate=${mp.rate} | " +
+                        "MediaTracks=$mediaTracksInfo"
+                    )
+                }
+
                 fun refreshAudioState() {
                     val tracks = mp.audioTracks?.toList() ?: emptyList()
                     audioTrackDescriptions = tracks
@@ -310,7 +339,7 @@ class PlayerActivity : ComponentActivity() {
                         }?.id ?: validTracks.first().id
                         mp.audioTrack = defaultTrackId
                         currentId = defaultTrackId
-                        Log.d("AUDIO-DBG", "FORZATA traccia $defaultTrackId")
+                        Log.d("AUDIO-DBG", "⚠️ FORZATA traccia $defaultTrackId")
                     }
 
                     currentAudioTrackId = currentId
@@ -323,14 +352,20 @@ class PlayerActivity : ComponentActivity() {
 
                 mp.setEventListener { event ->
                     when (event.type) {
+                        MediaPlayer.Event.Opening -> {
+                            dumpVlcDetails("Opening")
+                        }
                         MediaPlayer.Event.Buffering -> {
                             if (!initialBufferingStarted) {
                                 initialBufferingStarted = true
                             }
+                            if (event.buffering == 0f || event.buffering == 100f) {
+                                Log.d("AUDIO-DBG", "⏳ Buffering=${event.buffering}%")
+                            }
                             isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
                         }
                         MediaPlayer.Event.Playing -> {
-                            Log.d("AUDIO-DBG", "EVENTO Playing")
+                            dumpVlcDetails("Playing")
                             isBuffering = false
                             isPlaying = true
                             errorMessage = null
@@ -349,31 +384,40 @@ class PlayerActivity : ComponentActivity() {
                             refreshAudioState()
                         }
                         MediaPlayer.Event.Vout -> {
-                            Log.d("AUDIO-DBG", "EVENTO Vout(count=${event.voutCount})")
+                            dumpVlcDetails("Vout(count=${event.voutCount})")
                             if (event.voutCount > 0) {
                                 refreshAudioState()
                             }
                         }
                         MediaPlayer.Event.Paused -> {
+                            dumpVlcDetails("Paused")
                             isPlaying = false
                             pipManager.updatePipParams(false)
                         }
                         MediaPlayer.Event.Stopped -> {
+                            dumpVlcDetails("Stopped")
                             isPlaying = false
                             pipManager.updatePipParams(false)
                         }
-                        MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected -> {
-                            val evName = if (event.type == MediaPlayer.Event.ESAdded) "ESAdded" else "ESSelected"
-                            Log.d("AUDIO-DBG", "EVENTO $evName")
+                        MediaPlayer.Event.EndReached -> {
+                            dumpVlcDetails("EndReached")
+                        }
+                        MediaPlayer.Event.ESAdded -> {
+                            dumpVlcDetails("ESAdded")
+                            refreshAudioState()
+                        }
+                        MediaPlayer.Event.ESSelected -> {
+                            dumpVlcDetails("ESSelected")
                             refreshAudioState()
                         }
                         MediaPlayer.Event.ESDeleted -> {
-                            Log.d("AUDIO-DBG", "EVENTO ESDeleted (ignorato per non forzare tracce in chiusura)")
+                            dumpVlcDetails("ESDeleted (ignorato per non forzare tracce in chiusura)")
                             val tracks = mp.audioTracks?.toList() ?: emptyList()
                             audioTrackDescriptions = tracks
                             currentAudioTrackId = mp.audioTrack
                         }
                         MediaPlayer.Event.EncounteredError -> {
+                            dumpVlcDetails("EncounteredError")
                             isBuffering = false
                             isPlaying = false
                             pipManager.updatePipParams(false)
