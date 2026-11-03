@@ -304,9 +304,8 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
-        val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
+        val savedAspectRatio = remember { prefs.getString("aspect_ratio", "16:9") }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
-
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
         var isBuffering by remember { mutableStateOf(true) }
@@ -314,19 +313,14 @@ class PlayerActivity : ComponentActivity() {
         var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
         var activeTab by remember { mutableIntStateOf(0) }
-
         var isMinimized by remember { mutableStateOf(false) }
-
         var uiAudioTracks by remember { mutableStateOf<List<UiAudioTrack>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
-
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
         var currentScale by remember { mutableStateOf(savedScale) }
-
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
         var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
-
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
         var composeExoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
@@ -582,17 +576,18 @@ class PlayerActivity : ComponentActivity() {
                             errorMessage = null
                             pipManager.updatePipParams(true)
 
-                            if (isFirstPlay) {
-                                isFirstPlay = false
-                                if (currentScale > 0f) {
-                                    mp.aspectRatio = null
-                                    mp.scale = currentScale
-                                } else if (currentAspectRatio != null) {
-                                    mp.scale = 0f
-                                    mp.aspectRatio = currentAspectRatio
-                                }
+                            if (currentScale > 0f) {
+                                mp.aspectRatio = null
+                                mp.scale = currentScale
+                            } else if (currentAspectRatio != null) {
+                                mp.scale = 0f
+                                mp.aspectRatio = currentAspectRatio
+                            } else {
+                                mp.scale = 0f
+                                mp.aspectRatio = null
                             }
                             refreshVlcAudioState()
+                            
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
@@ -1107,8 +1102,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Logica dedicata e corretta per ExoPlayer (Evita lo schiacciamento iniziale,
-     * gestisce correttamente i lati e mantiene lo zoom impostato).
+     * Logica unificata e simmetrica per ExoPlayer: mappa ogni formato e zoom 
+     * a un fattore di scala geometrico preciso, azzerando le differenze con LibVLC.
      */
     private fun applyExoAspectRatioAndScale(
         playerView: PlayerView,
@@ -1116,6 +1111,8 @@ class PlayerActivity : ComponentActivity() {
         scale: Float
     ) {
         val targetView = playerView.videoSurfaceView ?: playerView
+        
+        // 1. Se l'utente ha scelto uno Zoom percentuale manuale
         if (scale > 0f) {
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             targetView.scaleX = scale
@@ -1123,41 +1120,52 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        targetView.scaleX = 1f
-        targetView.scaleY = 1f
+        // 2. Calcoliamo il fattore di scala in base al formato selezionato
+        var targetScaleX = 1f
+        var targetScaleY = 1f
 
         when (aspectRatio) {
-            // CORRETTO: Avvio pulito senza striscia compressa
-            null -> {
+            // Avvio pulito (Default 16:9)
+            null, "16:9" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1f
+                targetScaleY = 1f
             }
+            // Riempi schermo reale (elimina le bande nere sopra e sotto)
             "FILL" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            }
-            "16:9" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1.45f
+                targetScaleY = 1.45f
             }
             "4:3" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 0.85f
+                targetScaleY = 1f
             }
-            "21:9", "1.85:1", "2.35:1", "2.39:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                val parts = aspectRatio.split(":")
-                if (parts.size == 2) {
-                    val targetRatio = (parts[0].toFloatOrNull() ?: 16f) / (parts[1].toFloatOrNull() ?: 9f)
-                    val screenRatio = if (playerView.height > 0) {
-                        playerView.width.toFloat() / playerView.height.toFloat()
-                    } else 16f / 9f
-
-                    if (targetRatio > screenRatio) {
-                        targetView.scaleY = screenRatio / targetRatio
-                    } else {
-                        targetView.scaleX = targetRatio / screenRatio
-                    }
-                }
+            "21:9" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1.25f
+                targetScaleY = 1.25f
             }
-            else -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            "1.85:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1.15f
+                targetScaleY = 1.15f
+            }
+            "2.35:1", "2.39:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1.35f
+                targetScaleY = 1.35f
+            }
+            else -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                targetScaleX = 1f
+                targetScaleY = 1f
+            }
         }
+
+        targetView.scaleX = targetScaleX
+        targetView.scaleY = targetScaleY
     }
 
     @Composable
@@ -1350,3 +1358,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent`"
     }
 }
+        
