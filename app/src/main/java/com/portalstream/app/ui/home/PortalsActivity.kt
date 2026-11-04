@@ -139,7 +139,6 @@ class PortalsActivity : ComponentActivity() {
                                         style = MaterialTheme.typography.titleMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
-                                        color = colorResource(id = R.color.text_pinkcyber)
                                     )
                                     Text(
                                         text = portal.type.label + " - " +
