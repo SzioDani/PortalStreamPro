@@ -9,16 +9,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalStore
@@ -164,35 +163,13 @@ class PortalsActivity : ComponentActivity() {
                                             }
                                             if (portal.expireDate.isNotBlank()) {
                                                 val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(top = 2.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier.width(16.dp),
-                                                        contentAlignment = Alignment.CenterStart
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Schedule,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(14.dp),
-                                                            tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                                colorResource(id = R.color.text_neonciano) 
-                                                            else 
-                                                                colorResource(id = R.color.text_neonred)
-                                                        )
-                                                    }
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "Scadenza: $formattedExpire",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                            colorResource(id = R.color.text_neonciano) 
-                                                        else 
-                                                            colorResource(id = R.color.text_neonred),
-                                                        fontWeight = FontWeight.Medium
-                                                    )
-                                                }
+                                                Text(
+                                                    text = "⏳ Scadenza: $formattedExpire",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
+                                                        MaterialTheme.colorScheme.primary 
+                                                    else MaterialTheme.colorScheme.error
+                                                )
                                             }
                                         }
                                     }
@@ -206,6 +183,7 @@ class PortalsActivity : ComponentActivity() {
                                             val idToDelete = portal.id
                                             store.delete(idToDelete)
                                             portals = store.load()
+                                            // 🗑️ Pulizia completa di epg_mappings.json e dei canali nel DB Room!
                                             scope.launch(Dispatchers.IO) {
                                                 epgMappingStore.deletePortalMappings(idToDelete)
                                                 val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
@@ -215,7 +193,7 @@ class PortalsActivity : ComponentActivity() {
                                         }) {
                                             Text(
                                                 text = "Elimina",
-                                                color = colorResource(id = R.color.text_neonred)
+                                                color = colorResource(id = R.color.text_redneon)
                                             )
                                         }
                                     }
@@ -302,6 +280,8 @@ class PortalsActivity : ComponentActivity() {
                                 )
                             }
 
+                            // ♻️ Se l'utente ha cambiato MAC (es. da :03 a :05), URL, Server o Utente,
+                            // puliamo i vecchi canali e i vecchi ID EPG di questo portale!
                             val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
                                     portal.url.trim() != finalPortal.url.trim() ||
                                     portal.server.trim() != finalPortal.server.trim() ||
@@ -553,4 +533,3 @@ private fun formatDateToItalian(dateStr: String): String {
         dateStr
     }
 }
-                            
