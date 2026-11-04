@@ -139,6 +139,7 @@ class PortalsActivity : ComponentActivity() {
                                         style = MaterialTheme.typography.titleMedium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
+                                        color = colorResource(id = R.color.text_pinkcyber)
                                     )
                                     Text(
                                         text = portal.type.label + " - " +
@@ -146,7 +147,7 @@ class PortalsActivity : ComponentActivity() {
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = colorResource(id = R.color.text_neonciano)
+                                        color = colorResource(id = R.color.text_pinkcyber)
                                     )
 
                                     if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
