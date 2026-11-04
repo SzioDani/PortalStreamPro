@@ -115,7 +115,7 @@ class PortalsActivity : ComponentActivity() {
                     Column {
                         Text(
                             text = "Nessun portale salvato.",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
                             color = colorResource(id = R.color.text_neonciano)
                         )
                         Text(
@@ -139,7 +139,8 @@ class PortalsActivity : ComponentActivity() {
                                             if (portal.name.isBlank()) "" else " ${portal.name}",
                                         style = MaterialTheme.typography.titleMedium,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = colorResource(id = R.color.text_pinkcyber)
                                     )
                                     Text(
                                         text = portal.type.label + " - " +
