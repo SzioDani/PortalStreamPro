@@ -1336,6 +1336,6 @@ class PlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
-        const val EXTRA_USER_AGENT = "extra_user_agent`"
+        const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
