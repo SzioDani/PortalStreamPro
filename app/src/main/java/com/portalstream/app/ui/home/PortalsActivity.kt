@@ -99,7 +99,7 @@ class PortalsActivity : ComponentActivity() {
                 Text(
                     text = "Portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = colorResource(id = R.color.text_neonciano)
+                    color = colorResource(id = R.color.text_neonwhite)
                 )
                 Spacer(Modifier.height(12.dp))
 
@@ -116,6 +116,7 @@ class PortalsActivity : ComponentActivity() {
                         Text(
                             text = "Nessun portale salvato.",
                             style = MaterialTheme.typography.bodyMedium
+                            color = colorResource(id = R.color.text_neonciano)
                         )
                         Text(
                             text = "Premi AGGIUNGI PLAYLIST per iniziare.",
@@ -177,7 +178,7 @@ class PortalsActivity : ComponentActivity() {
                                                             contentDescription = null,
                                                             modifier = Modifier.size(14.dp),
                                                             tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                                colorResource(id = R.color.text_neonciano) 
+                                                                colorResource(id = R.color.text_neonred) 
                                                             else 
                                                                 colorResource(id = R.color.text_neonred)
                                                         )
@@ -187,7 +188,7 @@ class PortalsActivity : ComponentActivity() {
                                                         text = "Scadenza: $formattedExpire",
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                            colorResource(id = R.color.text_neonciano) 
+                                                            colorResource(id = R.color.text_neonred) 
                                                         else 
                                                             colorResource(id = R.color.text_neonred),
                                                         fontWeight = FontWeight.Medium
