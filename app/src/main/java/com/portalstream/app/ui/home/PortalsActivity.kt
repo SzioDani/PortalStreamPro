@@ -233,7 +233,7 @@ class PortalsActivity : ComponentActivity() {
                                         }) {
                                             Text(
                                                 text = "Elimina",
-                                                color = colorResource(id = R.color.text_redneon)
+                                                color = colorResource(id = R.color.text_neonred)
                                             )
                                         }
                                     }
