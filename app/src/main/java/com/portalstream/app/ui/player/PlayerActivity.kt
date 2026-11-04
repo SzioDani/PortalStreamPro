@@ -1115,8 +1115,8 @@ class PlayerActivity : ComponentActivity() {
     private fun setCustomAspectRatio(playerView: PlayerView, targetRatio: Float) {
         playerView.post {
             (playerView.parent as? android.view.ViewGroup)?.let {
-                playerView.setAspectRatioListener { _, _ -> }
             }
+            playerView.setAspectRatioListener { _, _, _ -> }
             val width = playerView.width
             if (width > 0) {
                 val targetHeight = (width / targetRatio).toInt()
