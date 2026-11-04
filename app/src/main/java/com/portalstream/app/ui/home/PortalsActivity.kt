@@ -159,7 +159,7 @@ class PortalsActivity : ComponentActivity() {
                                                 Text(
                                                     text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.primary
+                                                    color = colorResource(id = R.color.text_neonciano)
                                                 )
                                             }
                                             if (portal.expireDate.isNotBlank()) {
@@ -206,7 +206,6 @@ class PortalsActivity : ComponentActivity() {
                                             val idToDelete = portal.id
                                             store.delete(idToDelete)
                                             portals = store.load()
-                                            // 🗑️ Pulizia completa di epg_mappings.json e dei canali nel DB Room!
                                             scope.launch(Dispatchers.IO) {
                                                 epgMappingStore.deletePortalMappings(idToDelete)
                                                 val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
@@ -267,7 +266,7 @@ class PortalsActivity : ComponentActivity() {
                                 formType = null
                             }
                         } catch (e: Exception) {
-                            Timber.e(e, "Errore salvataggio info account, procedo comunque col salvataggio base")
+                            Timber.e(e, "Errore salvataggio info account")
                             store.add(portalToSave.copy(expireDate = "Non disponibile"))
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
@@ -303,8 +302,6 @@ class PortalsActivity : ComponentActivity() {
                                 )
                             }
 
-                            // ♻️ Se l'utente ha cambiato MAC (es. da :03 a :05), URL, Server o Utente,
-                            // puliamo i vecchi canali e i vecchi ID EPG di questo portale!
                             val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
                                     portal.url.trim() != finalPortal.url.trim() ||
                                     portal.server.trim() != finalPortal.server.trim() ||
