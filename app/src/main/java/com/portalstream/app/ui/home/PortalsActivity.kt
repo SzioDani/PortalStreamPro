@@ -94,9 +94,9 @@ class PortalsActivity : ComponentActivity() {
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "portali salvati: ${portals.size}",
+                    text = "Portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = colorResource(id = R.color.text_neonciano)
                 )
                 Spacer(Modifier.height(12.dp))
 
