@@ -1,21 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Theme Jetpack Compose - PlayerActivity compatibile -->
-    <style name="Theme.PortalStreamPro" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- Colori di base -->
+    <!-- CAMBIATO parent in Dark per forzare il sistema ad accettare i grigi scuri -->
+    <style name="Theme.PortalStreamPro" parent="android:Theme.Material.NoActionBar">
+        
+        <!-- Colori di base (Assicurati che nel file colors.xml surface_dark sia #263238) -->
         <item name="android:windowBackground">@color/surface_dark</item>
         <item name="android:colorBackground">@color/surface_dark</item>
+        
+        <!-- Palette Material per componenti vecchio stile (se presenti nel layout) -->
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorSecondary">@color/secondary</item>
         
         <!-- Barre di sistema -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/surface_dark</item>
+        
+        <!-- IMPORTANTE PER LA VISTA: 'false' dice al telefono che lo status ha icone BIANCHE -->
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         
         <!-- Importantissimo per Compose -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:fitsSystemWindows">false</item>
         
-        <!-- Disabilita tema scuro automatico (MIUI, OneUI, etc.) -->
+        <!-- Disabilita tema scuro automatico del sistema (evita conflitti) -->
         <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
