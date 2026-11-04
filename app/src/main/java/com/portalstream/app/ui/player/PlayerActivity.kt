@@ -506,18 +506,16 @@ class PlayerActivity : ComponentActivity() {
                 composeMediaPlayer = mp
                 mp.attachViews(layout, null, false, true)
 
-                // ⭐ RIPRISTINO IMMEDIATO: Forza l'applicazione dello zoom/formato salvato non appena la vista VLC si collega o ruota
-                if (currentScale > 0f) {
-                    mp.aspectRatio = null
-                    mp.scale = currentScale
-                } else if (currentAspectRatio != null) {
-                    mp.scale = 0f
-                    mp.aspectRatio = currentAspectRatio
-                } else {
-                    mp.scale = 0f
-                    mp.aspectRatio = null
+                // ⭐ RIPRISTINO RIGIDO: Attende il primo frame/layout per riapplicare il formato salvato
+                layout.post {
+                    if (currentScale > 0f) {
+                        mp.aspectRatio = null
+                        mp.scale = currentScale
+                    } else if (!currentAspectRatio.isNullOrEmpty()) {
+                        mp.scale = 0f
+                        mp.aspectRatio = currentAspectRatio
+                    }
                 }
-
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
                     addOption(":http-continuous")
@@ -1002,83 +1000,34 @@ class PlayerActivity : ComponentActivity() {
                                     currentScale = currentScale,
                                     onAspectRatioChange = { newRatio ->
                                         currentAspectRatio = newRatio
+                                        val newScale = when (newRatio) {
+                                            "FILL"    -> 1.35f
+                                            "ZOOM110" -> 1.10f
+                                            "ZOOM120" -> 1.20f
+                                            "ZOOM125" -> 1.25f
+                                            "ZOOM130" -> 1.30f
+                                            "ZOOM135" -> 1.35f
+                                            else      -> 0f
+                                        }
+                                        currentScale = newScale
 
                                         prefs.edit().apply {
-                                            if (newRatio != null) {
-                                                putString("aspect_ratio", newRatio)
-                                            } else {
-                                                remove("aspect_ratio")
-                                            }
+                                            putString("aspect_ratio", newRatio)
+                                            putFloat("scale", newScale)
                                             apply()
                                         }
 
                                         if (useExoPlayer == false) {
-                                            val mp = composeMediaPlayer
-                                            if (mp != null) {
-                                                when (newRatio) {
-                                                    "FILL" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.45f
-                                                        currentScale = 1.45f
-                                                        prefs.edit().putFloat("scale", 1.45f).apply()
-                                                    }
-                                                    "ZOOM110" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.10f
-                                                        currentScale = 1.10f
-                                                        prefs.edit().putFloat("scale", 1.10f).apply()
-                                                    }
-                                                    "ZOOM120" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.20f
-                                                        currentScale = 1.20f
-                                                        prefs.edit().putFloat("scale", 1.20f).apply()
-                                                    }
-                                                    "ZOOM125" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.25f
-                                                        currentScale = 1.25f
-                                                        prefs.edit().putFloat("scale", 1.25f).apply()
-                                                    }
-                                                    "ZOOM130" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.30f
-                                                        currentScale = 1.30f
-                                                        prefs.edit().putFloat("scale", 1.30f).apply()
-                                                    }
-                                                    "ZOOM135" -> {
-                                                        mp.aspectRatio = null
-                                                        mp.scale = 1.35f
-                                                        currentScale = 1.35f
-                                                        prefs.edit().putFloat("scale", 1.35f).apply()
-                                                    }
-                                                    null -> {
-                                                        mp.scale = 0f
-                                                        mp.aspectRatio = null
-                                                        currentScale = 0f
-                                                        prefs.edit().putFloat("scale", 0f).apply()
-                                                    }
-                                                    else -> {
-                                                        mp.scale = 0f
-                                                        mp.aspectRatio = newRatio
-                                                        currentScale = 0f
-                                                        prefs.edit().putFloat("scale", 0f).apply()
-                                                    }
+                                            composeMediaPlayer?.let { mp ->
+                                                if (newScale > 0f) {
+                                                    mp.aspectRatio = null
+                                                    mp.scale = newScale
+                                                } else {
+                                                    mp.scale = 0f
+                                                    mp.aspectRatio = newRatio
                                                 }
                                             }
                                         } else {
-                                            val newScale = when (newRatio) {
-                                                "FILL" -> 1.45f
-                                                "ZOOM110" -> 1.10f
-                                                "ZOOM120" -> 1.20f
-                                                "ZOOM125" -> 1.25f
-                                                "ZOOM130" -> 1.30f
-                                                "ZOOM135" -> 1.35f
-                                                else -> 0f
-                                            }
-                                            currentScale = newScale
-                                            prefs.edit().putFloat("scale", newScale).apply()
-
                                             exoPlayerView?.let { pv ->
                                                 applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
                                             }
@@ -1105,49 +1054,73 @@ class PlayerActivity : ComponentActivity() {
         scale: Float
     ) {
         val targetView = playerView.videoSurfaceView ?: playerView
-        
-        // 1. Se l'utente ha scelto uno Zoom percentuale manuale personalizzato
+
+        // Reset preliminare delle trasformazioni per evitare sovrapposizioni
+        targetView.scaleX = 1f
+        targetView.scaleY = 1f
+
+        // 1. GESTIONE ZOOM PERCENTUALI (110%, 120%, 125%, 130%, 135%, FILL)
         if (scale > 0f) {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            // Scala proporzionale su entrambi gli assi per ingrandire anche ai lati
             targetView.scaleX = scale
             targetView.scaleY = scale
             return
         }
 
-        // Reset preliminare della scala manuale
-        targetView.scaleX = 1f
-        targetView.scaleY = 1f
-
+        // 2. GESTIONE FORMATI ED ASPECT RATIO SPECIFICI
         when (aspectRatio) {
-            // Avvio pulito (Default 16:9)
-            null, "16:9" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-            // ⭐ RIEMPI SCHERMO REALE: Sfrutta RESIZE_MODE_ZOOM nativo di ExoPlayer 
-            // che adatta perfettamente il flusso eliminando le bande nere senza tagliare i lati.
-            "FILL" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            }
             "4:3" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _ -> }
+                setCustomAspectRatio(playerView, 4f / 3f)
+            }
+            "16:9" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setCustomAspectRatio(playerView, 16f / 9f)
             }
             "21:9" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                targetView.scaleY = 0.90f // Compensa leggermente l'altezza senza tagliare i lati
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setCustomAspectRatio(playerView, 21f / 9f)
             }
             "1.85:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                targetView.scaleY = 0.95f
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setCustomAspectRatio(playerView, 1.85f)
             }
-            "2.35:1", "2.39:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                targetView.scaleY = 0.85f
+            "2.35:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setCustomAspectRatio(playerView, 2.35f)
+            }
+            "2.39:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setCustomAspectRatio(playerView, 2.39f)
+            }
+            "FILL" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             }
             else -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
         }
-    } 
+    }
+
+    /**
+     * Helper per impostare un rapporto di forma personalizzato ed esatto in ExoPlayer
+     */
+    private fun setCustomAspectRatio(playerView: PlayerView, targetRatio: Float) {
+        playerView.post {
+            (playerView.parent as? android.view.ViewGroup)?.let {
+                playerView.setAspectRatioListener { _, _ -> }
+            }
+            val width = playerView.width
+            if (width > 0) {
+                val targetHeight = (width / targetRatio).toInt()
+                playerView.layoutParams = playerView.layoutParams.apply {
+                    this.height = targetHeight
+                }
+            }
+        }
+    }
 
     @Composable
     private fun AudioTabContent(
