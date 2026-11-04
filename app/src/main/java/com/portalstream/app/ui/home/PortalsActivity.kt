@@ -144,7 +144,7 @@ class PortalsActivity : ComponentActivity() {
                                         style = MaterialTheme.typography.bodySmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = colorResource(id = R.color.text_neonciano)
                                     )
 
                                     if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
