@@ -159,7 +159,7 @@ class PortalsActivity : ComponentActivity() {
                                                 Text(
                                                     text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = colorResource(id = R.color.text_neonciano)
+                                                    color = colorResource(id = R.color.text_neongreen)
                                                 )
                                             }
                                             if (portal.expireDate.isNotBlank()) {
