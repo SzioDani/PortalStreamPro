@@ -49,21 +49,42 @@ class PortalsActivity : ComponentActivity() {
         setContentView(ComposeView(this).apply {
             setContent {
                 val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+                // Forza true di default se vuoi che parta sempre scuro
                 var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
 
+                // Definiamo i tuoi colori personalizzati basati sul file colors.xml
+                val customDarkScheme = darkColorScheme(
+                    primary = colorResource(id = R.color.primary),
+                    secondary = colorResource(id = R.color.secondary),
+                    background = colorResource(id = R.color.surface_dark),
+                    surface = colorResource(id = R.color.surface_dark_variant),
+                    onBackground = colorResource(id = R.color.text_primary),
+                    onSurface = colorResource(id = R.color.text_primary)
+                )
+
+                // Se non vuoi un tema chiaro accecante, creiamo un "light" personalizzato ma con toni scuri/grigi
+                val customLightScheme = lightColorScheme(
+                    primary = colorResource(id = R.color.primary),
+                    secondary = colorResource(id = R.color.secondary),
+                    background = colorResource(id = R.color.surface_light), // <- Prende il tuo grigio da colors.xml!
+                    surface = colorResource(id = R.color.surface_light_variant),
+                    onBackground = colorResource(id = R.color.text_primary),
+                    onSurface = colorResource(id = R.color.text_primary)
+                )
+
                 MaterialTheme(
-                    colorScheme = if (isDarkMode) darkColorScheme() else lightColorScheme()
+                    colorScheme = if (isDarkMode) customDarkScheme else customLightScheme
                 ) {
                     PortalsScreen(
                         onThemeChanged = { darkMode ->
                             isDarkMode = darkMode
+                            prefs.edit().putBoolean("dark_mode", darkMode).apply()
                         }
                     )
                 }
             }
         })
     }
-
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
@@ -555,3 +576,4 @@ private fun formatDateToItalian(dateStr: String): String {
         dateStr
     }
 }
+         
