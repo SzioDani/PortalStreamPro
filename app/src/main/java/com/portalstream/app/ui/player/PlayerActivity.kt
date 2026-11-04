@@ -1,535 +1,1341 @@
-package com.portalstream.app.ui.home
+package com.portalstream.app.ui.player
 
 import android.content.Context
-import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.portalstream.app.data.Portal
-import com.portalstream.app.data.PortalStore
-import com.portalstream.app.data.PortalType
-import com.portalstream.app.data.epg.EpgMappingStore
-import com.portalstream.app.data.local.AppDatabase
-import com.portalstream.app.network.StalkerClient
-import com.portalstream.app.streaming.M3UParser
-import com.portalstream.app.ui.channels.ChannelsActivity
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import com.portalstream.app.R
-import androidx.compose.ui.res.colorResource
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IMedia
+import org.videolan.libvlc.util.VLCVideoLayout
+import java.net.HttpURLConnection
+import java.net.URL
 
-class PortalsActivity : ComponentActivity() {
+data class UiAudioTrack(
+    val id: Int,
+    val name: String,
+    val formattedInfo: String,
+    val exoGroupIndex: Int = -1,
+    val exoTrackIndex: Int = -1
+)
 
-    private lateinit var store: PortalStore
-    private lateinit var epgMappingStore: EpgMappingStore
+@OptIn(UnstableApi::class)
+class PlayerActivity : ComponentActivity() {
+
+    private var libVLC: LibVLC? = null
+    private var mediaPlayer: MediaPlayer? = null
+    private var exoPlayer: ExoPlayer? = null
+
+    private var streamUrl: String = ""
+    private var channelName: String = ""
+    private var userAgent: String? = null
+    private lateinit var pipManager: PipManager
+
+    private var isInPipMode by mutableStateOf(false)
+    private val INITIAL_BUFFER_THRESHOLD = 85f
+
+    private val prefs by lazy {
+        getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store = PortalStore(this)
-        epgMappingStore = EpgMappingStore(this)
-        setContentView(ComposeView(this).apply {
-            setContent {
-                val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-                var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+        pipManager = PipManager(this)
 
-                MaterialTheme(
-                    colorScheme = if (isDarkMode) darkColorScheme() else lightColorScheme()
-                ) {
-                    PortalsScreen(
-                        onThemeChanged = { darkMode ->
-                            isDarkMode = darkMode
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
+        }
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.BLACK
+
+        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
+            ?: intent.getStringExtra("STREAM_URL") ?: ""
+        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
+            ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
+        userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
+
+        if (streamUrl.isBlank()) {
+            Toast.makeText(this, "URL dello stream non valido", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        setContent {
+            MaterialTheme {
+                PlayerScreen(
+                    channelName = channelName,
+                    onBackPressed = { finish() }
+                )
+            }
+        }
+    }
+
+    private fun ensureLibVLCInitialized() {
+        if (libVLC != null && mediaPlayer != null) return
+        val options = ArrayList<String>().apply {
+            add("--no-drop-late-frames")
+            add("--no-skip-frames")
+            add("--rtsp-tcp")
+            add("--http-reconnect")
+            add("--network-caching=8000")
+            add("--live-caching=8000")
+            add("--disc-caching=8000")
+            add("--file-caching=8000")
+            add("--clock-jitter=-1")
+            add("--clock-synchro=0")
+            add("--udp-timeout=40000")
+            add("--http-continuous")
+        }
+
+        libVLC = LibVLC(this, options)
+        mediaPlayer = MediaPlayer(libVLC)
+        Log.d("PlayerDebug", "LibVLC inizializzato")
+    }
+
+    private fun ensureExoPlayerInitialized(): ExoPlayer {
+        exoPlayer?.let { return it }
+
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(8000)
+            .setReadTimeoutMs(8000)
+            .apply {
+                if (!userAgent.isNullOrBlank()) {
+                    setUserAgent(userAgent)
+                } else {
+                    setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                }
+            }
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(3000, 15000, 1500, 2500)
+            .build()
+
+        return ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
+            .setLoadControl(loadControl)
+            .build()
+            .apply {
+                trackSelectionParameters = trackSelectionParameters
+                    .buildUpon()
+                    .setPreferredAudioLanguage("it")
+                    .build()
+                exoPlayer = this
+                Log.d("PlayerDebug", "ExoPlayer inizializzato")
+            }
+    }
+
+    private suspend fun shouldUseExoPlayer(urlStr: String, userAgentStr: String?): Boolean = withContext(Dispatchers.IO) {
+        val lower = urlStr.lowercase()
+        if (lower.contains("live.php") ||
+            lower.contains("extension=ts") ||
+            lower.endsWith(".ts") ||
+            lower.startsWith("rtsp://") ||
+            lower.startsWith("udp://") ||
+            lower.startsWith("rtp://")
+        ) {
+            return@withContext false
+        }
+
+        if (lower.contains(".m3u8") ||
+            lower.contains(".mpd") ||
+            lower.contains(".isml") ||
+            lower.contains("mediaset") ||
+            lower.contains("manifest")
+        ) {
+            return@withContext true
+        }
+
+        try {
+            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                instanceFollowRedirects = true
+                connectTimeout = 2500
+                readTimeout = 2500
+                userAgentStr?.let { setRequestProperty("User-Agent", it) }
+            }
+
+            val code = conn.responseCode
+            val contentType = conn.contentType?.lowercase() ?: ""
+            val finalUrl = conn.url.toString().lowercase()
+
+            if (finalUrl.contains(".m3u8") ||
+                finalUrl.contains(".mpd") ||
+                contentType.contains("mpegurl") ||
+                contentType.contains("dash")
+            ) {
+                conn.disconnect()
+                return@withContext true
+            }
+
+            if (code == 200) {
+                val firstBytes = ByteArray(7)
+                val read = conn.inputStream.read(firstBytes)
+                conn.disconnect()
+                if (read >= 7) {
+                    val headerStr = String(firstBytes, Charsets.UTF_8)
+                    if (headerStr.startsWith("#EXTM3U")) {
+                        return@withContext true
+                    }
+                }
+            } else {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            Log.w("PlayerDebug", "Controllo tipo stream fallito, fallback su LibVLC", e)
+        }
+
+        return@withContext false
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        exoPlayer?.release()
+        exoPlayer = null
+        mediaPlayer?.release()
+        libVLC?.release()
+        mediaPlayer = null
+        libVLC = null
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d("PlayerDebug", "Configurazione cambiata: ${newConfig.orientation}")
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+        val playerMode = appPrefs.getString("player_mode", "both")
+
+        val currentlyPlaying = (exoPlayer?.isPlaying == true) || (mediaPlayer?.isPlaying == true)
+        if ((playerMode == "pip" || playerMode == "both") && currentlyPlaying && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            pipManager.enterPipMode()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipMode = isInPictureInPictureMode
+        if (!isInPictureInPictureMode && isFinishing) {
+            finish()
+        }
+    }
+
+    @Composable
+    fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
+        val savedAspectRatio = remember { prefs.getString("aspect_ratio", "16:9") }
+        val savedScale = remember { prefs.getFloat("scale", 0f) }
+        var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
+        var isPlaying by remember { mutableStateOf(false) }
+        var isBuffering by remember { mutableStateOf(true) }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+        var showControls by remember { mutableStateOf(true) }
+        var showSettingsSheet by remember { mutableStateOf(false) }
+        var activeTab by remember { mutableIntStateOf(0) }
+        var isMinimized by remember { mutableStateOf(false) }
+        var uiAudioTracks by remember { mutableStateOf<List<UiAudioTrack>>(emptyList()) }
+        var currentAudioTrackId by remember { mutableIntStateOf(-1) }
+        var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
+        var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
+        var currentScale by remember { mutableStateOf(savedScale) }
+        var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
+        var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+        var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+        var composeExoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
+        LaunchedEffect(streamUrl) {
+            isBuffering = true
+            useExoPlayer = shouldUseExoPlayer(streamUrl, userAgent)
+        }
+
+        LaunchedEffect(isInPipMode) {
+            if (isInPipMode) {
+                showControls = false
+                showSettingsSheet = false
+            }
+        }
+
+        LaunchedEffect(showControls, isPlaying) {
+            if (showControls && isPlaying && !isInPipMode && !isMinimized) {
+                delay(4000)
+                showControls = false
+            }
+        }
+
+        // =========================================================================
+        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER LIBVLC (Anche dopo la rotazione)
+        // =========================================================================
+        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
+            val mp = composeMediaPlayer
+            if (mp != null && useExoPlayer == false) {
+                if (currentScale > 0f) {
+                    mp.aspectRatio = null
+                    mp.scale = currentScale
+                } else if (currentAspectRatio != null) {
+                    mp.scale = 0f
+                    mp.aspectRatio = currentAspectRatio
+                } else {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
+                }
+            }
+        }
+
+        // =========================================================================
+        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER EXOPLAYER
+        // =========================================================================
+        LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView) {
+            val pv = exoPlayerView
+            if (pv != null && useExoPlayer == true) {
+                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+            }
+        }
+
+        // =========================================================================
+        // SETUP EXOPLAYER
+        // =========================================================================
+        DisposableEffect(useExoPlayer, exoPlayerView) {
+            if (useExoPlayer != true) return@DisposableEffect onDispose {}
+            val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
+
+            try {
+                val player = ensureExoPlayerInitialized()
+                composeExoPlayer = player
+                pv.player = player
+
+                fun refreshExoAudioTracks(tracks: Tracks) {
+                    val list = mutableListOf<UiAudioTrack>()
+                    var selectedId = -1
+
+                    tracks.groups.forEachIndexed { groupIdx, group ->
+                        if (group.type == C.TRACK_TYPE_AUDIO) {
+                            for (trackIdx in 0 until group.length) {
+                                val format = group.getTrackFormat(trackIdx)
+                                val id = groupIdx * 100 + trackIdx
+                                val lang = format.language?.uppercase() ?: "TRACCIA ${list.size + 1}"
+                                val label = format.label ?: lang
+
+                                val codec = when {
+                                    format.sampleMimeType?.contains("mp4a") == true -> "AAC"
+                                    format.sampleMimeType?.contains("ac3") == true -> "AC3"
+                                    format.sampleMimeType?.contains("eac3") == true -> "EAC3"
+                                    format.sampleMimeType?.contains("mpeg") == true -> "MP2"
+                                    else -> format.sampleMimeType?.substringAfter("/")?.uppercase()
+                                }
+                                val channels = when (format.channelCount) {
+                                    1 -> "Mono"
+                                    2 -> "Stereo 2.0"
+                                    6 -> "5.1"
+                                    8 -> "7.1"
+                                    else -> if (format.channelCount > 0) "${format.channelCount}ch" else null
+                                }
+                                val details = listOfNotNull(codec, channels).joinToString(" • ")
+                                val formatted = if (details.isNotBlank()) "$label ($details)" else label
+
+                                list.add(
+                                    UiAudioTrack(
+                                        id = id,
+                                        name = label,
+                                        formattedInfo = formatted,
+                                        exoGroupIndex = groupIdx,
+                                        exoTrackIndex = trackIdx
+                                    )
+                                )
+                                if (group.isTrackSelected(trackIdx)) {
+                                    selectedId = id
+                                }
+                            }
                         }
+                    }
+
+                    uiAudioTracks = list
+                    currentAudioTrackId = selectedId
+                    currentAudioInfo = list.firstOrNull { it.id == selectedId }?.formattedInfo
+                        ?: if (list.isEmpty()) "🔇 Nessun audio" else list.first().formattedInfo
+                }
+
+                val listener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_BUFFERING -> isBuffering = true
+                            Player.STATE_READY -> {
+                                isBuffering = false
+                                errorMessage = null
+                                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                            }
+                            Player.STATE_ENDED -> {
+                                isPlaying = false
+                                pipManager.updatePipParams(false)
+                            }
+                            Player.STATE_IDLE -> {}
+                        }
+                    }
+
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                        if (playing) isBuffering = false
+                        pipManager.updatePipParams(playing)
+                    }
+
+                    override fun onTracksChanged(tracks: Tracks) {
+                        refreshExoAudioTracks(tracks)
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        Log.e("PlayerDebug", "Errore ExoPlayer: ${error.message}", error)
+                        isBuffering = false
+                        isPlaying = false
+                        pipManager.updatePipParams(false)
+                        checkHttpError(streamUrl, userAgent) { mappedMessage ->
+                            errorMessage = mappedMessage
+                        }
+                    }
+                }
+
+                player.addListener(listener)
+                val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                player.playWhenReady = true
+
+                onDispose {
+                    player.removeListener(listener)
+                    player.stop()
+                    pv.player = null
+                }
+            } catch (e: Exception) {
+                Log.e("PlayerDebug", "Errore setup ExoPlayer", e)
+                errorMessage = "Errore ExoPlayer: ${e.message}"
+                onDispose {}
+            }
+        }
+
+        // =========================================================================
+        // SETUP LIBVLC (Con ripristino immediato di scala e aspect ratio alla rotazione)
+        // =========================================================================
+        DisposableEffect(useExoPlayer, vlcVideoLayout) {
+            if (useExoPlayer != false) return@DisposableEffect onDispose {}
+            val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
+
+            try {
+                ensureLibVLCInitialized()
+                val vlc = libVLC ?: throw Exception("LibVLC non inizializzato")
+                val mp = mediaPlayer ?: throw Exception("MediaPlayer non inizializzato")
+
+                composeMediaPlayer = mp
+                mp.attachViews(layout, null, false, true)
+
+                // ⭐ RIPRISTINO IMMEDIATO: Forza l'applicazione dello zoom/formato salvato non appena la vista VLC si collega o ruota
+                if (currentScale > 0f) {
+                    mp.aspectRatio = null
+                    mp.scale = currentScale
+                } else if (currentAspectRatio != null) {
+                    mp.scale = 0f
+                    mp.aspectRatio = currentAspectRatio
+                } else {
+                    mp.scale = 0f
+                    mp.aspectRatio = null
+                }
+
+                val media = Media(vlc, Uri.parse(streamUrl)).apply {
+                    setHWDecoderEnabled(true, true)
+                    addOption(":http-continuous")
+                    addOption(":http-reconnect")
+                    addOption(":clock-jitter=0")
+                    addOption(":network-caching=8000")
+                    addOption(":live-caching=8000")
+
+                    if (!userAgent.isNullOrBlank()) {
+                        addOption(":http-user-agent=$userAgent")
+                    }
+                }
+
+                mp.media = media
+                media.release()
+
+                fun refreshVlcAudioState() {
+                    val tracks = mp.audioTracks?.toList() ?: emptyList()
+                    var currentId = mp.audioTrack
+                    val validTracks = tracks.filter { it.id != -1 }
+
+                    if (currentId == -1 && validTracks.isNotEmpty()) {
+                        val defaultTrackId = validTracks.first().id
+                        mp.audioTrack = defaultTrackId
+                        currentId = defaultTrackId
+                    }
+
+                    val mapped = validTracks.map { t ->
+                        val cleanName = t.name.replace("main - ", "")
+                        UiAudioTrack(
+                            id = t.id,
+                            name = cleanName,
+                            formattedInfo = formatVlcAudioTrackInfo(mp, tracks, t.id)
+                        )
+                    }
+
+                    uiAudioTracks = mapped
+                    currentAudioTrackId = currentId
+                    currentAudioInfo = formatVlcAudioTrackInfo(mp, tracks, currentId)
+                }
+
+                var initialBufferingStarted = false
+                var isFirstPlay = true
+
+                mp.setEventListener { event ->
+                    when (event.type) {
+                        MediaPlayer.Event.Playing -> {
+                            isBuffering = false
+                            isPlaying = true
+                            errorMessage = null
+                            pipManager.updatePipParams(true)
+
+                            isFirstPlay = false
+                            if (currentScale > 0f) {
+                                mp.aspectRatio = null
+                                mp.scale = currentScale
+                            } else if (currentAspectRatio != null) {
+                                mp.scale = 0f
+                                mp.aspectRatio = currentAspectRatio
+                            } else {
+                                mp.scale = 0f
+                                mp.aspectRatio = null
+                            }
+                            refreshAudioState()
+                        }
+                        MediaPlayer.Event.Paused -> {
+                            isPlaying = false
+                            pipManager.updatePipParams(false)
+                        }
+                        MediaPlayer.Event.Stopped -> {
+                            isPlaying = false
+                            pipManager.updatePipParams(false)
+                        }
+                        MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
+                            refreshVlcAudioState()
+                        }
+                        MediaPlayer.Event.EncounteredError -> {
+                            isBuffering = false
+                            isPlaying = false
+                            pipManager.updatePipParams(false)
+                            checkHttpError(streamUrl, userAgent) { mappedMessage ->
+                                errorMessage = mappedMessage
+                            }
+                        }
+                    }
+                }
+
+                lifecycleScope.launch {
+                    delay(300)
+                    mp.play()
+                }
+
+                onDispose {
+                    mp.stop()
+                    mp.detachViews()
+                }
+
+            } catch (e: Exception) {
+                Log.e("PlayerDebug", "Errore nel setup di LibVLC", e)
+                errorMessage = "Errore: ${e.message}"
+                onDispose {}
+            }
+        }
+
+        DraggableMiniPlayerContainer(
+            isMinimized = isMinimized,
+            onExpand = { isMinimized = false },
+            onClose = onBackPressed,
+            isPlaying = isPlaying,
+            onTogglePlayPause = {
+                if (useExoPlayer == true) {
+                    composeExoPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                } else {
+                    composeMediaPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                }
+            }
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (!isInPipMode && !isMinimized) {
+                            showControls = !showControls
+                        }
+                    }
+            ) {
+                when (useExoPlayer) {
+                    true -> {
+                        AndroidView(
+                            factory = { ctx ->
+                                PlayerView(ctx).apply {
+                                    useController = false
+                                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    fitsSystemWindows = false
+                                    exoPlayerView = this
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    false -> {
+                        AndroidView(
+                            factory = { ctx ->
+                                VLCVideoLayout(ctx).also { layout ->
+                                    vlcVideoLayout = layout
+                                    layout.fitsSystemWindows = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    null -> {}
+                }
+
+                AnimatedVisibility(
+                    visible = showControls && !isInPipMode && !isMinimized,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = onBackPressed) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Indietro", tint = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = channelName,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Audio: $currentAudioInfo",
+                                    color = Color.LightGray,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+
+                            // Pulsante rapido cambio motore (ExoPlayer <-> LibVLC)
+                            Surface(
+                                onClick = {
+                                    isBuffering = true
+                                    errorMessage = null
+                                    useExoPlayer = !(useExoPlayer ?: false)
+                                },
+                                color = Color.White.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    text = if (useExoPlayer == true) "⚡ Exo" else "⚡ VLC",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            IconButton(onClick = { isMinimized = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.FullscreenExit,
+                                    contentDescription = "Miniplayer",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (useExoPlayer == true) {
+                                        composeExoPlayer?.let {
+                                            it.seekTo((it.currentPosition - 10000).coerceAtLeast(0))
+                                        }
+                                    } else {
+                                        composeMediaPlayer?.let {
+                                            it.time = (it.time - 10000).coerceAtLeast(0)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Text(
+                                    text = "« 10s",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (useExoPlayer == true) {
+                                        composeExoPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                                    } else {
+                                        composeMediaPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                if (isPlaying) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    exoPlayer?.stop()
+                                    mediaPlayer?.stop()
+                                    onBackPressed()
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .background(Color.White, RoundedCornerShape(2.dp))
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (useExoPlayer == true) {
+                                        composeExoPlayer?.let { it.seekTo(it.currentPosition + 10000) }
+                                    } else {
+                                        composeMediaPlayer?.let { it.time += 10000 }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            ) {
+                                Text(
+                                    text = "10s »",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomEnd)
+                                .navigationBarsPadding()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { showSettingsSheet = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+
+                if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = Color.White
+                    )
+                }
+
+                errorMessage?.let { msg ->
+                    if (!isInPipMode && !isMinimized) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.90f),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(24.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Text(
+                                    text = "⚠️ Errore di Riproduzione",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                Text(
+                                    text = msg,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Button(onClick = {
+                                        errorMessage = null
+                                        isBuffering = true
+                                        if (useExoPlayer == true) {
+                                            composeExoPlayer?.prepare()
+                                            composeExoPlayer?.play()
+                                        } else {
+                                            lifecycleScope.launch {
+                                                delay(300)
+                                                mediaPlayer?.play()
+                                            }
+                                        }
+                                    }) {
+                                        Text("Riprova")
+                                    }
+
+                                    OutlinedButton(onClick = {
+                                        errorMessage = null
+                                        isBuffering = true
+                                        useExoPlayer = !(useExoPlayer ?: false)
+                                    }) {
+                                        val otherEngine = if (useExoPlayer == true) "LibVLC" else "ExoPlayer"
+                                        Text("Usa $otherEngine", color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (showSettingsSheet && !isInPipMode && !isMinimized) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.95f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "📺 Opzioni Riproduzione",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(onClick = { showSettingsSheet = false }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
+                                }
+                            }
+
+                            TabRow(
+                                selectedTabIndex = activeTab,
+                                containerColor = Color.Transparent,
+                                contentColor = Color.White
+                            ) {
+                                Tab(
+                                    selected = activeTab == 0,
+                                    onClick = { activeTab = 0 },
+                                    text = { Text("🔊 Audio") }
+                                )
+                                Tab(
+                                    selected = activeTab == 1,
+                                    onClick = { activeTab = 1 },
+                                    text = { Text("🎬 Formato") }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            when (activeTab) {
+                                0 -> AudioTabContent(
+                                    audioTracks = uiAudioTracks,
+                                    currentTrackId = currentAudioTrackId,
+                                    onTrackSelected = { track ->
+                                        if (useExoPlayer == true) {
+                                            val player = composeExoPlayer
+                                            if (player != null && track.exoGroupIndex >= 0) {
+                                                val groups = player.currentTracks.groups
+                                                if (track.exoGroupIndex < groups.size) {
+                                                    val group = groups[track.exoGroupIndex]
+                                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                                        .buildUpon()
+                                                        .setOverrideForType(
+                                                            TrackSelectionOverride(group.mediaTrackGroup, track.exoTrackIndex)
+                                                        )
+                                                        .build()
+                                                    currentAudioTrackId = track.id
+                                                    currentAudioInfo = track.formattedInfo
+                                                }
+                                            }
+                                        } else {
+                                            composeMediaPlayer?.audioTrack = track.id
+                                            currentAudioTrackId = track.id
+                                            currentAudioInfo = track.formattedInfo
+                                        }
+                                    }
+                                )
+
+                                1 -> AspectRatioTabContent(
+                                    currentAspectRatio = currentAspectRatio,
+                                    currentScale = currentScale,
+                                    onAspectRatioChange = { newRatio ->
+                                        currentAspectRatio = newRatio
+
+                                        prefs.edit().apply {
+                                            if (newRatio != null) {
+                                                putString("aspect_ratio", newRatio)
+                                            } else {
+                                                remove("aspect_ratio")
+                                            }
+                                            apply()
+                                        }
+
+                                        if (useExoPlayer == false) {
+                                            val mp = composeMediaPlayer
+                                            if (mp != null) {
+                                                when (newRatio) {
+                                                    "FILL" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.45f
+                                                        currentScale = 1.45f
+                                                        prefs.edit().putFloat("scale", 1.45f).apply()
+                                                    }
+                                                    "ZOOM110" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.10f
+                                                        currentScale = 1.10f
+                                                        prefs.edit().putFloat("scale", 1.10f).apply()
+                                                    }
+                                                    "ZOOM120" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.20f
+                                                        currentScale = 1.20f
+                                                        prefs.edit().putFloat("scale", 1.20f).apply()
+                                                    }
+                                                    "ZOOM125" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.25f
+                                                        currentScale = 1.25f
+                                                        prefs.edit().putFloat("scale", 1.25f).apply()
+                                                    }
+                                                    "ZOOM130" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.30f
+                                                        currentScale = 1.30f
+                                                        prefs.edit().putFloat("scale", 1.30f).apply()
+                                                    }
+                                                    "ZOOM135" -> {
+                                                        mp.aspectRatio = null
+                                                        mp.scale = 1.35f
+                                                        currentScale = 1.35f
+                                                        prefs.edit().putFloat("scale", 1.35f).apply()
+                                                    }
+                                                    null -> {
+                                                        mp.scale = 0f
+                                                        mp.aspectRatio = null
+                                                        currentScale = 0f
+                                                        prefs.edit().putFloat("scale", 0f).apply()
+                                                    }
+                                                    else -> {
+                                                        mp.scale = 0f
+                                                        mp.aspectRatio = newRatio
+                                                        currentScale = 0f
+                                                        prefs.edit().putFloat("scale", 0f).apply()
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            val newScale = when (newRatio) {
+                                                "FILL" -> 1.45f
+                                                "ZOOM110" -> 1.10f
+                                                "ZOOM120" -> 1.20f
+                                                "ZOOM125" -> 1.25f
+                                                "ZOOM130" -> 1.30f
+                                                "ZOOM135" -> 1.35f
+                                                else -> 0f
+                                            }
+                                            currentScale = newScale
+                                            prefs.edit().putFloat("scale", newScale).apply()
+
+                                            exoPlayerView?.let { pv ->
+                                                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                                            }
+                                        }
+
+                                        showSettingsSheet = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Logica unificata e simmetrica per ExoPlayer: mappa ogni formato e zoom 
+     * a un fattore di scala geometrico preciso, azzerando le differenze con LibVLC.
+     */
+    private fun applyExoAspectRatioAndScale(
+        playerView: PlayerView,
+        aspectRatio: String?,
+        scale: Float
+    ) {
+        val targetView = playerView.videoSurfaceView ?: playerView
+        
+        // 1. Se l'utente ha scelto uno Zoom percentuale manuale personalizzato
+        if (scale > 0f) {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            targetView.scaleX = scale
+            targetView.scaleY = scale
+            return
+        }
+
+        // Reset preliminare della scala manuale
+        targetView.scaleX = 1f
+        targetView.scaleY = 1f
+
+        when (aspectRatio) {
+            // Avvio pulito (Default 16:9)
+            null, "16:9" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            // ⭐ RIEMPI SCHERMO REALE: Sfrutta RESIZE_MODE_ZOOM nativo di ExoPlayer 
+            // che adatta perfettamente il flusso eliminando le bande nere senza tagliare i lati.
+            "FILL" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            "4:3" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+            }
+            "21:9" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                targetView.scaleY = 0.90f // Compensa leggermente l'altezza senza tagliare i lati
+            }
+            "1.85:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                targetView.scaleY = 0.95f
+            }
+            "2.35:1", "2.39:1" -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                targetView.scaleY = 0.85f
+            }
+            else -> {
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+        }
+    } 
+
+    @Composable
+    private fun AudioTabContent(
+        audioTracks: List<UiAudioTrack>,
+        currentTrackId: Int,
+        onTrackSelected: (UiAudioTrack) -> Unit
+    ) {
+        if (audioTracks.isEmpty()) {
+            Text(
+                text = "🔇 Nessuna traccia audio disponibile",
+                color = Color.Gray,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 220.dp).fillMaxWidth()) {
+                items(audioTracks) { track ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onTrackSelected(track) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (track.id == currentTrackId),
+                            onClick = { onTrackSelected(track) }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = track.formattedInfo,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun AspectRatioTabContent(
+        currentAspectRatio: String?,
+        currentScale: Float,
+        onAspectRatioChange: (String?) -> Unit
+    ) {
+        val ratios = listOf(
+            "📺 16:9 (Standard HD)" to "16:9",
+            "📺 4:3 (TV Classica)" to "4:3",
+            "🔍 Zoom 110%" to "ZOOM110",
+            "🔍 Zoom 120%" to "ZOOM120",
+            "🔍 Zoom 125%" to "ZOOM125",
+            "🔍 Zoom 130%" to "ZOOM130",
+            "🔍 Zoom 135%" to "ZOOM135",
+            "🎬 21:9 (Cinematic)" to "21:9",
+            "🎬 1.85:1 (Movie)" to "1.85:1",
+            "🎬 2.35:1 (CinemaScope)" to "2.35:1",
+            "🎬 2.39:1 (UltraWide)" to "2.39:1",
+            "🔲 Riempi Schermo" to "FILL"
+        )
+
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 130.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 280.dp)
+        ) {
+            items(ratios) { (label, ratio) ->
+                val isSelected = when (ratio) {
+                    "FILL"    -> currentScale == 1.45f
+                    "ZOOM110" -> currentScale == 1.10f
+                    "ZOOM120" -> currentScale == 1.20f
+                    "ZOOM125" -> currentScale == 1.25f
+                    "ZOOM130" -> currentScale == 1.30f
+                    "ZOOM135" -> currentScale == 1.35f
+                    else      -> currentAspectRatio == ratio && currentScale == 0f
+                }
+
+                Button(
+                    onClick = { onAspectRatioChange(ratio) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) {
+                            Color.White.copy(alpha = 0.25f)
+                        } else {
+                            Color.White.copy(alpha = 0.08f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = if (isSelected) "✓ $label" else label,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
-        })
+        }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Composable
-    fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
-        var portals by remember { mutableStateOf(store.load()) }
-        var showTypeChooser by remember { mutableStateOf(false) }
-        var formType by remember { mutableStateOf<PortalType?>(null) }
-        var editing by remember { mutableStateOf<Portal?>(null) }
-        var showSettings by remember { mutableStateOf(false) }
-        
-        val scope = rememberCoroutineScope()
+    private fun formatVlcAudioTrackInfo(
+        mp: MediaPlayer,
+        tracks: List<MediaPlayer.TrackDescription>,
+        activeId: Int
+    ): String {
+        if (activeId == -1) {
+            val validTracks = tracks.filter { it.id != -1 }
+            return if (validTracks.isEmpty()) "🔇 Nessun audio" else "⊘ Disattivato"
+        }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("PortalStream Pro") },
-                    actions = {
-                        IconButton(onClick = { showSettings = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Impostazioni"
-                            )
+        val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
+        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
+            .replace("main - ", "")
+
+        try {
+            val media = mp.media
+            if (media != null) {
+                val count = media.trackCount
+                for (i in 0 until count) {
+                    val t = media.getTrack(i)
+                    if (t != null && t.type == IMedia.Track.Type.Audio && t is IMedia.AudioTrack) {
+                        val codec = when (t.codec?.uppercase()) {
+                            "MPGA", "MP2", "MP3" -> "MP2"
+                            "A52", "AC3" -> "AC3"
+                            "EAC3" -> "EAC3"
+                            "AAC", "MP4A" -> "AAC"
+                            else -> t.codec?.uppercase()
                         }
-                    }
-                )
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Portali salvati: ${portals.size}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colorResource(id = R.color.text_neonciano)
-                )
-                Spacer(Modifier.height(12.dp))
-
-                Button(
-                    onClick = { showTypeChooser = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("AGGIUNGI PLAYLIST")
-                }
-                Spacer(Modifier.height(12.dp))
-
-                if (portals.isEmpty()) {
-                    Column {
-                        Text(
-                            text = "Nessun portale salvato.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = "Premi AGGIUNGI PLAYLIST per iniziare.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    LazyColumn {
-                        items(portals, key = { it.id }) { portal ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable { openChannels(portal) }
-                            ) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = "[${portal.id}]" +
-                                            if (portal.name.isBlank()) "" else " ${portal.name}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = portal.type.label + " - " +
-                                            if (portal.url.isBlank()) portal.server else portal.url,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = colorResource(id = R.color.text_neonciano)
-                                    )
-
-                                    if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            if (portal.activationDate.isNotBlank()) {
-                                                Text(
-                                                    text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                            if (portal.expireDate.isNotBlank()) {
-                                                val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                Text(
-                                                    text = "⏳ Scadenza: $formattedExpire",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                        MaterialTheme.colorScheme.primary 
-                                                    else MaterialTheme.colorScheme.error
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Row {
-                                        TextButton(onClick = { editing = portal }) {
-                                            Text("Modifica")
-                                        }
-                                        Spacer(Modifier.width(4.dp))
-                                        TextButton(onClick = {
-                                            val idToDelete = portal.id
-                                            store.delete(idToDelete)
-                                            portals = store.load()
-                                            // 🗑️ Pulizia completa di epg_mappings.json e dei canali nel DB Room!
-                                            scope.launch(Dispatchers.IO) {
-                                                epgMappingStore.deletePortalMappings(idToDelete)
-                                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
-                                                dao.deleteChannelsByPlaylist(idToDelete)
-                                                dao.deleteChannelsByPrefix("ch_${idToDelete}_")
-                                            }
-                                        }) {
-                                            Text(
-                                                text = "Elimina",
-                                                color = colorResource(id = R.color.text_redneon)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        val channels = when (t.channels) {
+                            1 -> "Mono"
+                            2 -> "Stereo 2.0"
+                            6 -> "5.1"
+                            8 -> "7.1"
+                            else -> if (t.channels > 0) "${t.channels}ch" else null
+                        }
+                        val details = listOfNotNull(codec, channels).joinToString(" • ")
+                        if (details.isNotBlank()) {
+                            return "$trackName ($details)"
                         }
                     }
                 }
             }
+        } catch (_: Exception) {
+            Log.e("PlayerDebug", "Errore nel parsing audio info")
         }
 
-        if (showTypeChooser) {
-            AddPortalTypeDialog(
-                onSelect = { type ->
-                    formType = type
-                    showTypeChooser = false
-                },
-                onDismiss = { showTypeChooser = false }
-            )
-        }
-
-        formType?.let { type ->
-            PortalFormDialog(
-                existing = null,
-                type = type,
-                onDismiss = { formType = null },
-                onSave = { draft ->
-                    val detected = PortalType.detect(draft.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else type
-                    val portalToSave = draft.copy(type = finalType)
-
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val isStalker = finalType == PortalType.MAG || portalToSave.macAddress.isNotBlank()
-                            var finalPortal = portalToSave
-
-                            if (isStalker) {
-                                val profile = StalkerClient.fetchAccountInfo(portalToSave)
-                                finalPortal = portalToSave.copy(
-                                    expireDate = if (profile.expireDate.isNotBlank()) profile.expireDate else "Illimitato",
-                                    activationDate = if (profile.activationDate.isNotBlank()) profile.activationDate else SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(Date())
-                                )
-                            }
-
-                            store.add(finalPortal)
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                formType = null
-                            }
-                        } catch (e: Exception) {
-                            Timber.e(e, "Errore salvataggio info account, procedo comunque col salvataggio base")
-                            store.add(portalToSave.copy(expireDate = "Non disponibile"))
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                formType = null
-                            }
-                        }
-                    }
-                },
-                onPickFile = { pickLocalFile() }
-            )
-        }
-
-        editing?.let { portal ->
-            PortalFormDialog(
-                existing = portal,
-                type = portal.type,
-                onDismiss = { editing = null },
-                onSave = { updated ->
-                    val detected = PortalType.detect(updated.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
-                    val portalToUpdate = updated.copy(type = finalType)
-
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val isStalker = finalType == PortalType.MAG || portalToUpdate.macAddress.isNotBlank()
-                            var finalPortal = portalToUpdate
-
-                            if (isStalker) {
-                                val profile = StalkerClient.fetchAccountInfo(portalToUpdate)
-                                finalPortal = portalToUpdate.copy(
-                                    expireDate = if (profile.expireDate.isNotBlank()) profile.expireDate else portal.expireDate,
-                                    activationDate = if (profile.activationDate.isNotBlank()) profile.activationDate else portal.activationDate
-                                )
-                            }
-
-                            // ♻️ Se l'utente ha cambiato MAC (es. da :03 a :05), URL, Server o Utente,
-                            // puliamo i vecchi canali e i vecchi ID EPG di questo portale!
-                            val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
-                                    portal.url.trim() != finalPortal.url.trim() ||
-                                    portal.server.trim() != finalPortal.server.trim() ||
-                                    portal.username.trim() != finalPortal.username.trim() ||
-                                    portal.password != finalPortal.password
-
-                            if (credentialsChanged) {
-                                epgMappingStore.deletePortalMappings(finalPortal.id)
-                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
-                                dao.deleteChannelsByPlaylist(finalPortal.id)
-                                dao.deleteChannelsByPrefix("ch_${finalPortal.id}_")
-                            }
-
-                            store.update(finalPortal)
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                editing = null
-                            }
-                        } catch (e: Exception) {
-                            Timber.e(e, "Errore aggiornamento info account")
-                            store.update(portalToUpdate)
-                            withContext(Dispatchers.Main) {
-                                portals = store.load()
-                                editing = null
-                            }
-                        }
-                    }
-                },
-                onPickFile = { pickLocalFile() }
-            )
-        }
-
-        if (showSettings) {
-            SettingsBottomSheet(
-                context = this,
-                onDismiss = { showSettings = false },
-                onThemeChanged = onThemeChanged
-            )
-        }
+        return trackName
     }
 
-    private fun openChannels(portal: Portal) {
-        val ua = if (portal.useCustomUserAgent) portal.userAgent else null
-        startActivity(
-            Intent(this, ChannelsActivity::class.java).apply {
-                putExtra(ChannelsActivity.EXTRA_PORTAL_ID, portal.id)
-                putExtra(ChannelsActivity.EXTRA_TITLE, portal.name.ifBlank { "Portale ${portal.id}" })
-                putExtra(ChannelsActivity.EXTRA_URL, portal.url)
-                putExtra(ChannelsActivity.EXTRA_USER_AGENT, ua)
-                putExtra(ChannelsActivity.EXTRA_PORTAL_TYPE, portal.type.name)
-                putExtra(ChannelsActivity.EXTRA_SERVER, portal.server)
-                putExtra(ChannelsActivity.EXTRA_USERNAME, portal.username)
-                putExtra(ChannelsActivity.EXTRA_PASSWORD, portal.password)
-                putExtra(ChannelsActivity.EXTRA_FORMAT, portal.streamFormat)
-                putExtra(ChannelsActivity.EXTRA_MAC, portal.macAddress)
-                putExtra(ChannelsActivity.EXTRA_EXPIRE_DATE, portal.expireDate)
-            }
-        )
-    }
+    private fun checkHttpError(urlStr: String, userAgentStr: String?, onResult: (String) -> Unit) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var message = "❌ Errore durante la riproduzione del flusso multimediale."
+            try {
+                val url = URL(urlStr)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                userAgentStr?.let { conn.setRequestProperty("User-Agent", it) }
 
-    private fun pickLocalFile() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-        }
-        startActivityForResult(intent, REQ_PICK_FILE)
-    }
-
-    @Deprecated("Usato per il picker file senza activity-compose")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK) {
-            data?.data?.let { uri ->
-                try {
-                    contentResolver.openInputStream(uri)?.let { inputStream ->
-                        val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
-                        M3UParser.parseStreaming(inputStream) { channels.add(it) }
-                        
-                        if (channels.isNotEmpty()) {
-                            ChannelCache.hold(channels)
-                            startActivity(
-                                Intent(this, ChannelsActivity::class.java).apply {
-                                    putExtra(
-                                        ChannelsActivity.EXTRA_TITLE,
-                                        uri.lastPathSegment ?: "Playlist locale"
-                                    )
-                                }
-                            )
-                        }
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "Lettura file locale fallita")
+                val responseCode = conn.responseCode
+                message = when (responseCode) {
+                    200 -> "❌ Impossibile decodificare il flusso video."
+                    401, 403 -> "🔐 Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
+                    404 -> "🔍 Canale non trovato (HTTP 404)."
+                    456 -> "🚫 IP rifiutato (HTTP 456) Errore geolocalizzazione (VPN)."
+                    459 -> "📊 Troppi utenti collegati (HTTP $responseCode)."
+                    429, 458, 462 -> "⏱️ Limite raggiunto (HTTP $responseCode)."
+                    in 500..504 -> "🔧 Server non disponibile (HTTP $responseCode)."
+                    else -> "❌ Errore HTTP $responseCode."
                 }
+                conn.disconnect()
+            } catch (e: Exception) {
+                message = "🌐 Impossibile connettersi al server."
+                Log.e("PlayerDebug", "Errore HTTP check", e)
             }
+            withContext(Dispatchers.Main) { onResult(message) }
         }
     }
 
     companion object {
-        private const val REQ_PICK_FILE = 1001
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SettingsBottomSheet(
-    context: Context,
-    onDismiss: () -> Unit,
-    onThemeChanged: (Boolean) -> Unit
-) {
-    val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-    
-    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
-    var playerMode by remember { mutableStateOf(prefs.getString("player_mode", "miniplayer") ?: "miniplayer") }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-        ) {
-            Text(
-                text = "⚙️ Impostazioni Generali",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Tema Scuro", style = MaterialTheme.typography.bodyLarge)
-                Switch(
-                    checked = isDarkMode,
-                    onCheckedChange = { checked ->
-                        isDarkMode = checked
-                        prefs.edit().putBoolean("dark_mode", checked).apply()
-                        onThemeChanged(checked)
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("Modalità Video Ridotto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            playerMode = "miniplayer"
-                            prefs.edit().putString("player_mode", "miniplayer").apply()
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text("Set Miniplayer")
-                    }
-
-                    Button(
-                        onClick = {
-                            playerMode = "pip"
-                            prefs.edit().putString("player_mode", "pip").apply()
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (playerMode == "pip") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (playerMode == "pip") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text("Set PiP")
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        playerMode = "both"
-                        prefs.edit().putString("player_mode", "both").apply()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (playerMode == "both") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (playerMode == "both") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Text("Set Miniplayer + PiP")
-                }
-            }
-            Spacer(modifier = Modifier.height(40.dp))
-        }
-    }
-}
-
-object ChannelCache {
-    private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
-
-    fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
-        channels = list
-    }
-
-    fun take(): List<com.portalstream.app.domain.model.Channel> {
-        val result = channels
-        channels = emptyList()
-        return result
-    }
-}
-
-private fun formatDateToItalian(dateStr: String): String {
-    if (dateStr.isBlank()) return ""
-    if (dateStr.contains("Illimitato", ignoreCase = true) || dateStr.contains("Unlimited", ignoreCase = true)) {
-        return "Non definita / Illimitata"
-    }
-
-    return try {
-        val parts = dateStr.trim().split(" ")
-        val dateParts = parts[0].split("-")
-
-        if (dateParts.size == 3) {
-            val year = dateParts[0]
-            val month = dateParts[1]
-            val day = dateParts[2]
-
-            val formattedDate = "$day/$month/$year"
-            if (parts.size > 1) {
-                val timeParts = parts[1].split(":")
-                val time = if (timeParts.size >= 2) "${timeParts[0]}:${timeParts[1]}" else parts[1]
-                "$formattedDate $time"
-            } else {
-                formattedDate
-            }
-        } else {
-            dateStr
-        }
-    } catch (e: Exception) {
-        dateStr
+        const val EXTRA_STREAM_URL = "extra_stream_url"
+        const val EXTRA_CHANNEL_NAME = "extra_channel_name"
+        const val EXTRA_USER_AGENT = "extra_user_agent`"
     }
 }
