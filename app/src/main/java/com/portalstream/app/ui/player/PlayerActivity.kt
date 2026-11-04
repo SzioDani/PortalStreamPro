@@ -1072,27 +1072,32 @@ class PlayerActivity : ComponentActivity() {
         when (aspectRatio) {
             "4:3" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _ -> }
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 4f / 3f)
             }
             "16:9" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 16f / 9f)
             }
             "21:9" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 21f / 9f)
             }
             "1.85:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 1.85f)
             }
             "2.35:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 2.35f)
             }
             "2.39:1" -> {
                 playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                playerView.setAspectRatioListener { _, _, _ -> }
                 setCustomAspectRatio(playerView, 2.39f)
             }
             "FILL" -> {
