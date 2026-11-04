@@ -120,7 +120,7 @@ class PortalsActivity : ComponentActivity() {
                         Text(
                             text = "Premi AGGIUNGI PLAYLIST per iniziare.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = colorResource(id = R.color.text_neonciano)
                         )
                     }
                 } else {
