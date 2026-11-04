@@ -192,7 +192,7 @@ class PortalsActivity : ComponentActivity() {
                                         }) {
                                             Text(
                                                 text = "Elimina",
-                                                color = MaterialTheme.colorScheme.error
+                                                color = colorResource(id = R.color.text_redneon)
                                             )
                                         }
                                     }
