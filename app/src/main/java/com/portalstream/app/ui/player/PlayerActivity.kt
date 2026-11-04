@@ -581,7 +581,7 @@ class PlayerActivity : ComponentActivity() {
                                 mp.scale = 0f
                                 mp.aspectRatio = null
                             }
-                            refreshAudioState()
+                            refreshVlcAudioState()
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
