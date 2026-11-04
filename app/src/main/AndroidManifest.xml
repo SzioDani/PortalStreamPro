@@ -38,6 +38,7 @@
         <!-- HUB PRINCIPALE: l'app si apre qui -->
         <activity
             android:name="com.portalstream.app.ui.home.PortalsActivity"
+            android:theme="@style/Theme.PortalStreamPro"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -49,6 +50,7 @@
         <!-- Lista canali del portale selezionato -->
         <activity
             android:name="com.portalstream.app.ui.channels.ChannelsActivity"
+            android:theme="@style/Theme.PortalStreamPro"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="false" />
 
