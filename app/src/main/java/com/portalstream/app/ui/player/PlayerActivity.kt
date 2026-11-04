@@ -36,6 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +51,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -304,8 +306,10 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
-        val savedAspectRatio = remember { prefs.getString("aspect_ratio", "16:9") }
+        // Ripristinato esattamente come nel file originale LibVLC
+        val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
+
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
         var isBuffering by remember { mutableStateOf(true) }
@@ -314,13 +318,18 @@ class PlayerActivity : ComponentActivity() {
         var showSettingsSheet by remember { mutableStateOf(false) }
         var activeTab by remember { mutableIntStateOf(0) }
         var isMinimized by remember { mutableStateOf(false) }
+
         var uiAudioTracks by remember { mutableStateOf<List<UiAudioTrack>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
+
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
         var currentScale by remember { mutableStateOf(savedScale) }
+
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
         var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+
+        val configuration = LocalConfiguration.current
         var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
         var composeExoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
@@ -344,30 +353,30 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // =========================================================================
-        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER LIBVLC (Anche dopo la rotazione)
+        // 1. LOGICA FORMATI E ROTAZIONE SPECIFICA PER LIBVLC
+        // Riapplica il formato sia al cambio impostazione sia quando ruoti lo schermo!
         // =========================================================================
-        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer) {
+        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer, useExoPlayer, configuration.orientation) {
             val mp = composeMediaPlayer
             if (mp != null && useExoPlayer == false) {
-                if (currentScale > 0f) {
-                    mp.aspectRatio = null
-                    mp.scale = currentScale
-                } else if (currentAspectRatio != null) {
-                    mp.scale = 0f
-                    mp.aspectRatio = currentAspectRatio
-                } else {
-                    mp.scale = 0f
-                    mp.aspectRatio = null
-                }
+                applyVlcAspectRatioAndScale(mp, currentAspectRatio, currentScale)
+                // LibVLC ricalcola la superficie 200ms dopo la rotazione dello schermo:
+                // riapplichiamo subito dopo per impedire che torni ai valori di default!
+                delay(150)
+                applyVlcAspectRatioAndScale(mp, currentAspectRatio, currentScale)
+                delay(200)
+                applyVlcAspectRatioAndScale(mp, currentAspectRatio, currentScale)
             }
         }
 
         // =========================================================================
-        // APPLICAZIONE PERSISTENTE ASPETTO / ZOOM PER EXOPLAYER
+        // 2. LOGICA FORMATI E ROTAZIONE SPECIFICA PER EXOPLAYER
         // =========================================================================
-        LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView) {
+        LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView, useExoPlayer, configuration.orientation) {
             val pv = exoPlayerView
             if (pv != null && useExoPlayer == true) {
+                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                delay(150)
                 applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
             }
         }
@@ -452,6 +461,13 @@ class PlayerActivity : ComponentActivity() {
                         }
                     }
 
+                    override fun onVideoSizeChanged(videoSize: VideoSize) {
+                        // Impedisce a ExoPlayer di sovrascrivere il nostro formato quando lo stream cambia qualità
+                        pv.post {
+                            applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                        }
+                    }
+
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
                         if (playing) isBuffering = false
@@ -492,7 +508,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // =========================================================================
-        // SETUP LIBVLC (Con ripristino immediato di scala e aspect ratio alla rotazione)
+        // SETUP LIBVLC (Con la tua logica originale + blocco del formato in rotazione)
         // =========================================================================
         DisposableEffect(useExoPlayer, vlcVideoLayout) {
             if (useExoPlayer != false) return@DisposableEffect onDispose {}
@@ -506,16 +522,6 @@ class PlayerActivity : ComponentActivity() {
                 composeMediaPlayer = mp
                 mp.attachViews(layout, null, false, true)
 
-                // ⭐ RIPRISTINO RIGIDO: Attende il primo frame/layout per riapplicare il formato salvato
-                layout.post {
-                    if (currentScale > 0f) {
-                        mp.aspectRatio = null
-                        mp.scale = currentScale
-                    } else if (!currentAspectRatio.isNullOrEmpty()) {
-                        mp.scale = 0f
-                        mp.aspectRatio = currentAspectRatio
-                    }
-                }
                 val media = Media(vlc, Uri.parse(streamUrl)).apply {
                     setHWDecoderEnabled(true, true)
                     addOption(":http-continuous")
@@ -558,28 +564,29 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 var initialBufferingStarted = false
-                var isFirstPlay = true
 
                 mp.setEventListener { event ->
                     when (event.type) {
+                        MediaPlayer.Event.Buffering -> {
+                            if (!initialBufferingStarted) {
+                                initialBufferingStarted = true
+                            }
+                            isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
+                        }
                         MediaPlayer.Event.Playing -> {
                             isBuffering = false
                             isPlaying = true
                             errorMessage = null
                             pipManager.updatePipParams(true)
 
-                            isFirstPlay = false
-                            if (currentScale > 0f) {
-                                mp.aspectRatio = null
-                                mp.scale = currentScale
-                            } else if (currentAspectRatio != null) {
-                                mp.scale = 0f
-                                mp.aspectRatio = currentAspectRatio
-                            } else {
-                                mp.scale = 0f
-                                mp.aspectRatio = null
-                            }
+                            applyVlcAspectRatioAndScale(mp, currentAspectRatio, currentScale)
                             refreshVlcAudioState()
+                        }
+                        MediaPlayer.Event.Vout -> {
+                            // Quando la superficie video di LibVLC è pronta, riapplica il formato
+                            if (event.voutCount > 0) {
+                                applyVlcAspectRatioAndScale(mp, currentAspectRatio, currentScale)
+                            }
                         }
                         MediaPlayer.Event.Paused -> {
                             isPlaying = false
@@ -604,7 +611,7 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 lifecycleScope.launch {
-                    delay(300)
+                    delay(500)
                     mp.play()
                 }
 
@@ -654,6 +661,8 @@ class PlayerActivity : ComponentActivity() {
                                     useController = false
                                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     fitsSystemWindows = false
+                                    clipChildren = false
+                                    clipToPadding = false
                                     exoPlayerView = this
                                 }
                             },
@@ -1000,8 +1009,19 @@ class PlayerActivity : ComponentActivity() {
                                     currentScale = currentScale,
                                     onAspectRatioChange = { newRatio ->
                                         currentAspectRatio = newRatio
+
+                                        // Salvataggio identico al tuo file LibVLC originale
+                                        prefs.edit().apply {
+                                            if (newRatio != null) {
+                                                putString("aspect_ratio", newRatio)
+                                            } else {
+                                                remove("aspect_ratio")
+                                            }
+                                            apply()
+                                        }
+
                                         val newScale = when (newRatio) {
-                                            "FILL"    -> 1.35f
+                                            "FILL"    -> 1.45f
                                             "ZOOM110" -> 1.10f
                                             "ZOOM120" -> 1.20f
                                             "ZOOM125" -> 1.25f
@@ -1010,26 +1030,15 @@ class PlayerActivity : ComponentActivity() {
                                             else      -> 0f
                                         }
                                         currentScale = newScale
-
-                                        prefs.edit().apply {
-                                            putString("aspect_ratio", newRatio)
-                                            putFloat("scale", newScale)
-                                            apply()
-                                        }
+                                        prefs.edit().putFloat("scale", newScale).apply()
 
                                         if (useExoPlayer == false) {
                                             composeMediaPlayer?.let { mp ->
-                                                if (newScale > 0f) {
-                                                    mp.aspectRatio = null
-                                                    mp.scale = newScale
-                                                } else {
-                                                    mp.scale = 0f
-                                                    mp.aspectRatio = newRatio
-                                                }
+                                                applyVlcAspectRatioAndScale(mp, newRatio, newScale)
                                             }
-                                        } else {
+                                        } else if (useExoPlayer == true) {
                                             exoPlayerView?.let { pv ->
-                                                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                                                applyExoAspectRatioAndScale(pv, newRatio, newScale)
                                             }
                                         }
 
@@ -1045,86 +1054,94 @@ class PlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Logica unificata e simmetrica per ExoPlayer: mappa ogni formato e zoom 
-     * a un fattore di scala geometrico preciso, azzerando le differenze con LibVLC.
+     * LOGICA 1 (LIBVLC): Identica al tuo file originale LibVLC funzionante
+     */
+    private fun applyVlcAspectRatioAndScale(
+        mp: MediaPlayer,
+        aspectRatio: String?,
+        scale: Float
+    ) {
+        if (scale > 0f) {
+            mp.aspectRatio = null
+            mp.scale = scale
+        } else if (aspectRatio != null) {
+            mp.scale = 0f
+            mp.aspectRatio = aspectRatio
+        } else {
+            mp.scale = 0f
+            mp.aspectRatio = null
+        }
+    }
+
+    /**
+     * LOGICA 2 (EXOPLAYER): Logica separata e calibrata su misura per ExoPlayer.
+     * - Non usa mai RESIZE_MODE_ZOOM (che in verticale copriva tutto il telefono e in orizzontale tagliava il logo).
+     * - Parte sempre da RESIZE_MODE_FIT e applica rapporti o zoom graduali sul contenitore video interno.
      */
     private fun applyExoAspectRatioAndScale(
         playerView: PlayerView,
         aspectRatio: String?,
         scale: Float
     ) {
-        val targetView = playerView.videoSurfaceView ?: playerView
+        val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(
+            androidx.media3.ui.R.id.exo_content_frame
+        ) ?: return
 
-        // Reset preliminare delle trasformazioni per evitare sovrapposizioni
-        targetView.scaleX = 1f
-        targetView.scaleY = 1f
+        playerView.clipChildren = false
+        playerView.clipToPadding = false
+        contentFrame.clipChildren = false
+        contentFrame.clipToPadding = false
 
-        // 1. GESTIONE ZOOM PERCENTUALI (110%, 120%, 125%, 130%, 135%, FILL)
-        if (scale > 0f) {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            // Scala proporzionale su entrambi gli assi per ingrandire anche ai lati
-            targetView.scaleX = scale
-            targetView.scaleY = scale
+        // 1. SE È SELEZIONATO UNO ZOOM (ZOOM110..ZOOM135 o FILL)
+        if (scale > 0f || aspectRatio == "FILL") {
+            // Base RESIZE_MODE_FIT: in verticale resta centrato e non copre tutto il telefono!
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            contentFrame.setAspectRatio(16f / 9f)
+
+            // Conversione dai valori scala di VLC a valori graduali per ExoPlayer
+            // così da non tagliare il logo del canale TV:
+            val exoZoom = when (aspectRatio) {
+                "ZOOM110" -> 1.05f
+                "ZOOM120" -> 1.10f
+                "ZOOM125" -> 1.14f
+                "ZOOM130" -> 1.18f
+                "ZOOM135" -> 1.22f
+                "FILL"    -> 1.26f
+                else -> when (scale) {
+                    1.10f -> 1.05f
+                    1.20f -> 1.10f
+                    1.25f -> 1.14f
+                    1.30f -> 1.18f
+                    1.35f -> 1.22f
+                    1.45f -> 1.26f
+                    else  -> 1.0f
+                }
+            }
+
+            contentFrame.scaleX = exoZoom
+            contentFrame.scaleY = exoZoom
             return
         }
 
-        // 2. GESTIONE FORMATI ED ASPECT RATIO SPECIFICI
-        when (aspectRatio) {
-            "4:3" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 4f / 3f)
-            }
-            "16:9" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 16f / 9f)
-            }
-            "21:9" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 21f / 9f)
-            }
-            "1.85:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 1.85f)
-            }
-            "2.35:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 2.35f)
-            }
-            "2.39:1" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                playerView.setAspectRatioListener { _, _, _ -> }
-                setCustomAspectRatio(playerView, 2.39f)
-            }
-            "FILL" -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            }
-            else -> {
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-        }
-    }
+        // 2. SE È SELEZIONATO UN FORMATO PREDEFINITO (16:9, 4:3, 21:9, 1.85:1, 2.35:1, 2.39:1)
+        contentFrame.scaleX = 1f
+        contentFrame.scaleY = 1f
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
-    /**
-     * Helper per impostare un rapporto di forma personalizzato ed esatto in ExoPlayer
-     */
-    private fun setCustomAspectRatio(playerView: PlayerView, targetRatio: Float) {
-        playerView.post {
-            (playerView.parent as? android.view.ViewGroup)?.let {
-            }
-            playerView.setAspectRatioListener { _, _, _ -> }
-            val width = playerView.width
-            if (width > 0) {
-                val targetHeight = (width / targetRatio).toInt()
-                playerView.layoutParams = playerView.layoutParams.apply {
-                    this.height = targetHeight
-                }
-            }
+        val targetRatio = when (aspectRatio) {
+            "16:9"   -> 16f / 9f
+            "4:3"    -> 4f / 3f
+            "21:9"   -> 21f / 9f
+            "1.85:1" -> 1.85f
+            "2.35:1" -> 2.35f
+            "2.39:1" -> 2.39f
+            else     -> 16f / 9f
         }
+
+        contentFrame.setAspectRatio(targetRatio)
+        contentFrame.requestLayout()
     }
 
     @Composable
@@ -1317,3 +1334,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                                        
