@@ -159,7 +159,7 @@ class PortalsActivity : ComponentActivity() {
                                                 Text(
                                                     text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = colorResource(id = R.color.text_neonciano)
+                                                    color = MaterialTheme.colorScheme.primary
                                                 )
                                             }
                                             if (portal.expireDate.isNotBlank()) {
@@ -215,7 +215,7 @@ class PortalsActivity : ComponentActivity() {
                                         }) {
                                             Text(
                                                 text = "Elimina",
-                                                color = colorResource(id = R.color.text_redneon)
+                                                color = colorResource(id = R.color.text_neonred)
                                             )
                                         }
                                     }
@@ -266,7 +266,7 @@ class PortalsActivity : ComponentActivity() {
                                 formType = null
                             }
                         } catch (e: Exception) {
-                            Timber.e(e, "Errore salvataggio info account")
+                            Timber.e(e, "Errore salvataggio info account, procedo comunque col salvataggio base")
                             store.add(portalToSave.copy(expireDate = "Non disponibile"))
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
@@ -553,3 +553,4 @@ private fun formatDateToItalian(dateStr: String): String {
         dateStr
     }
 }
+                            
