@@ -99,7 +99,7 @@ class PortalsActivity : ComponentActivity() {
                 Text(
                     text = "Portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = colorResource(id = R.color.text_neonwhite)
+                    color = colorResource(id = R.color.text_neonciano)
                 )
                 Spacer(Modifier.height(12.dp))
 
