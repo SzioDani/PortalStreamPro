@@ -161,14 +161,38 @@ class PortalsActivity : ComponentActivity() {
                                                 )
                                             }
                                             if (portal.expireDate.isNotBlank()) {
-                                                val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                Text(
-                                                    text = "⏳ Scadenza: $formattedExpire",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                        MaterialTheme.colorScheme.primary 
-                                                    else MaterialTheme.colorScheme.error
-                                                )
+                                                    val formattedExpire = formatDateToItalian(portal.expireDate)
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier.width(16.dp),
+                                                            contentAlignment = Alignment.CenterStart
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Schedule, // Oppure DateRange, a seconda di cosa preferisci
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(14.dp),
+                                                                tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
+                                                                colorResource(id = R.color.text_neonciano) 
+                                                             else 
+                                                                colorResource(id = R.color.text_neonred)
+                                                             )
+                                                         }
+                                                             Spacer(modifier = Modifier.width(4.dp))
+                                                             Text(
+                                                                 text = "Scadenza: $formattedExpire",
+                                                                 style = MaterialTheme.typography.bodySmall,
+                                                                 color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
+                                                                 colorResource(id = R.color.text_neonciano) 
+                                                              else 
+                                                                 colorResource(id = R.color.text_neonred),
+                                                              fontWeight = FontWeight.Medium
+                                                            )
+                                                       
+                                                            
+                                                }
                                             }
                                         }
                                     }
