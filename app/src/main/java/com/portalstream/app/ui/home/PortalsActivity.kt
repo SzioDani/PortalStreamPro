@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -154,44 +155,61 @@ class PortalsActivity : ComponentActivity() {
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             if (portal.activationDate.isNotBlank()) {
-                                                Text(
-                                                    text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.width(16.dp),
+                                                        contentAlignment = Alignment.CenterStart
+                                                    ) {
+                                                        // Esempio con un'icona tonda o punto verde
+                                                        Icon(
+                                                            imageVector = Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = colorResource(id = R.color.text_neonciano)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = colorResource(id = R.color.text_neonciano),
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
                                             }
                                             if (portal.expireDate.isNotBlank()) {
-                                                    val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(top = 2.dp)
+                                                val formattedExpire = formatDateToItalian(portal.expireDate)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.width(16.dp),
+                                                        contentAlignment = Alignment.CenterStart
                                                     ) {
-                                                        Box(
-                                                            modifier = Modifier.width(16.dp),
-                                                            contentAlignment = Alignment.CenterStart
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Schedule, // Oppure DateRange, a seconda di cosa preferisci
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(14.dp),
-                                                                tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
+                                                        Icon(
+                                                            imageVector = Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
                                                                 colorResource(id = R.color.text_neonciano) 
-                                                             else 
+                                                            else 
                                                                 colorResource(id = R.color.text_neonred)
-                                                             )
-                                                         }
-                                                             Spacer(modifier = Modifier.width(4.dp))
-                                                             Text(
-                                                                 text = "Scadenza: $formattedExpire",
-                                                                 style = MaterialTheme.typography.bodySmall,
-                                                                 color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                                 colorResource(id = R.color.text_neonciano) 
-                                                              else 
-                                                                 colorResource(id = R.color.text_neonred),
-                                                              fontWeight = FontWeight.Medium
-                                                            )
-                                                       
-                                                            
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Scadenza: $formattedExpire",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
+                                                            colorResource(id = R.color.text_neonciano) 
+                                                        else 
+                                                            colorResource(id = R.color.text_neonred),
+                                                        fontWeight = FontWeight.Medium
+                                                    )
                                                 }
                                             }
                                         }
@@ -206,7 +224,6 @@ class PortalsActivity : ComponentActivity() {
                                             val idToDelete = portal.id
                                             store.delete(idToDelete)
                                             portals = store.load()
-                                            // 🗑️ Pulizia completa di epg_mappings.json e dei canali nel DB Room!
                                             scope.launch(Dispatchers.IO) {
                                                 epgMappingStore.deletePortalMappings(idToDelete)
                                                 val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
@@ -303,8 +320,6 @@ class PortalsActivity : ComponentActivity() {
                                 )
                             }
 
-                            // ♻️ Se l'utente ha cambiato MAC (es. da :03 a :05), URL, Server o Utente,
-                            // puliamo i vecchi canali e i vecchi ID EPG di questo portale!
                             val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
                                     portal.url.trim() != finalPortal.url.trim() ||
                                     portal.server.trim() != finalPortal.server.trim() ||
