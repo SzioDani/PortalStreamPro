@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,27 +50,26 @@ class PortalsActivity : ComponentActivity() {
         setContentView(ComposeView(this).apply {
             setContent {
                 val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-                // Forza true di default se vuoi che parta sempre scuro
                 var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
 
-                // Definiamo i tuoi colori personalizzati basati sul file colors.xml
+                // 1. TEMA SCURO (Default)
                 val customDarkScheme = darkColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = colorResource(id = R.color.surface_dark),
-                    surface = colorResource(id = R.color.surface_dark_variant),
-                    onBackground = colorResource(id = R.color.text_primary),
+                    background = colorResource(id = R.color.surface_dark),      // #0F172A
+                    surface = colorResource(id = R.color.surface_dark_variant),    // #1E293B
+                    onBackground = colorResource(id = R.color.text_primary),       // Bianco
                     onSurface = colorResource(id = R.color.text_primary)
                 )
 
-                // Se non vuoi un tema chiaro accecante, creiamo un "light" personalizzato ma con toni scuri/grigi
+                // 2. TEMA CHIARO (Sfondo chiaro pulito e testi scuri ben leggibili)
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = colorResource(id = R.color.surface_light), // <- Prende il tuo grigio da colors.xml!
-                    surface = colorResource(id = R.color.surface_light_variant),
-                    onBackground = colorResource(id = R.color.text_primary),
-                    onSurface = colorResource(id = R.color.text_primary)
+                    background = Color(0xFFF8FAFC),   // Grigio chiaro / bianco pulito
+                    surface = Color(0xFFFFFFFF),       // Bianco puro per le card
+                    onBackground = Color(0xFF0F172A), // Testo scuro
+                    onSurface = Color(0xFF0F172A)     // Testo scuro per le card
                 )
 
                 MaterialTheme(
@@ -85,6 +85,7 @@ class PortalsActivity : ComponentActivity() {
             }
         })
     }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
@@ -199,20 +200,14 @@ class PortalsActivity : ComponentActivity() {
                                                             imageVector = Icons.Default.Schedule,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(14.dp),
-                                                            tint = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                                colorResource(id = R.color.text_neonred) 
-                                                            else 
-                                                                colorResource(id = R.color.text_neonred)
+                                                            tint = colorResource(id = R.color.text_neonred)
                                                         )
                                                     }
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text(
                                                         text = "Scadenza: $formattedExpire",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        color = if (formattedExpire.contains("Illimitata", ignoreCase = true)) 
-                                                            colorResource(id = R.color.text_neonred) 
-                                                        else 
-                                                            colorResource(id = R.color.text_neonred),
+                                                        color = colorResource(id = R.color.text_neonred),
                                                         fontWeight = FontWeight.Medium
                                                     )
                                                 }
@@ -289,7 +284,7 @@ class PortalsActivity : ComponentActivity() {
                                 formType = null
                             }
                         } catch (e: Exception) {
-                            Timber.e(e, "Errore salvataggio info account, procedo comunque col salvataggio base")
+                            Timber.e(e, "Errore salvataggio info account")
                             store.add(portalToSave.copy(expireDate = "Non disponibile"))
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
@@ -458,7 +453,11 @@ fun SettingsBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Tema Scuro", style = MaterialTheme.typography.bodyLarge)
+                // Etichetta dinamica: cambia scritta in base alla modalità
+                Text(
+                    text = if (isDarkMode) "Tema Scuro" else "Tema Chiaro",
+                    style = MaterialTheme.typography.bodyLarge
+                )
                 Switch(
                     checked = isDarkMode,
                     onCheckedChange = { checked ->
@@ -535,11 +534,11 @@ fun SettingsBottomSheet(
 object ChannelCache {
     private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
 
-    fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
+    fn hold(list: List<com.portalstream.app.domain.model.Channel>) {
         channels = list
     }
 
-    fun take(): List<com.portalstream.app.domain.model.Channel> {
+    fn take(): List<com.portalstream.app.domain.model.Channel> {
         val result = channels
         channels = emptyList()
         return result
@@ -576,4 +575,3 @@ private fun formatDateToItalian(dateStr: String): String {
         dateStr
     }
 }
-          
