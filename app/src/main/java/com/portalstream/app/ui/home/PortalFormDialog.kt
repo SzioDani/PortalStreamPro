@@ -69,36 +69,54 @@ fun AddPortalTypeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Aggiungi playlist", color = Color.White) }, // Testo titolo bianco
+        title = { 
+            Text(
+                "Aggiungi playlist", 
+                color = MaterialTheme.colorScheme.onSurface // Adattivo automatico
+            ) 
+        },
         text = {
             Column {
                 TextButton(
                     onClick = { onSelect(PortalType.M3U) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Testo bianco per risaltare sul fondo scuro della modale
-                    Text("FILE O LINK PLAYLIST", color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(
+                        "FILE O LINK PLAYLIST", 
+                        color = MaterialTheme.colorScheme.onSurface, 
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 TextButton(
                     onClick = { onSelect(PortalType.MAG) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("MAG PORTALE", color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(
+                        "MAG PORTALE", 
+                        color = MaterialTheme.colorScheme.onSurface, 
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 TextButton(
-                    onClick = { onSelect(PortalType.XSTREAM) },
+                    onClick = {
+                        onSelect(PortalType.XSTREAM) 
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("XTREAM CODES PORTAL", color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(
+                        "XTREAM CODES PORTAL", 
+                        color = MaterialTheme.colorScheme.onSurface, 
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { 
-                Text("Annulla", color = colorResource(id = R.color.text_neonred)) 
+                Text("Annulla", color = MaterialTheme.colorScheme.error) 
             }
         }
     )
