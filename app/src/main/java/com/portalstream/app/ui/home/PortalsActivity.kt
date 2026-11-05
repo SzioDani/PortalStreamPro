@@ -66,7 +66,7 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF94A3B8),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
+                    background = Color(0xFF8592a5),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
                     surface = Color(0xFFF8FAFC),       // Un bianco sporco/grigio chiarissimo per le card
                     onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
                     onSurface = Color(0xFF0F172A),     // Testo scuro per le card
@@ -135,7 +135,11 @@ class PortalsActivity : ComponentActivity() {
                         contentColor = colorResource(id = R.color.neutral_900)     // Colore del testo leggibile sul bottone
                     )
                 ) {
-                    Text("AGGIUNGI PLAYLIST")
+                    Text(
+                        text = "AGGIUNGI PLAYLIST",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
 
