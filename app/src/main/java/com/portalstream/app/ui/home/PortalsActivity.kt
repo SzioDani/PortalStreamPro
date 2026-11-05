@@ -132,7 +132,7 @@ class PortalsActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary, // Sfondo dinamico basato sul tema
-                        contentColor = MaterialTheme.colorScheme.onPrimary    // Colore del testo leggibile sul bottone
+                        contentColor = colorResource(id = R.color.neutral_900)     // Colore del testo leggibile sul bottone
                     )
                 ) {
                     Text("AGGIUNGI PLAYLIST")
