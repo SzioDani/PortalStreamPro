@@ -538,7 +538,7 @@ object ChannelCache {
         channels = list
     }
 
-    fn take(): List<com.portalstream.app.domain.model.Channel> {
+    fun take(): List<com.portalstream.app.domain.model.Channel> {
         val result = channels
         channels = emptyList()
         return result
