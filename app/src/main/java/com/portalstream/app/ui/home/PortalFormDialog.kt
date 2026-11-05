@@ -2,6 +2,7 @@ package com.portalstream.app.ui.home
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -73,13 +74,13 @@ fun AddPortalTypeDialog(
                 text = "Aggiungi playlist", 
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center // <-- CENTRA IL TITOLO PERFETTAMENTE
+                textAlign = TextAlign.Center
             ) 
         },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally // <-- CENTRA ANCHE IL CONTENUTO
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 TextButton(
                     onClick = { onSelect(PortalType.M3U) },
