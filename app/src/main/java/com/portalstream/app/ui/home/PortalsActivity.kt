@@ -66,7 +66,7 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF2D3238),   //Fondo
+                    background = Color(0x263238),   //Fondo
                     surface = Color(0xFF3C3F41),       //Card
                     onBackground = Color(0xFFFFFFFF), // Testo 
                     onSurface = Color(0xFFFFFFFF)     // Testo card e menù 
@@ -121,7 +121,7 @@ class PortalsActivity : ComponentActivity() {
                 Text(
                     text = "Portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = colorResource(id = R.color.text_neonciano)
                 )
                 Spacer(Modifier.height(12.dp))
 
@@ -138,7 +138,7 @@ class PortalsActivity : ComponentActivity() {
                         Text(
                             text = "Nessun portale salvato.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = colorResource(id = R.color.text_neonciano)
                         )
                         Text(
                             text = "Premi AGGIUNGI PLAYLIST per iniziare.",
