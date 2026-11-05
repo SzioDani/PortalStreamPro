@@ -66,7 +66,7 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0x263238),   //Fondo
+                    background = Color(0xCFD8DC),   //Fondo
                     surface = Color(0xFF3C3F41),       //Card
                     onBackground = Color(0xFFFFFFFF), // Testo 
                     onSurface = Color(0xFFFFFFFF)     // Testo card e menù 
