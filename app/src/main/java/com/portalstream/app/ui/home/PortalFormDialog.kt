@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.Color
 
 
 private data class UaPreset(val label: String, val value: String)
@@ -68,35 +69,41 @@ fun AddPortalTypeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Aggiungi playlist") },
+        title = { Text("Aggiungi playlist", color = Color.White) }, // Testo titolo bianco
         text = {
             Column {
                 TextButton(
                     onClick = { onSelect(PortalType.M3U) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("FILE O LINK PLAYLIST")
+                    // Testo bianco per risaltare sul fondo scuro della modale
+                    Text("FILE O LINK PLAYLIST", color = Color.White, fontWeight = FontWeight.Medium)
                 }
+                Spacer(Modifier.height(4.dp))
                 TextButton(
                     onClick = { onSelect(PortalType.MAG) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("MAG PORTALE")
+                    Text("MAG PORTALE", color = Color.White, fontWeight = FontWeight.Medium)
                 }
+                Spacer(Modifier.height(4.dp))
                 TextButton(
                     onClick = { onSelect(PortalType.XSTREAM) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("XTREAM CODES PORTAL")
+                    Text("XTREAM CODES PORTAL", color = Color.White, fontWeight = FontWeight.Medium)
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
+            TextButton(onClick = onDismiss) { 
+                Text("Annulla", color = colorResource(id = R.color.text_neonred)) 
+            }
         }
     )
 }
+
 @Composable
 fun ChannelDetailsDialog(
     channel: com.portalstream.app.domain.model.Channel,
@@ -111,7 +118,8 @@ fun ChannelDetailsDialog(
             Text(
                 text = "ℹ️ Dettagli Tecnici Canale",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
         },
         text = {
@@ -119,11 +127,11 @@ fun ChannelDetailsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                 if (!channel.customSid.isNullOrBlank()) {
-                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium)
+                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                 }
                 Text(
                     text = "• CMD / Stream:\n${channel.cmd}", 
@@ -139,16 +147,17 @@ fun ChannelDetailsDialog(
                     Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
                 }
             ) {
-                Text("Copia CMD")
+                Text("Copia CMD", color = Color.White)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Chiudi")
+                Text("Chiudi", color = Color.White)
             }
         }
     )
 }
+
 @Composable
 fun PortalFormDialog(
     existing: Portal?,
@@ -182,7 +191,7 @@ fun PortalFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(title, color = Color.White) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
@@ -301,7 +310,7 @@ fun PortalFormDialog(
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = forceLink, onCheckedChange = { forceLink = it })
-                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium)
+                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                         }
                     }
                     else -> {}
@@ -309,7 +318,7 @@ fun PortalFormDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
-                    Text("Usa VPN", style = MaterialTheme.typography.bodyMedium)
+                    Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                 }
                 OutlinedTextField(
                     value = profile,
@@ -320,7 +329,7 @@ fun PortalFormDialog(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = useCustomUa, onCheckedChange = { useCustomUa = it })
-                    Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium)
+                    Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                 }
                 if (useCustomUa) {
                     OutlinedTextField(
@@ -370,11 +379,13 @@ fun PortalFormDialog(
                     )
                 )
             }) {
-                Text(if (existing == null) "Salva" else "OK")
+                Text(if (existing == null) "Salva" else "OK", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
+            TextButton(onClick = onDismiss) { 
+                Text("Annulla", color = colorResource(id = R.color.text_neonred)) 
+            }
         }
     )
 }
