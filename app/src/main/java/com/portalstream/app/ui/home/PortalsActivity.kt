@@ -66,7 +66,7 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFFCBD5E1),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
+                    background = Color(0xFF94A3B8),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
                     surface = Color(0xFFF8FAFC),       // Un bianco sporco/grigio chiarissimo per le card
                     onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
                     onSurface = Color(0xFF0F172A),     // Testo scuro per le card
@@ -131,7 +131,7 @@ class PortalsActivity : ComponentActivity() {
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary, // Sfondo dinamico basato sul tema
+                        containerColor = colorResource(id = R.color.text_neongreen), // Sfondo dinamico basato sul tema
                         contentColor = colorResource(id = R.color.neutral_900)     // Colore del testo leggibile sul bottone
                     )
                 ) {
