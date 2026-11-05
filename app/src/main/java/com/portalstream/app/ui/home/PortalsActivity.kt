@@ -127,7 +127,8 @@ class PortalsActivity : ComponentActivity() {
 
                 Button(
                     onClick = { showTypeChooser = true },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onBackground
                 ) {
                     Text("AGGIUNGI PLAYLIST")
                 }
