@@ -175,20 +175,20 @@ class VlcPlayerManager(private val context: Context) {
             }
 
             val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.94f
-                "ZOOM120" -> 0.96f
-                "ZOOM125" -> 0.98f
-                "ZOOM130" -> 1.00f
-                "ZOOM135" -> 1.02f
-                "FILL"    -> 1.04f
+                "ZOOM110" -> 0.85f // Ridotto rispetto a 0.94f
+                "ZOOM120" -> 0.88f // Ridotto rispetto a 0.96f
+                "ZOOM125" -> 0.91f // Ridotto rispetto a 0.98f
+                "ZOOM130" -> 0.94f // Ridotto rispetto a 1.00f
+                "ZOOM135" -> 0.97f // Ridotto rispetto a 1.02f
+                "FILL"    -> 1.00f // Ridotto rispetto a 1.04f
                 else -> when (scale) {
-                    1.10f -> 0.94f
-                    1.20f -> 0.96f
-                    1.25f -> 0.98f
-                    1.30f -> 1.00f
-                    1.35f -> 1.02f
-                    1.45f -> 1.04f
-                    else  -> 1.0f
+                    1.10f -> 0.85f
+                    1.20f -> 0.88f
+                    1.25f -> 0.91f
+                    1.30f -> 0.94f
+                    1.35f -> 0.97f
+                    1.45f -> 1.00f
+                    else  -> 0.85f // Valore di default più compatto in altezza
                 }
             }
 
