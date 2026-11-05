@@ -1,5 +1,7 @@
 package com.portalstream.app.ui.home
 
+import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,22 +28,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.res.colorResource
-import com.portalstream.app.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.graphics.Color
-
 
 private data class UaPreset(val label: String, val value: String)
 
@@ -73,12 +70,17 @@ fun AddPortalTypeDialog(
         onDismissRequest = onDismiss,
         title = { 
             Text(
-                "Aggiungi playlist", 
-                color = MaterialTheme.colorScheme.onSurface // Adattivo automatico
+                text = "Aggiungi playlist", 
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center // <-- CENTRA IL TITOLO PERFETTAMENTE
             ) 
         },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally // <-- CENTRA ANCHE IL CONTENUTO
+            ) {
                 TextButton(
                     onClick = { onSelect(PortalType.M3U) },
                     modifier = Modifier.fillMaxWidth()
@@ -86,7 +88,9 @@ fun AddPortalTypeDialog(
                     Text(
                         "FILE O LINK PLAYLIST", 
                         color = MaterialTheme.colorScheme.onSurface, 
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -97,28 +101,35 @@ fun AddPortalTypeDialog(
                     Text(
                         "MAG PORTALE", 
                         color = MaterialTheme.colorScheme.onSurface, 
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
                 }
                 Spacer(Modifier.height(4.dp))
                 TextButton(
-                    onClick = {
-                        onSelect(PortalType.XSTREAM) 
-                    },
+                    onClick = { onSelect(PortalType.XSTREAM) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         "XTREAM CODES PORTAL", 
                         color = MaterialTheme.colorScheme.onSurface, 
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text("Annulla", color = MaterialTheme.colorScheme.error) 
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                TextButton(onClick = onDismiss) { 
+                    Text("Annulla", color = MaterialTheme.colorScheme.error) 
+                }
             }
         }
     )
@@ -139,7 +150,7 @@ fun ChannelDetailsDialog(
                 text = "ℹ️ Dettagli Tecnici Canale",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         },
         text = {
@@ -147,11 +158,11 @@ fun ChannelDetailsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 if (!channel.customSid.isNullOrBlank()) {
-                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
                     text = "• CMD / Stream:\n${channel.cmd}", 
@@ -167,12 +178,12 @@ fun ChannelDetailsDialog(
                     Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
                 }
             ) {
-                Text("Copia CMD", color = Color.White)
+                Text("Copia CMD", color = MaterialTheme.colorScheme.primary)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Chiudi", color = Color.White)
+                Text("Chiudi", color = MaterialTheme.colorScheme.onSurface)
             }
         }
     )
@@ -211,7 +222,7 @@ fun PortalFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
@@ -330,7 +341,7 @@ fun PortalFormDialog(
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = forceLink, onCheckedChange = { forceLink = it })
-                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                     else -> {}
@@ -338,7 +349,7 @@ fun PortalFormDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
-                    Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 }
                 OutlinedTextField(
                     value = profile,
@@ -349,7 +360,7 @@ fun PortalFormDialog(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = useCustomUa, onCheckedChange = { useCustomUa = it })
-                    Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                 }
                 if (useCustomUa) {
                     OutlinedTextField(
@@ -399,12 +410,12 @@ fun PortalFormDialog(
                     )
                 )
             }) {
-                Text(if (existing == null) "Salva" else "OK", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(if (existing == null) "Salva" else "OK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { 
-                Text("Annulla", color = colorResource(id = R.color.text_neonred)) 
+                Text("Annulla", color = MaterialTheme.colorScheme.error) 
             }
         }
     )
