@@ -2,11 +2,9 @@ package com.portalstream.app.ui.player
 
 import android.content.Context
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -46,54 +44,29 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.Tracks
-import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.Dispatchers
+import com.portalstream.app.network.ExoPlayerManager
+import com.portalstream.app.network.StreamNetworkHelper
+import com.portalstream.app.network.UiAudioTrack
+import com.portalstream.app.network.VlcPlayerManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.videolan.libvlc.LibVLC
-import org.videolan.libvlc.Media
-import org.videolan.libvlc.MediaPlayer
-import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
-import java.net.HttpURLConnection
-import java.net.URL
-
-data class UiAudioTrack(
-    val id: Int,
-    val name: String,
-    val formattedInfo: String,
-    val exoGroupIndex: Int = -1,
-    val exoTrackIndex: Int = -1
-)
 
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
 
-    private var libVLC: LibVLC? = null
-    private var mediaPlayer: MediaPlayer? = null
-    private var exoPlayer: ExoPlayer? = null
+    private lateinit var vlcManager: VlcPlayerManager
+    private lateinit var exoManager: ExoPlayerManager
+    private lateinit var pipManager: PipManager
 
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
-    private lateinit var pipManager: PipManager
 
     private var isInPipMode by mutableStateOf(false)
-    private val INITIAL_BUFFER_THRESHOLD = 85f
 
     private val prefs by lazy {
         getSharedPreferences("player_settings", Context.MODE_PRIVATE)
@@ -102,6 +75,8 @@ class PlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pipManager = PipManager(this)
+        vlcManager = VlcPlayerManager(this)
+        exoManager = ExoPlayerManager(this)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -150,132 +125,10 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun ensureLibVLCInitialized() {
-        if (libVLC != null && mediaPlayer != null) return
-        val options = ArrayList<String>().apply {
-            add("--no-drop-late-frames")
-            add("--no-skip-frames")
-            add("--rtsp-tcp")
-            add("--http-reconnect")
-            add("--network-caching=8000")
-            add("--live-caching=8000")
-            add("--disc-caching=8000")
-            add("--file-caching=8000")
-            add("--clock-jitter=-1")
-            add("--clock-synchro=0")
-            add("--udp-timeout=40000")
-            add("--http-continuous")
-        }
-
-        libVLC = LibVLC(this, options)
-        mediaPlayer = MediaPlayer(libVLC)
-        Log.d("PlayerDebug", "LibVLC inizializzato")
-    }
-
-    private fun ensureExoPlayerInitialized(): ExoPlayer {
-        exoPlayer?.let { return it }
-
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8000)
-            .setReadTimeoutMs(8000)
-            .apply {
-                if (!userAgent.isNullOrBlank()) {
-                    setUserAgent(userAgent)
-                } else {
-                    setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                }
-            }
-
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(3000, 15000, 1500, 2500)
-            .build()
-
-        return ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
-            .setLoadControl(loadControl)
-            .build()
-            .apply {
-                trackSelectionParameters = trackSelectionParameters
-                    .buildUpon()
-                    .setPreferredAudioLanguage("it")
-                    .build()
-                exoPlayer = this
-                Log.d("PlayerDebug", "ExoPlayer inizializzato")
-            }
-    }
-
-    private suspend fun shouldUseExoPlayer(urlStr: String, userAgentStr: String?): Boolean = withContext(Dispatchers.IO) {
-        val lower = urlStr.lowercase()
-        if (lower.contains("live.php") ||
-            lower.contains("extension=ts") ||
-            lower.endsWith(".ts") ||
-            lower.startsWith("rtsp://") ||
-            lower.startsWith("udp://") ||
-            lower.startsWith("rtp://")
-        ) {
-            return@withContext false
-        }
-
-        if (lower.contains(".m3u8") ||
-            lower.contains(".mpd") ||
-            lower.contains(".isml") ||
-            lower.contains("mediaset") ||
-            lower.contains("manifest")
-        ) {
-            return@withContext true
-        }
-
-        try {
-            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                instanceFollowRedirects = true
-                connectTimeout = 2500
-                readTimeout = 2500
-                userAgentStr?.let { setRequestProperty("User-Agent", it) }
-            }
-
-            val code = conn.responseCode
-            val contentType = conn.contentType?.lowercase() ?: ""
-            val finalUrl = conn.url.toString().lowercase()
-
-            if (finalUrl.contains(".m3u8") ||
-                finalUrl.contains(".mpd") ||
-                contentType.contains("mpegurl") ||
-                contentType.contains("dash")
-            ) {
-                conn.disconnect()
-                return@withContext true
-            }
-
-            if (code == 200) {
-                val firstBytes = ByteArray(7)
-                val read = conn.inputStream.read(firstBytes)
-                conn.disconnect()
-                if (read >= 7) {
-                    val headerStr = String(firstBytes, Charsets.UTF_8)
-                    if (headerStr.startsWith("#EXTM3U")) {
-                        return@withContext true
-                    }
-                }
-            } else {
-                conn.disconnect()
-            }
-        } catch (e: Exception) {
-            Log.w("PlayerDebug", "Controllo tipo stream fallito, fallback su LibVLC", e)
-        }
-
-        return@withContext false
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        exoPlayer?.release()
-        exoPlayer = null
-        mediaPlayer?.release()
-        libVLC?.release()
-        mediaPlayer = null
-        libVLC = null
+        exoManager.release()
+        vlcManager.release()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -288,7 +141,8 @@ class PlayerActivity : ComponentActivity() {
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
         val playerMode = appPrefs.getString("player_mode", "both")
 
-        val currentlyPlaying = (exoPlayer?.isPlaying == true) || (mediaPlayer?.isPlaying == true)
+        val currentlyPlaying = (exoManager.exoPlayer?.isPlaying == true) ||
+                (vlcManager.mediaPlayer?.isPlaying == true)
         if ((playerMode == "pip" || playerMode == "both") && currentlyPlaying && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
@@ -330,12 +184,10 @@ class PlayerActivity : ComponentActivity() {
         var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
 
         val configuration = LocalConfiguration.current
-        var composeMediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-        var composeExoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
         LaunchedEffect(streamUrl) {
             isBuffering = true
-            useExoPlayer = shouldUseExoPlayer(streamUrl, userAgent)
+            useExoPlayer = StreamNetworkHelper.shouldUseExoPlayer(streamUrl, userAgent)
         }
 
         LaunchedEffect(isInPipMode) {
@@ -352,150 +204,61 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // 1. LOGICA FORMATI E ROTAZIONE SPECIFICA PER LIBVLC
-        // =========================================================================
-        LaunchedEffect(currentAspectRatio, currentScale, composeMediaPlayer, vlcVideoLayout, useExoPlayer, configuration.orientation) {
-            val mp = composeMediaPlayer
+        // Persistenza formato e rotazione per LibVLC
+        LaunchedEffect(currentAspectRatio, currentScale, vlcVideoLayout, useExoPlayer, configuration.orientation) {
             val layout = vlcVideoLayout
-            if (mp != null && layout != null && useExoPlayer == false) {
-                applyVlcAspectRatioAndScale(mp, layout, currentAspectRatio, currentScale)
+            if (layout != null && useExoPlayer == false) {
+                vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
                 delay(150)
-                applyVlcAspectRatioAndScale(mp, layout, currentAspectRatio, currentScale)
+                vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
                 delay(250)
-                applyVlcAspectRatioAndScale(mp, layout, currentAspectRatio, currentScale)
+                vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
             }
         }
 
-        // =========================================================================
-        // 2. LOGICA FORMATI E ROTAZIONE SPECIFICA PER EXOPLAYER
-        // =========================================================================
-        LaunchedEffect(currentAspectRatio, currentScale, composeExoPlayer, exoPlayerView, useExoPlayer, configuration.orientation) {
+        // Persistenza formato e rotazione per ExoPlayer
+        LaunchedEffect(currentAspectRatio, currentScale, exoPlayerView, useExoPlayer, configuration.orientation) {
             val pv = exoPlayerView
             if (pv != null && useExoPlayer == true) {
-                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                exoManager.applyAspectRatioAndScale(pv, currentAspectRatio, currentScale)
                 delay(150)
-                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                exoManager.applyAspectRatioAndScale(pv, currentAspectRatio, currentScale)
             }
         }
 
-        // =========================================================================
-        // SETUP EXOPLAYER
-        // =========================================================================
+        // Collegamento Motore ExoPlayer
         DisposableEffect(useExoPlayer, exoPlayerView) {
             if (useExoPlayer != true) return@DisposableEffect onDispose {}
             val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
 
             try {
-                val player = ensureExoPlayerInitialized()
-                composeExoPlayer = player
-                pv.player = player
-
-                fun refreshExoAudioTracks(tracks: Tracks) {
-                    val list = mutableListOf<UiAudioTrack>()
-                    var selectedId = -1
-
-                    tracks.groups.forEachIndexed { groupIdx, group ->
-                        if (group.type == C.TRACK_TYPE_AUDIO) {
-                            for (trackIdx in 0 until group.length) {
-                                val format = group.getTrackFormat(trackIdx)
-                                val id = groupIdx * 100 + trackIdx
-                                val lang = format.language?.uppercase() ?: "TRACCIA ${list.size + 1}"
-                                val label = format.label ?: lang
-
-                                val codec = when {
-                                    format.sampleMimeType?.contains("mp4a") == true -> "AAC"
-                                    format.sampleMimeType?.contains("ac3") == true -> "AC3"
-                                    format.sampleMimeType?.contains("eac3") == true -> "EAC3"
-                                    format.sampleMimeType?.contains("mpeg") == true -> "MP2"
-                                    else -> format.sampleMimeType?.substringAfter("/")?.uppercase()
-                                }
-                                val channels = when (format.channelCount) {
-                                    1 -> "Mono"
-                                    2 -> "Stereo 2.0"
-                                    6 -> "5.1"
-                                    8 -> "7.1"
-                                    else -> if (format.channelCount > 0) "${format.channelCount}ch" else null
-                                }
-                                val details = listOfNotNull(codec, channels).joinToString(" • ")
-                                val formatted = if (details.isNotBlank()) "$label ($details)" else label
-
-                                list.add(
-                                    UiAudioTrack(
-                                        id = id,
-                                        name = label,
-                                        formattedInfo = formatted,
-                                        exoGroupIndex = groupIdx,
-                                        exoTrackIndex = trackIdx
-                                    )
-                                )
-                                if (group.isTrackSelected(trackIdx)) {
-                                    selectedId = id
-                                }
-                            }
-                        }
-                    }
-
-                    uiAudioTracks = list
-                    currentAudioTrackId = selectedId
-                    currentAudioInfo = list.firstOrNull { it.id == selectedId }?.formattedInfo
-                        ?: if (list.isEmpty()) "🔇 Nessun audio" else list.first().formattedInfo
-                }
-
-                val listener = object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> isBuffering = true
-                            Player.STATE_READY -> {
-                                isBuffering = false
-                                errorMessage = null
-                                applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
-                            }
-                            Player.STATE_ENDED -> {
-                                isPlaying = false
-                                pipManager.updatePipParams(false)
-                            }
-                            Player.STATE_IDLE -> {}
-                        }
-                    }
-
-                    override fun onVideoSizeChanged(videoSize: VideoSize) {
-                        pv.post {
-                            applyExoAspectRatioAndScale(pv, currentAspectRatio, currentScale)
-                        }
-                    }
-
-                    override fun onIsPlayingChanged(playing: Boolean) {
+                exoManager.attachAndStart(
+                    playerView = pv,
+                    streamUrl = streamUrl,
+                    userAgent = userAgent,
+                    onBuffering = { isBuffering = it },
+                    onPlayingState = { playing ->
                         isPlaying = playing
-                        if (playing) isBuffering = false
+                        if (playing) errorMessage = null
                         pipManager.updatePipParams(playing)
-                    }
-
-                    override fun onTracksChanged(tracks: Tracks) {
-                        refreshExoAudioTracks(tracks)
-                    }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        Log.e("PlayerDebug", "Errore ExoPlayer: ${error.message}", error)
-                        isBuffering = false
-                        isPlaying = false
-                        pipManager.updatePipParams(false)
-                        checkHttpError(streamUrl, userAgent) { mappedMessage ->
-                            errorMessage = mappedMessage
+                    },
+                    onAudioTracksUpdated = { tracks, selectedId, info ->
+                        uiAudioTracks = tracks
+                        currentAudioTrackId = selectedId
+                        currentAudioInfo = info
+                    },
+                    onFormatRefreshNeeded = {
+                        exoManager.applyAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                    },
+                    onError = {
+                        lifecycleScope.launch {
+                            errorMessage = StreamNetworkHelper.checkHttpError(streamUrl, userAgent)
                         }
                     }
-                }
-
-                player.addListener(listener)
-                val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
-                player.setMediaItem(mediaItem)
-                player.prepare()
-                player.playWhenReady = true
+                )
 
                 onDispose {
-                    player.removeListener(listener)
-                    player.stop()
-                    pv.player = null
+                    exoManager.stopAndDetach(pv)
                 }
             } catch (e: Exception) {
                 Log.e("PlayerDebug", "Errore setup ExoPlayer", e)
@@ -504,111 +267,36 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // SETUP LIBVLC
-        // =========================================================================
+        // Collegamento Motore LibVLC
         DisposableEffect(useExoPlayer, vlcVideoLayout) {
             if (useExoPlayer != false) return@DisposableEffect onDispose {}
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             try {
-                ensureLibVLCInitialized()
-                val vlc = libVLC ?: throw Exception("LibVLC non inizializzato")
-                val mp = mediaPlayer ?: throw Exception("MediaPlayer non inizializzato")
-
-                composeMediaPlayer = mp
-                mp.attachViews(layout, null, false, true)
-
-                val media = Media(vlc, Uri.parse(streamUrl)).apply {
-                    setHWDecoderEnabled(true, true)
-                    addOption(":http-continuous")
-                    addOption(":http-reconnect")
-                    addOption(":clock-jitter=0")
-                    addOption(":network-caching=8000")
-                    addOption(":live-caching=8000")
-
-                    if (!userAgent.isNullOrBlank()) {
-                        addOption(":http-user-agent=$userAgent")
-                    }
-                }
-
-                mp.media = media
-                media.release()
-
-                fun refreshVlcAudioState() {
-                    val tracks = mp.audioTracks?.toList() ?: emptyList()
-                    var currentId = mp.audioTrack
-                    val validTracks = tracks.filter { it.id != -1 }
-
-                    if (currentId == -1 && validTracks.isNotEmpty()) {
-                        val defaultTrackId = validTracks.first().id
-                        mp.audioTrack = defaultTrackId
-                        currentId = defaultTrackId
-                    }
-
-                    val mapped = validTracks.map { t ->
-                        val cleanName = t.name.replace("main - ", "")
-                        UiAudioTrack(
-                            id = t.id,
-                            name = cleanName,
-                            formattedInfo = formatVlcAudioTrackInfo(mp, tracks, t.id)
-                        )
-                    }
-
-                    uiAudioTracks = mapped
-                    currentAudioTrackId = currentId
-                    currentAudioInfo = formatVlcAudioTrackInfo(mp, tracks, currentId)
-                }
-
-                var initialBufferingStarted = false
-
-                mp.setEventListener { event ->
-                    when (event.type) {
-                        MediaPlayer.Event.Buffering -> {
-                            if (!initialBufferingStarted) {
-                                initialBufferingStarted = true
-                            }
-                            isBuffering = event.buffering < INITIAL_BUFFER_THRESHOLD
-                        }
-                        MediaPlayer.Event.Playing -> {
-                            isBuffering = false
-                            isPlaying = true
-                            errorMessage = null
-                            pipManager.updatePipParams(true)
-
-                            layout.post {
-                                applyVlcAspectRatioAndScale(mp, layout, currentAspectRatio, currentScale)
-                            }
-                            refreshVlcAudioState()
-                        }
-                        MediaPlayer.Event.Vout -> {
-                            if (event.voutCount > 0) {
-                                layout.post {
-                                    applyVlcAspectRatioAndScale(mp, layout, currentAspectRatio, currentScale)
-                                }
-                            }
-                        }
-                        MediaPlayer.Event.Paused -> {
-                            isPlaying = false
-                            pipManager.updatePipParams(false)
-                        }
-                        MediaPlayer.Event.Stopped -> {
-                            isPlaying = false
-                            pipManager.updatePipParams(false)
-                        }
-                        MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
-                            refreshVlcAudioState()
-                        }
-                        MediaPlayer.Event.EncounteredError -> {
-                            isBuffering = false
-                            isPlaying = false
-                            pipManager.updatePipParams(false)
-                            checkHttpError(streamUrl, userAgent) { mappedMessage ->
-                                errorMessage = mappedMessage
-                            }
+                val mp = vlcManager.attachAndPrepare(
+                    layout = layout,
+                    streamUrl = streamUrl,
+                    userAgent = userAgent,
+                    onBuffering = { isBuffering = it },
+                    onPlayingState = { playing ->
+                        isPlaying = playing
+                        if (playing) errorMessage = null
+                        pipManager.updatePipParams(playing)
+                    },
+                    onAudioTracksUpdated = { tracks, selectedId, info ->
+                        uiAudioTracks = tracks
+                        currentAudioTrackId = selectedId
+                        currentAudioInfo = info
+                    },
+                    onFormatRefreshNeeded = {
+                        vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
+                    },
+                    onError = {
+                        lifecycleScope.launch {
+                            errorMessage = StreamNetworkHelper.checkHttpError(streamUrl, userAgent)
                         }
                     }
-                }
+                )
 
                 lifecycleScope.launch {
                     delay(500)
@@ -616,10 +304,8 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 onDispose {
-                    mp.stop()
-                    mp.detachViews()
+                    vlcManager.stopAndDetach()
                 }
-
             } catch (e: Exception) {
                 Log.e("PlayerDebug", "Errore nel setup di LibVLC", e)
                 errorMessage = "Errore: ${e.message}"
@@ -627,17 +313,16 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // =========================================================================
+        // INTERFACCIA GRAFICA (PULSANTI, CARD, MINIPLAYER, OPZIONI)
+        // =========================================================================
         DraggableMiniPlayerContainer(
             isMinimized = isMinimized,
             onExpand = { isMinimized = false },
             onClose = onBackPressed,
             isPlaying = isPlaying,
             onTogglePlayPause = {
-                if (useExoPlayer == true) {
-                    composeExoPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
-                } else {
-                    composeMediaPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
-                }
+                if (useExoPlayer == true) exoManager.togglePlayPause() else vlcManager.togglePlayPause()
             }
         ) {
             Box(
@@ -696,6 +381,7 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
+                        // BARRA SUPERIORE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -754,6 +440,7 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
+                        // PULSANTI CENTRALI (Indietro 10s, Play/Pausa, Stop, Avanti 10s)
                         Row(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -761,15 +448,7 @@ class PlayerActivity : ComponentActivity() {
                         ) {
                             IconButton(
                                 onClick = {
-                                    if (useExoPlayer == true) {
-                                        composeExoPlayer?.let {
-                                            it.seekTo((it.currentPosition - 10000).coerceAtLeast(0))
-                                        }
-                                    } else {
-                                        composeMediaPlayer?.let {
-                                            it.time = (it.time - 10000).coerceAtLeast(0)
-                                        }
-                                    }
+                                    if (useExoPlayer == true) exoManager.seekBy(-10000L) else vlcManager.seekBy(-10000L)
                                 },
                                 modifier = Modifier
                                     .size(48.dp)
@@ -785,11 +464,7 @@ class PlayerActivity : ComponentActivity() {
 
                             IconButton(
                                 onClick = {
-                                    if (useExoPlayer == true) {
-                                        composeExoPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
-                                    } else {
-                                        composeMediaPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
-                                    }
+                                    if (useExoPlayer == true) exoManager.togglePlayPause() else vlcManager.togglePlayPause()
                                 },
                                 modifier = Modifier
                                     .size(56.dp)
@@ -815,8 +490,8 @@ class PlayerActivity : ComponentActivity() {
 
                             IconButton(
                                 onClick = {
-                                    exoPlayer?.stop()
-                                    mediaPlayer?.stop()
+                                    exoManager.stopAndDetach(exoPlayerView)
+                                    vlcManager.stopAndDetach()
                                     onBackPressed()
                                 },
                                 modifier = Modifier
@@ -832,11 +507,7 @@ class PlayerActivity : ComponentActivity() {
 
                             IconButton(
                                 onClick = {
-                                    if (useExoPlayer == true) {
-                                        composeExoPlayer?.let { it.seekTo(it.currentPosition + 10000) }
-                                    } else {
-                                        composeMediaPlayer?.let { it.time += 10000 }
-                                    }
+                                    if (useExoPlayer == true) exoManager.seekBy(10000L) else vlcManager.seekBy(10000L)
                                 },
                                 modifier = Modifier
                                     .size(48.dp)
@@ -851,6 +522,7 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
+                        // BARRA INFERIORE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -874,6 +546,7 @@ class PlayerActivity : ComponentActivity() {
                     )
                 }
 
+                // CARD ERRORE DI RIPRODUZIONE
                 errorMessage?.let { msg ->
                     if (!isInPipMode && !isMinimized) {
                         Surface(
@@ -904,12 +577,11 @@ class PlayerActivity : ComponentActivity() {
                                         errorMessage = null
                                         isBuffering = true
                                         if (useExoPlayer == true) {
-                                            composeExoPlayer?.prepare()
-                                            composeExoPlayer?.play()
+                                            exoManager.retry()
                                         } else {
                                             lifecycleScope.launch {
                                                 delay(300)
-                                                mediaPlayer?.play()
+                                                vlcManager.mediaPlayer?.play()
                                             }
                                         }
                                     }) {
@@ -930,6 +602,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
+                // PANNELLO IMPOSTAZIONI (AUDIO E FORMATO)
                 if (showSettingsSheet && !isInPipMode && !isMinimized) {
                     Surface(
                         color = Color.Black.copy(alpha = 0.95f),
@@ -983,26 +656,12 @@ class PlayerActivity : ComponentActivity() {
                                     currentTrackId = currentAudioTrackId,
                                     onTrackSelected = { track ->
                                         if (useExoPlayer == true) {
-                                            val player = composeExoPlayer
-                                            if (player != null && track.exoGroupIndex >= 0) {
-                                                val groups = player.currentTracks.groups
-                                                if (track.exoGroupIndex < groups.size) {
-                                                    val group = groups[track.exoGroupIndex]
-                                                    player.trackSelectionParameters = player.trackSelectionParameters
-                                                        .buildUpon()
-                                                        .setOverrideForType(
-                                                            TrackSelectionOverride(group.mediaTrackGroup, track.exoTrackIndex)
-                                                        )
-                                                        .build()
-                                                    currentAudioTrackId = track.id
-                                                    currentAudioInfo = track.formattedInfo
-                                                }
-                                            }
+                                            exoManager.selectAudioTrack(track)
                                         } else {
-                                            composeMediaPlayer?.audioTrack = track.id
-                                            currentAudioTrackId = track.id
-                                            currentAudioInfo = track.formattedInfo
+                                            vlcManager.selectAudioTrack(track.id)
                                         }
+                                        currentAudioTrackId = track.id
+                                        currentAudioInfo = track.formattedInfo
                                     }
                                 )
 
@@ -1034,13 +693,9 @@ class PlayerActivity : ComponentActivity() {
                                         prefs.edit().putFloat("scale", newScale).apply()
 
                                         if (useExoPlayer == false) {
-                                            composeMediaPlayer?.let { mp ->
-                                                applyVlcAspectRatioAndScale(mp, vlcVideoLayout, newRatio, newScale)
-                                            }
+                                            vlcManager.applyAspectRatioAndScale(vlcVideoLayout, newRatio, newScale)
                                         } else if (useExoPlayer == true) {
-                                            exoPlayerView?.let { pv ->
-                                                applyExoAspectRatioAndScale(pv, newRatio, newScale)
-                                            }
+                                            exoManager.applyAspectRatioAndScale(exoPlayerView, newRatio, newScale)
                                         }
 
                                         showSettingsSheet = false
@@ -1052,171 +707,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    /**
-     * LOGICA 1 (LIBVLC):
-     * - Per i formati classici (16:9, 4:3, 21:9, ecc.): usa mp.aspectRatio nativo di VLC.
-     * - Per gli ZOOM (110%..135%, FILL): allarga i lati (zoomLati) e rimpicciolisce dal basso in alto (zoomAltoBasso)
-     *   in modo da non tagliare il logo del canale!
-     */
-    private fun applyVlcAspectRatioAndScale(
-        mp: MediaPlayer,
-        vlcLayout: VLCVideoLayout?,
-        aspectRatio: String?,
-        scale: Float
-    ) {
-        vlcLayout?.let { layout ->
-            layout.clipChildren = false
-            layout.clipToPadding = false
-            (layout.parent as? ViewGroup)?.let { parent ->
-                parent.clipChildren = false
-                parent.clipToPadding = false
-            }
-        }
-
-        // 1. SE È SELEZIONATO UNO ZOOM (ZOOM110..ZOOM135 o FILL)
-        if (scale > 0f || aspectRatio == "FILL") {
-            // Diciamo a VLC di NON tagliare il fotogramma
-            mp.scale = 0f
-            mp.aspectRatio = null
-
-            // ↔️ DAI LATI (Sinistra/Destra): allarga per riempire le bande laterali
-            val zoomLati = when (aspectRatio) {
-                "ZOOM110" -> 1.06f
-                "ZOOM120" -> 1.12f
-                "ZOOM125" -> 1.16f
-                "ZOOM130" -> 1.20f
-                "ZOOM135" -> 1.24f
-                "FILL"    -> 1.28f
-                else -> when (scale) {
-                    1.10f -> 1.06f
-                    1.20f -> 1.12f
-                    1.25f -> 1.16f
-                    1.30f -> 1.20f
-                    1.35f -> 1.24f
-                    1.45f -> 1.28f
-                    else  -> 1.0f
-                }
-            }
-
-            // ↕️ DAL BASSO IN ALTO (Sopra/Sotto): rimpicciolito per non tagliare il logo!
-            val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.94f
-                "ZOOM120" -> 0.96f
-                "ZOOM125" -> 0.98f
-                "ZOOM130" -> 1.00f
-                "ZOOM135" -> 1.02f
-                "FILL"    -> 1.04f
-                else -> when (scale) {
-                    1.10f -> 0.94f
-                    1.20f -> 0.96f
-                    1.25f -> 0.98f
-                    1.30f -> 1.00f
-                    1.35f -> 1.02f
-                    1.45f -> 1.04f
-                    else  -> 1.0f
-                }
-            }
-
-            vlcLayout?.scaleX = zoomLati
-            vlcLayout?.scaleY = zoomAltoBasso
-            return
-        }
-
-        // 2. SE È SELEZIONATO UN FORMATO CLASSICO (16:9, 4:3, 21:9, 1.85:1, 2.35:1, 2.39:1)
-        vlcLayout?.scaleX = 1f
-        vlcLayout?.scaleY = 1f
-        mp.scale = 0f
-        mp.aspectRatio = aspectRatio
-    }
-
-    /**
-     * LOGICA 2 (EXOPLAYER):
-     * - zoomLati (scaleX): allarga il video verso i lati.
-     * - zoomAltoBasso (scaleY): rimpicciolito dal basso in alto per non tagliare il logo.
-     */
-    private fun applyExoAspectRatioAndScale(
-        playerView: PlayerView,
-        aspectRatio: String?,
-        scale: Float
-    ) {
-        val contentFrame = playerView.findViewById<AspectRatioFrameLayout>(
-            androidx.media3.ui.R.id.exo_content_frame
-        ) ?: return
-
-        playerView.clipChildren = false
-        playerView.clipToPadding = false
-        contentFrame.clipChildren = false
-        contentFrame.clipToPadding = false
-
-        // 1. SE È SELEZIONATO UNO ZOOM (ZOOM110..ZOOM135 o FILL)
-        if (scale > 0f || aspectRatio == "FILL") {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            contentFrame.setAspectRatio(16f / 9f)
-
-            // ↔️ DAI LATI (Sinistra/Destra)
-            val zoomLati = when (aspectRatio) {
-                "ZOOM110" -> 1.05f
-                "ZOOM120" -> 1.10f
-                "ZOOM125" -> 1.14f
-                "ZOOM130" -> 1.18f
-                "ZOOM135" -> 1.22f
-                "FILL"    -> 1.26f
-                else -> when (scale) {
-                    1.10f -> 1.05f
-                    1.20f -> 1.10f
-                    1.25f -> 1.14f
-                    1.30f -> 1.18f
-                    1.35f -> 1.22f
-                    1.45f -> 1.26f
-                    else  -> 1.0f
-                }
-            }
-
-            // ↕️ DAL BASSO IN ALTO (Sopra/Sotto): rimpicciolito!
-            val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.94f
-                "ZOOM120" -> 0.96f
-                "ZOOM125" -> 0.98f
-                "ZOOM130" -> 1.00f
-                "ZOOM135" -> 1.02f
-                "FILL"    -> 1.04f
-                else -> when (scale) {
-                    1.10f -> 0.94f
-                    1.20f -> 0.96f
-                    1.25f -> 0.98f
-                    1.30f -> 1.00f
-                    1.35f -> 1.02f
-                    1.45f -> 1.04f
-                    else  -> 1.0f
-                }
-            }
-
-            contentFrame.scaleX = zoomLati
-            contentFrame.scaleY = zoomAltoBasso
-            return
-        }
-
-        // 2. SE È SELEZIONATO UN FORMATO PREDEFINITO (16:9, 4:3, 21:9, 1.85:1, 2.35:1, 2.39:1)
-        contentFrame.scaleX = 1f
-        contentFrame.scaleY = 1f
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-
-        val targetRatio = when (aspectRatio) {
-            "16:9"   -> 16f / 9f
-            "4:3"    -> 4f / 3f
-            "21:9"   -> 21f / 9f
-            "1.85:1" -> 1.85f
-            "2.35:1" -> 2.35f
-            "2.39:1" -> 2.39f
-            else     -> 16f / 9f
-        }
-
-        contentFrame.setAspectRatio(targetRatio)
-        contentFrame.requestLayout()
     }
 
     @Composable
@@ -1320,86 +810,6 @@ class PlayerActivity : ComponentActivity() {
                     )
                 }
             }
-        }
-    }
-
-    private fun formatVlcAudioTrackInfo(
-        mp: MediaPlayer,
-        tracks: List<MediaPlayer.TrackDescription>,
-        activeId: Int
-    ): String {
-        if (activeId == -1) {
-            val validTracks = tracks.filter { it.id != -1 }
-            return if (validTracks.isEmpty()) "🔇 Nessun audio" else "⊘ Disattivato"
-        }
-
-        val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
-        val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
-            .replace("main - ", "")
-
-        try {
-            val media = mp.media
-            if (media != null) {
-                val count = media.trackCount
-                for (i in 0 until count) {
-                    val t = media.getTrack(i)
-                    if (t != null && t.type == IMedia.Track.Type.Audio && t is IMedia.AudioTrack) {
-                        val codec = when (t.codec?.uppercase()) {
-                            "MPGA", "MP2", "MP3" -> "MP2"
-                            "A52", "AC3" -> "AC3"
-                            "EAC3" -> "EAC3"
-                            "AAC", "MP4A" -> "AAC"
-                            else -> t.codec?.uppercase()
-                        }
-                        val channels = when (t.channels) {
-                            1 -> "Mono"
-                            2 -> "Stereo 2.0"
-                            6 -> "5.1"
-                            8 -> "7.1"
-                            else -> if (t.channels > 0) "${t.channels}ch" else null
-                        }
-                        val details = listOfNotNull(codec, channels).joinToString(" • ")
-                        if (details.isNotBlank()) {
-                            return "$trackName ($details)"
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            Log.e("PlayerDebug", "Errore nel parsing audio info")
-        }
-
-        return trackName
-    }
-
-    private fun checkHttpError(urlStr: String, userAgentStr: String?, onResult: (String) -> Unit) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            var message = "❌ Errore durante la riproduzione del flusso multimediale."
-            try {
-                val url = URL(urlStr)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                userAgentStr?.let { conn.setRequestProperty("User-Agent", it) }
-
-                val responseCode = conn.responseCode
-                message = when (responseCode) {
-                    200 -> "❌ Impossibile decodificare il flusso video."
-                    401, 403 -> "🔐 Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
-                    404 -> "🔍 Canale non trovato (HTTP 404)."
-                    456 -> "🚫 IP rifiutato (HTTP 456) Errore geolocalizzazione (VPN)."
-                    459 -> "📊 Troppi utenti collegati (HTTP $responseCode)."
-                    429, 458, 462 -> "⏱️ Limite raggiunto (HTTP $responseCode)."
-                    in 500..504 -> "🔧 Server non disponibile (HTTP $responseCode)."
-                    else -> "❌ Errore HTTP $responseCode."
-                }
-                conn.disconnect()
-            } catch (e: Exception) {
-                message = "🌐 Impossibile connettersi al server."
-                Log.e("PlayerDebug", "Errore HTTP check", e)
-            }
-            withContext(Dispatchers.Main) { onResult(message) }
         }
     }
 
