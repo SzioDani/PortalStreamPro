@@ -534,7 +534,7 @@ fun SettingsBottomSheet(
 object ChannelCache {
     private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
 
-    fn hold(list: List<com.portalstream.app.domain.model.Channel>) {
+    fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
         channels = list
     }
 
