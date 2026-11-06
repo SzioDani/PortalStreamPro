@@ -66,8 +66,8 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF778394),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
-                    surface = Color(0xFFF8FAFC),       // Un bianco sporco/grigio chiarissimo per le card
+                    background = Color(0xFF6b7585),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
+                    surface = Color(0xFFf8fafc),       // Un bianco sporco/grigio chiarissimo per le card
                     onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
                     onSurface = Color(0xFF0F172A),     // Testo scuro per le card
                     surfaceVariant = Color(0xFFCBD5E1) // Colore per i bottoni secondari o sfondi interni
