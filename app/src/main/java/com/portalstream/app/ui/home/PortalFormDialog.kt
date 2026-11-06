@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
 
@@ -70,6 +71,13 @@ fun AddPortalTypeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Impostiamo un modificatore con larghezza personalizzata per stringere la finestra (es. 0.82 o 0.85 della schermata)
+        modifier = Modifier.width(320.dp), // Oppure usa una frazione se preferisci, es: .fillMaxWidth(0.82f)
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        // Qui applichiamo il bordo neon ciano simile a quello delle card
+        tonalElevation = 6.dp,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false), // Necessario per far rispettare la larghezza personalizzata
         title = { 
             Text(
                 text = "Aggiungi playlist", 
@@ -132,7 +140,7 @@ fun AddPortalTypeDialog(
                 TextButton(onClick = onDismiss) { 
                     Text(
                         text = "Annulla",
-                        color = Color(0xFFEF4444)
+                        color = Color(0xFFEF4444) // O il tuo colore rosso personalizzato
                     )
                 }
             }
