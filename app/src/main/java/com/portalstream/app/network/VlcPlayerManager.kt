@@ -133,7 +133,7 @@ class VlcPlayerManager(private val context: Context) {
 
     /**
      * Logica Formati e Zoom specifica per LibVLC:
-     * - Formati classici (16:9, 4:3, 21:9, ecc.): usa mp.aspectRatio nativo.
+     * - Formati classici (16:9, 4:3, ecc.): usa mp.aspectRatio nativo senza distorsioni.
      * - Zoom (110%..135%, FILL): allarga i lati (zoomLati) e rimpicciolisce dal basso in alto (zoomAltoBasso).
      */
     fun applyAspectRatioAndScale(
@@ -152,9 +152,19 @@ class VlcPlayerManager(private val context: Context) {
             }
         }
 
-        if (scale > 0f || aspectRatio == "FILL") {
+        // Se è un formato nativo standard (es. "16:9", "4:3", o null), resetta le scale e usa LibVLC
+        if (aspectRatio == "16:9" || aspectRatio == "4:3" || (aspectRatio != null && !aspectRatio.startsWith("ZOOM") && aspectRatio != "FILL" && scale == 0f)) {
+            vlcLayout?.scaleX = 1f
+            vlcLayout?.scaleY = 1f
             mp.scale = 0f
-            mp.aspectRatio = null
+            mp.aspectRatio = aspectRatio
+            return
+        }
+
+        // Altrimenti, applica lo zoom personalizzato solo se richiesto esplicitamente
+        if (scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL") {
+            mp.scale = 0f
+            mp.aspectRatio = null // Lasciamo gestire al layout via scaleX/scaleY
 
             val zoomLati = when (aspectRatio) {
                 "ZOOM110" -> 1.06f
@@ -175,20 +185,20 @@ class VlcPlayerManager(private val context: Context) {
             }
 
             val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.85f // Ridotto rispetto a 0.94f
-                "ZOOM120" -> 0.88f // Ridotto rispetto a 0.96f
-                "ZOOM125" -> 0.91f // Ridotto rispetto a 0.98f
-                "ZOOM130" -> 0.94f // Ridotto rispetto a 1.00f
-                "ZOOM135" -> 0.97f // Ridotto rispetto a 1.02f
-                "FILL"    -> 1.00f // Ridotto rispetto a 1.04f
+                "ZOOM110" -> 0.90f
+                "ZOOM120" -> 0.94f
+                "ZOOM125" -> 0.98f
+                "ZOOM130" -> 1.00f
+                "ZOOM135" -> 1.02f
+                "FILL"    -> 1.04f
                 else -> when (scale) {
-                    1.10f -> 0.85f
-                    1.20f -> 0.88f
-                    1.25f -> 0.91f
-                    1.30f -> 0.94f
-                    1.35f -> 0.97f
-                    1.45f -> 1.00f
-                    else  -> 0.85f // Valore di default più compatto in altezza
+                    1.10f -> 0.90f
+                    1.20f -> 0.94f
+                    1.25f -> 0.98f
+                    1.30f -> 1.00f
+                    1.35f -> 1.02f
+                    1.45f -> 1.04f
+                    else  -> 0.85f
                 }
             }
 
@@ -197,6 +207,7 @@ class VlcPlayerManager(private val context: Context) {
             return
         }
 
+        // Default di sicurezza
         vlcLayout?.scaleX = 1f
         vlcLayout?.scaleY = 1f
         mp.scale = 0f
