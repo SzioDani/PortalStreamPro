@@ -65,7 +65,7 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF6b7585),   // Un grigio-azzurro chiaro molto morbido
+                    background = Color(0xFF9aa1ac),   // Un grigio-azzurro chiaro molto morbido
                     surface = Color(0xFFdfe1e2),       // Un bianco sporco/grigio chiarissimo per le card
                     onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
                     onSurface = Color(0xFF0F172A),     // Testo scuro per le card
@@ -166,7 +166,7 @@ class PortalsActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .border(
-                                        width = 2.5.dp,
+                                        width = 3.dp,
                                         color = colorResource(id = R.color.text_neonciano),
                                         shape = MaterialTheme.shapes.medium
                                     )
