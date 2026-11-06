@@ -412,7 +412,7 @@ fun PortalFormDialog(
                     )
                 )
             }) {
-                Text(if (existing == null) "Salva" else "OK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(if (existing == null) "Salva" else "OK", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
