@@ -36,7 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.data.Portal
@@ -132,7 +132,7 @@ fun AddPortalTypeDialog(
                 TextButton(onClick = onDismiss) { 
                     Text(
                         text = "Annulla",
-                        color = colorResource(id = R.color.text_neonred)
+                        color = Color(0xFFEF4444)
                     )
                 }
             }
@@ -422,7 +422,7 @@ fun PortalFormDialog(
             TextButton(onClick = onDismiss) { 
                 Text(
                     text = "Annulla",
-                    color = colorResource(id = R.color.text_neonred)
+                    color = Color(0xFFEF4444)
                 )
                      
             }
