@@ -420,7 +420,11 @@ fun PortalFormDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { 
-                Text("Annulla", color = MaterialTheme.colorScheme.error) 
+                Text(
+                    text = "Annulla",
+                    color = colorResource(id = R.color.text_neonred)
+                )
+                     
             }
         }
     )
