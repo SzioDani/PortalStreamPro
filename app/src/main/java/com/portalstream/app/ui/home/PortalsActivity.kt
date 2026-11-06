@@ -253,7 +253,8 @@ class PortalsActivity : ComponentActivity() {
                                         }
                                     }
                                     Row {
-                                        TextButton(onClick = { editing = portal }) {
+                                        TextButton(
+                                            onClick = { editing = portal },
                                             colors = ButtonDefaults.textButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.onSurface
                                             )
