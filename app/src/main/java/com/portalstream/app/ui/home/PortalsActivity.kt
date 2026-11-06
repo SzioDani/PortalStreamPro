@@ -66,13 +66,12 @@ class PortalsActivity : ComponentActivity() {
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF6b7585),   // Un grigio-azzurro chiaro molto morbido (si nota subito che è chiaro!)
+                    background = Color(0xFF6b7585),   // Un grigio-azzurro chiaro molto morbido
                     surface = Color(0xFFf8fafc),       // Un bianco sporco/grigio chiarissimo per le card
                     onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
                     onSurface = Color(0xFF0F172A),     // Testo scuro per le card
                     surfaceVariant = Color(0xFFCBD5E1) // Colore per i bottoni secondari o sfondi interni
                 )
-
                 MaterialTheme(
                     colorScheme = if (isDarkMode) customDarkScheme else customLightScheme
                 ) {
@@ -95,6 +94,7 @@ class PortalsActivity : ComponentActivity() {
         var editing by remember { mutableStateOf<Portal?>(null) }
         var showSettings by remember { mutableStateOf(false) } 
         val scope = rememberCoroutineScope()
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -126,8 +126,8 @@ class PortalsActivity : ComponentActivity() {
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(id = R.color.text_neongreen), // Sfondo dinamico basato sul tema
-                        contentColor = colorResource(id = R.color.neutral_900)     // Colore del testo leggibile sul bottone
+                        containerColor = colorResource(id = R.color.text_neongreen),
+                        contentColor = colorResource(id = R.color.neutral_900)
                     )
                 ) {
                     Text(
@@ -154,7 +154,8 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
                  } else {
-                    // 2. SE CI SONO PORTALI: una sola cornice aderente con bordo Neonciano
+                    // 2. SE CI SONO PORTALI: cornice aderente millimetricamente con bordo Neonciano
+                    Spacer(Modifier.height(8.dp))
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -170,14 +171,14 @@ class PortalsActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 600.dp)
-                                .padding(4.dp) // Padding minimo per far aderire perfettamente la cornice ai portali
+                                .padding(2.dp), // Margine ridotto al minimo per un'aderenza perfetta
+                            verticalArrangement = Arrangement.spacedBy(4.dp) // Spaziatura pulita solo tra un portale e l'altro
                         ) {
                             items(portals, key = { it.id }) { portal ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                        .clickable { openChannels(portal) },
+                                        .clickable { openChannels(portal) }, // Senza padding verticale esterno, aderisce perfettamente alla cornice
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface
                                     )
@@ -459,10 +460,10 @@ fun SettingsBottomSheet(
     onThemeChanged: (Boolean) -> Unit
 ) {
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) } 
     var playerMode by remember { mutableStateOf(prefs.getString("player_mode", "miniplayer") ?: "miniplayer") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
-            Column(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp)
@@ -490,7 +491,6 @@ fun SettingsBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Etichetta dinamica: cambia scritta in base alla modalità
                 Text(
                     text = if (isDarkMode) "Tema Scuro" else "Tema Chiaro",
                     style = MaterialTheme.typography.bodyLarge
