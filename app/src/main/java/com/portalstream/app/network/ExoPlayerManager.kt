@@ -27,6 +27,10 @@ class ExoPlayerManager(private val context: Context) {
 
     private var activeListener: Player.Listener? = null
 
+    // Stato predefinito iniziale del formato e della scala
+    var currentAspectRatio: String = "16:9"
+    var currentScale: Float = 0f
+
     fun ensureInitialized(userAgent: String?): ExoPlayer {
         exoPlayer?.let { return it }
 
@@ -64,12 +68,18 @@ class ExoPlayerManager(private val context: Context) {
         playerView: PlayerView,
         streamUrl: String,
         userAgent: String?,
+        aspectRatio: String?, // Riceve lo stato attuale
+        scale: Float,         // Riceve lo scale attuale
         onBuffering: (Boolean) -> Unit,
         onPlayingState: (Boolean) -> Unit,
         onAudioTracksUpdated: (List<UiAudioTrack>, Int, String) -> Unit,
         onFormatRefreshNeeded: () -> Unit,
         onError: () -> Unit
     ): ExoPlayer {
+        // Aggiorniamo le variabili di stato interne con quelle passate
+        if (aspectRatio != null) currentAspectRatio = aspectRatio
+        currentScale = scale
+
         val player = ensureInitialized(userAgent)
         playerView.player = player
 
@@ -131,6 +141,8 @@ class ExoPlayerManager(private val context: Context) {
                     Player.STATE_BUFFERING -> onBuffering(true)
                     Player.STATE_READY -> {
                         onBuffering(false)
+                        // APPLICA IL FORMATO ATTUALE (Sarà 16:9 all'avvio, o lo zoom scelto in seguito)
+                        applyAspectRatioAndScale(playerView, currentAspectRatio, currentScale)
                         onFormatRefreshNeeded()
                     }
                     Player.STATE_ENDED -> onPlayingState(false)
@@ -172,8 +184,8 @@ class ExoPlayerManager(private val context: Context) {
 
     /**
      * Logica Formati e Zoom specifica per ExoPlayer:
-     * - zoomLati (scaleX): allarga il video verso i lati.
-     * - zoomAltoBasso (scaleY): rimpicciolito dal basso in alto per non tagliare il logo.
+     * - Formati nativi standard (16:9, 4:3, 21:9, ecc.): applicano il corretto aspect ratio senza distorcere.
+     * - Zoom (ZOOM110..135, FILL): applicano i fattori di scala personalizzati su scaleX e scaleY.
      */
     fun applyAspectRatioAndScale(
         playerView: PlayerView?,
@@ -185,74 +197,83 @@ class ExoPlayerManager(private val context: Context) {
             androidx.media3.ui.R.id.exo_content_frame
         ) ?: return
 
+        // Aggiorniamo lo stato interno se richiamato direttamente
+        if (aspectRatio != null) currentAspectRatio = aspectRatio
+        currentScale = scale
+
         pv.clipChildren = false
         pv.clipToPadding = false
         contentFrame.clipChildren = false
         contentFrame.clipToPadding = false
 
-        if (scale > 0f || aspectRatio == "FILL") {
+        // Verifica se si tratta di una modalità Zoom esplicita o FILL con scale attiva
+        val isZoomMode = scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL"
+
+        if (!isZoomMode) {
+            // Resetta le scale e applica correttamente il formato nativo scelto (default 16:9)
+            contentFrame.scaleX = 1f
+            contentFrame.scaleY = 1f
             pv.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            contentFrame.setAspectRatio(16f / 9f)
 
-            val zoomLati = when (aspectRatio) {
-                "ZOOM110" -> 1.05f
-                "ZOOM120" -> 1.10f
-                "ZOOM125" -> 1.14f
-                "ZOOM130" -> 1.18f
-                "ZOOM135" -> 1.22f
-                "FILL"    -> 1.26f
-                else -> when (scale) {
-                    1.10f -> 1.05f
-                    1.20f -> 1.10f
-                    1.25f -> 1.14f
-                    1.30f -> 1.18f
-                    1.35f -> 1.22f
-                    1.45f -> 1.26f
-                    else  -> 1.0f
-                }
+            val targetRatio = when (aspectRatio) {
+                "16:9"   -> 16f / 9f
+                "4:3"    -> 4f / 3f
+                "21:9"   -> 21f / 9f
+                "1.85:1" -> 1.85f
+                "2.35:1" -> 2.35f
+                "2.39:1" -> 2.39f
+                else     -> 16f / 9f // Default di sicurezza a 16:9
             }
 
-            val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.85f // Ridotto rispetto a 0.94f
-                "ZOOM120" -> 0.88f // Ridotto rispetto a 0.96f
-                "ZOOM125" -> 0.91f // Ridotto rispetto a 0.98f
-                "ZOOM130" -> 0.94f // Ridotto rispetto a 1.00f
-                "ZOOM135" -> 0.97f // Ridotto rispetto a 1.02f
-                "FILL"    -> 1.00f // Ridotto rispetto a 1.04f
-                else -> when (scale) {
-                    1.10f -> 0.85f
-                    1.20f -> 0.88f
-                    1.25f -> 0.91f
-                    1.30f -> 0.94f
-                    1.35f -> 0.97f
-                    1.45f -> 1.00f
-                    else  -> 0.85f // Valore di default più compatto in altezza
-                }
-            }
-
-            contentFrame.scaleX = zoomLati
-            contentFrame.scaleY = zoomAltoBasso
+            contentFrame.setAspectRatio(targetRatio)
+            contentFrame.requestLayout()
             return
         }
 
-        contentFrame.scaleX = 1f
-        contentFrame.scaleY = 1f
+        // Modalità Zoom personalizzato
         pv.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        contentFrame.setAspectRatio(16f / 9f)
 
-        val targetRatio = when (aspectRatio) {
-            "16:9"   -> 16f / 9f
-            "4:3"    -> 4f / 3f
-            "21:9"   -> 21f / 9f
-            "1.85:1" -> 1.85f
-            "2.35:1" -> 2.35f
-            "2.39:1" -> 2.39f
-            else     -> 16f / 9f
+        val zoomLati = when (aspectRatio) {
+            "ZOOM110" -> 1.06f
+            "ZOOM120" -> 1.12f
+            "ZOOM125" -> 1.16f
+            "ZOOM130" -> 1.20f
+            "ZOOM135" -> 1.24f
+            "FILL"    -> 1.28f
+            else -> when (scale) {
+                1.10f -> 1.06f
+                1.20f -> 1.12f
+                1.25f -> 1.16f
+                1.30f -> 1.20f
+                1.35f -> 1.24f
+                1.45f -> 1.28f
+                else  -> 1.0f
+            }
         }
 
-        contentFrame.setAspectRatio(targetRatio)
-        contentFrame.requestLayout()
+        val zoomAltoBasso = when (aspectRatio) {
+            "ZOOM110" -> 0.90f
+            "ZOOM120" -> 0.94f
+            "ZOOM125" -> 0.98f
+            "ZOOM130" -> 1.00f
+            "ZOOM135" -> 1.02f
+            "FILL"    -> 1.04f
+            else -> when (scale) {
+                1.10f -> 0.90f
+                1.20f -> 0.94f
+                1.25f -> 0.98f
+                1.30f -> 1.00f
+                1.35f -> 1.02f
+                1.45f -> 1.04f
+                else  -> 0.85f
+            }
+        }
+
+        contentFrame.scaleX = zoomLati
+        contentFrame.scaleY = zoomAltoBasso
     }
 
     fun selectAudioTrack(track: UiAudioTrack) {
