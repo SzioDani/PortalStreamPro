@@ -136,8 +136,7 @@ class PortalsActivity : ComponentActivity() {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(Modifier.height(12.dp))
-                
+                Spacer(Modifier.height(12.dp))   
                 if (portals.isEmpty()) {
                     // 1. SE NON CI SONO PORTALI: solo testo pulito, zero card o cornici
                     Spacer(Modifier.height(8.dp))
@@ -172,12 +171,17 @@ class PortalsActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .heightIn(max = 600.dp)
                                 .padding(2.dp), // Margine ridotto al minimo per un'aderenza perfetta
-                            verticalArrangement = Arrangement.spacedBy(4.dp) // Spaziatura pulita solo tra un portale e l'altro
+                            verticalArrangement = Arrangement.spacedBy(8.dp) // Spazio pulito tra un portale e l'altro
                         ) {
                             items(portals, key = { it.id }) { portal ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = colorResource(id = R.color.text_neonciano),
+                                            shape = MaterialTheme.shapes.medium
+                                        )
                                         .clickable { openChannels(portal) }, // Senza padding verticale esterno, aderisce perfettamente alla cornice
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface
