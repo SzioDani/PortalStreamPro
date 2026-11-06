@@ -130,7 +130,10 @@ fun AddPortalTypeDialog(
                 contentAlignment = Alignment.Center
             ) {
                 TextButton(onClick = onDismiss) { 
-                    Text("Annulla", colorResource(id = R.color.text_neonred)
+                    Text(
+                        text = "Annulla",
+                        color = colorResource(id = R.color.text_neonred)
+                    )
                 }
             }
         }
