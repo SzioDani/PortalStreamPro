@@ -254,6 +254,10 @@ class PortalsActivity : ComponentActivity() {
                                     }
                                     Row {
                                         TextButton(onClick = { editing = portal }) {
+                                            colors = ButtonDefaults.textButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                            )
+                                         ) {
                                             Text("Modifica")
                                         }
                                         Spacer(Modifier.width(4.dp))
