@@ -133,11 +133,11 @@ class ChannelsActivity : ComponentActivity() {
             val customLightScheme = lightColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFE2E8F0),   // Sfondo generale della schermata (grigio-azzurro chiaro)
-                surface = Color(0xFFFFFFFF),       // Bianco puro per far risaltare le CARDS
-                onBackground = Color(0xFF0F172A),  // Testo scuro per i titoli
-                onSurface = Color(0xFF0F172A),     // Testo scuro ben marcato dentro le CARD
-                surfaceVariant = Color(0xFFF1F5F9) // Colore per i pulsanti secondari (es. Preferiti, Gruppi)
+                background = Color(0xFFCBD5E1),   // Sfondo generale della schermata (grigio-azzurro medio per dare stacco)
+                surface = Color(0xFFF8FAFC),       // Le CARD: un bianco sporco/grigio lunare chiarissimo (perfetto per non far sparire i loghi bianchi)
+                onBackground = Color(0xFF0F172A),  // Testo scuro per i titoli e la barra in alto
+                onSurface = Color(0xFF0F172A),     // Testo scuro e ben marcato dentro le card
+                surfaceVariant = Color(0xFFE2E8F0) // Per i pulsanti secondari in alto (Preferiti, Gruppi, Guida TV)
             )
 
             MaterialTheme(
