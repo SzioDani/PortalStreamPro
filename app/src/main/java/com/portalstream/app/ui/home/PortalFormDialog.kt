@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.border
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.DialogProperties
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
@@ -70,28 +72,35 @@ fun AddPortalTypeDialog(
     onSelect: (PortalType) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        // Impostiamo un modificatore con larghezza personalizzata per stringere la finestra (es. 0.82 o 0.85 della schermata)
-        modifier = Modifier.width(320.dp), // Oppure usa una frazione se preferisci, es: .fillMaxWidth(0.82f)
-        shape = MaterialTheme.shapes.extraLarge,
-        containerColor = MaterialTheme.colorScheme.surface,
-        // Qui applichiamo il bordo neon ciano simile a quello delle card
-        tonalElevation = 6.dp,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false), // Necessario per far rispettare la larghezza personalizzata
-        title = { 
-            Text(
-                text = "Aggiungi playlist", 
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            ) 
-        },
-        text = {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .width(300.dp) // Qui puoi stringere o allargare a piacimento (es. 280.dp o 320.dp)
+                .border(
+                    width = 1.5.dp,
+                    color = Color(0xFF00E5FF), // Il tuo ciano neon
+                    shape = RoundedCornerShape(28.dp)
+                ),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Text(
+                    text = "Aggiungi playlist",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(Modifier.height(20.dp))
+
                 TextButton(
                     onClick = { onSelect(PortalType.M3U) },
                     modifier = Modifier.fillMaxWidth()
@@ -100,11 +109,12 @@ fun AddPortalTypeDialog(
                         "FILE O LINK PLAYLIST", 
                         color = MaterialTheme.colorScheme.onSurface, 
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                
+                Spacer(Modifier.height(8.dp))
+                
                 TextButton(
                     onClick = { onSelect(PortalType.MAG) },
                     modifier = Modifier.fillMaxWidth()
@@ -113,11 +123,12 @@ fun AddPortalTypeDialog(
                         "MAG PORTALE", 
                         color = MaterialTheme.colorScheme.onSurface, 
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                
+                Spacer(Modifier.height(8.dp))
+                
                 TextButton(
                     onClick = { onSelect(PortalType.XSTREAM) },
                     modifier = Modifier.fillMaxWidth()
@@ -126,81 +137,25 @@ fun AddPortalTypeDialog(
                         "XTREAM CODES PORTAL", 
                         color = MaterialTheme.colorScheme.onSurface, 
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
                 }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                TextButton(onClick = onDismiss) { 
+                
+                Spacer(Modifier.height(16.dp))
+                
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
                         text = "Annulla",
-                        color = Color(0xFFEF4444) // O il tuo colore rosso personalizzato
+                        color = Color(0xFFFF5252),
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
-    )
-}
-
-@Composable
-fun ChannelDetailsDialog(
-    channel: com.portalstream.app.domain.model.Channel,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "ℹ️ Dettagli Tecnici Canale",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(text = "• ID Canale: ${channel.id}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = "• Numero: ${channel.number}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = "• Nome Grezzo: ${channel.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                if (!channel.customSid.isNullOrBlank()) {
-                    Text(text = "• Custom SID: ${channel.customSid}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                }
-                Text(
-                    text = "• CMD / Stream:\n${channel.cmd}", 
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    clipboardManager.setText(AnnotatedString(channel.cmd))
-                    Toast.makeText(context, "CMD copiato negli appunti!", Toast.LENGTH_SHORT).show()
-                }
-            ) {
-                Text("Copia CMD", color = MaterialTheme.colorScheme.primary)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Chiudi", color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-    )
+    }
 }
 
 @Composable
@@ -432,8 +387,7 @@ fun PortalFormDialog(
                 Text(
                     text = "Annulla",
                     color = Color(0xFFEF4444)
-                )
-                     
+                )       
             }
         }
     )
