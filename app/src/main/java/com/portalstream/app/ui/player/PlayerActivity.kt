@@ -236,6 +236,8 @@ class PlayerActivity : ComponentActivity() {
                     playerView = pv,
                     streamUrl = streamUrl,
                     userAgent = userAgent,
+                    aspectRatio = currentAspectRatio, // <-- AGGIUNTO QUI
+                    scale = currentScale,
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
                         isPlaying = playing
