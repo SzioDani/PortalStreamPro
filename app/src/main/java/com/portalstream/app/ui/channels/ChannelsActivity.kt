@@ -137,7 +137,7 @@ class ChannelsActivity : ComponentActivity() {
                 surface = Color(0xFFF8FAFC),       // Le CARD: un bianco sporco/grigio lunare chiarissimo (perfetto per non far sparire i loghi bianchi)
                 onBackground = Color(0xFF0F172A),  // Testo scuro per i titoli e la barra in alto
                 onSurface = Color(0xFF0F172A),     // Testo scuro e ben marcato dentro le card
-                surfaceVariant = Color(0xFFE2E8F0) // Per i pulsanti secondari in alto (Preferiti, Gruppi, Guida TV)
+                surfaceVariant = Color(0xFF94A3B8) // Per i pulsanti secondari in alto (Preferiti, Gruppi, Guida TV)
             )
 
             MaterialTheme(
@@ -380,7 +380,8 @@ class ChannelsActivity : ComponentActivity() {
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                            containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = if (darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                         )
                                     ) {
                                         Text("Scuro")
@@ -392,7 +393,8 @@ class ChannelsActivity : ComponentActivity() {
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                            containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            contentColor = if (!darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                         )
                                     ) {
                                         Text("Chiaro")
