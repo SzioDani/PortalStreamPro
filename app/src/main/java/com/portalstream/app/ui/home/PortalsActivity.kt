@@ -166,7 +166,7 @@ class PortalsActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .border(
-                                        width = 2.dp,
+                                        width = 2.5.dp,
                                         color = colorResource(id = R.color.text_neonciano),
                                         shape = MaterialTheme.shapes.medium
                                     )
