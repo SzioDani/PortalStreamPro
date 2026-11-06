@@ -184,7 +184,7 @@ class PortalsActivity : ComponentActivity() {
                                 ) {
                                     Column(Modifier.padding(12.dp)) {
                                         Text(
-                                            text = "[${portal.id}]" +
+                                            text = "${portal.id}" +
                                                 if (portal.name.isBlank()) "" else " ${portal.name}",
                                             style = MaterialTheme.typography.titleMedium,
                                             maxLines = 1,
