@@ -43,7 +43,6 @@ import com.portalstream.app.R
 class PortalsActivity : ComponentActivity() {
     private lateinit var store: PortalStore
     private lateinit var epgMappingStore: EpgMappingStore
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PortalStore(this)
@@ -136,7 +135,8 @@ class PortalsActivity : ComponentActivity() {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(Modifier.height(12.dp))   
+                Spacer(Modifier.height(12.dp))
+                
                 if (portals.isEmpty()) {
                     // 1. SE NON CI SONO PORTALI: solo testo pulito, zero card o cornici
                     Spacer(Modifier.height(8.dp))
@@ -153,137 +153,125 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
                  } else {
-                    // 2. SE CI SONO PORTALI: cornice aderente millimetricamente con bordo Neonciano
+                    // 2. SE CI SONO PORTALI: solo la LazyColumn pulita con i singoli portali incorniciati
                     Spacer(Modifier.height(8.dp))
-                    Surface(
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(
-                                width = 1.5.dp,
-                                color = colorResource(id = R.color.text_neonciano),
-                                shape = MaterialTheme.shapes.medium
-                            ),
-                        color = Color.Transparent,
-                        shape = MaterialTheme.shapes.medium
+                            .heightIn(max = 600.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp) // Spazio pulito tra un portale e l'altro
                     ) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 600.dp)
-                                .padding(2.dp), // Margine ridotto al minimo per un'aderenza perfetta
-                            verticalArrangement = Arrangement.spacedBy(8.dp) // Spazio pulito tra un portale e l'altro
-                        ) {
-                            items(portals, key = { it.id }) { portal ->
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = colorResource(id = R.color.text_neonciano),
-                                            shape = MaterialTheme.shapes.medium
-                                        )
-                                        .clickable { openChannels(portal) }, // Senza padding verticale esterno, aderisce perfettamente alla cornice
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
+                        items(portals, key = { it.id }) { portal ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = 2.dp,
+                                        color = colorResource(id = R.color.text_neonciano),
+                                        shape = MaterialTheme.shapes.medium
                                     )
-                                ) {
-                                    Column(Modifier.padding(12.dp)) {
-                                        Text(
-                                            text = "${portal.id}" +
-                                                if (portal.name.isBlank()) "" else " ${portal.name}",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            color = colorResource(id = R.color.text_pinkcyber)
-                                        )
-                                        Text(
-                                            text = portal.type.label + " - " +
-                                                if (portal.url.isBlank()) portal.server else portal.url,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            color = colorResource(id = R.color.text_pinkcyber)
-                                        )
-                                        if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Column(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                if (portal.activationDate.isNotBlank()) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(top = 2.dp)
+                                    .clickable { openChannels(portal) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "${portal.id}" +
+                                            if (portal.name.isBlank()) "" else " ${portal.name}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = colorResource(id = R.color.text_pinkcyber)
+                                    )
+                                    Text(
+                                        text = portal.type.label + " - " +
+                                            if (portal.url.isBlank()) portal.server else portal.url,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = colorResource(id = R.color.text_pinkcyber)
+                                    )
+                                    if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            if (portal.activationDate.isNotBlank()) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.width(16.dp),
+                                                        contentAlignment = Alignment.CenterStart
                                                     ) {
-                                                        Box(
-                                                            modifier = Modifier.width(16.dp),
-                                                            contentAlignment = Alignment.CenterStart
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.CheckCircle,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(14.dp),
-                                                                tint = colorResource(id = R.color.text_neongreen)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(
-                                                            text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                            fontWeight = FontWeight.Medium
+                                                        Icon(
+                                                            imageVector = Icons.Default.CheckCircle,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = colorResource(id = R.color.text_neongreen)
                                                         )
                                                     }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
                                                 }
-                                                if (portal.expireDate.isNotBlank()) {
-                                                    val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(top = 2.dp)
+                                            }
+                                            if (portal.expireDate.isNotBlank()) {
+                                                val formattedExpire = formatDateToItalian(portal.expireDate)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.width(16.dp),
+                                                        contentAlignment = Alignment.CenterStart
                                                     ) {
-                                                        Box(
-                                                            modifier = Modifier.width(16.dp),
-                                                            contentAlignment = Alignment.CenterStart
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Schedule,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(14.dp),
-                                                                tint = colorResource(id = R.color.text_neonred)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(
-                                                            text = "Scadenza: $formattedExpire",
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurface,
-                                                            fontWeight = FontWeight.Medium
+                                                        Icon(
+                                                            imageVector = Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = colorResource(id = R.color.text_neonred)
                                                         )
                                                     }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Scadenza: $formattedExpire",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
                                                 }
                                             }
                                         }
-                                        Row {
-                                            TextButton(onClick = { editing = portal }) {
-                                                Text("Modifica")
+                                    }
+                                    Row {
+                                        TextButton(onClick = { editing = portal }) {
+                                            Text("Modifica")
+                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        TextButton(onClick = {
+                                            val idToDelete = portal.id
+                                            store.delete(idToDelete)
+                                            portals = store.load()
+                                            scope.launch(Dispatchers.IO) {
+                                                epgMappingStore.deletePortalMappings(idToDelete)
+                                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
+                                                dao.deleteChannelsByPlaylist(idToDelete)
+                                                dao.deleteChannelsByPrefix("ch_${idToDelete}_")
                                             }
-                                            Spacer(Modifier.width(4.dp))
-                                            TextButton(onClick = {
-                                                val idToDelete = portal.id
-                                                store.delete(idToDelete)
-                                                portals = store.load()
-                                                scope.launch(Dispatchers.IO) {
-                                                    epgMappingStore.deletePortalMappings(idToDelete)
-                                                    val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
-                                                    dao.deleteChannelsByPlaylist(idToDelete)
-                                                    dao.deleteChannelsByPrefix("ch_${idToDelete}_")
-                                                }
-                                            }) {
-                                                Text(
-                                                    text = "Elimina",
-                                                    color = colorResource(id = R.color.text_neonred)
-                                                )
-                                            }
+                                        }) {
+                                            Text(
+                                                text = "Elimina",
+                                                color = colorResource(id = R.color.text_neonred)
+                                            )
                                         }
                                     }
                                 }
