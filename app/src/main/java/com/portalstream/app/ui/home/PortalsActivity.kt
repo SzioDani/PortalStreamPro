@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -190,11 +191,29 @@ class PortalsActivity : ComponentActivity() {
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             if (portal.activationDate.isNotBlank()) {
-                                                Text(
-                                                    text = "🟢 Attivato: ${formatDateToItalian(portal.activationDate)}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = colorResource(id = R.color.text_neongreen)
-                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.width(16.dp),
+                                                        contentAlignment = Alignment.CenterStart
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CheckCircle,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = colorResource(id = R.color.text_neongreen)
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
                                             }
                                             if (portal.expireDate.isNotBlank()) {
                                                 val formattedExpire = formatDateToItalian(portal.expireDate)
@@ -217,7 +236,7 @@ class PortalsActivity : ComponentActivity() {
                                                     Text(
                                                         text = "Scadenza: $formattedExpire",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        color = colorResource(id = R.color.text_neonred),
+                                                        color = MaterialTheme.colorScheme.onSurface,
                                                         fontWeight = FontWeight.Medium
                                                     )
                                                 }
