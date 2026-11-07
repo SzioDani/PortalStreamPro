@@ -212,10 +212,17 @@ class ChannelsActivity : ComponentActivity() {
 
                         matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }.sortedWith(
-                        compareBy(
-                            { it.number.toIntOrNull() ?: extractChannelNumber(it.name) },
-                            { it.name }
-                        )
+                        Comparator { c1, c2 ->
+                            val num1 = c1.number.toIntOrNull() ?: extractChannelNumber(c1.name)
+                            val num2 = c2.number.toIntOrNull() ?: extractChannelNumber(c2.name)
+                            
+                            val compNum = num1.compareTo(num2)
+                            if (compNum != 0) {
+                                compNum
+                            } else {
+                                c1.name.compareTo(c2.name, ignoreCase = true)
+                            }
+                        }
                     )
                 }
 
