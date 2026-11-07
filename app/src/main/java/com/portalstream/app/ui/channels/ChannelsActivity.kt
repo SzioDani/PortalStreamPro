@@ -365,190 +365,209 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(Unit) {
-                    fetchChannelsAction(false)
-                }
+					fetchChannelsAction(false)
+				}
 
-                if (showSettingsDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showSettingsDialog = false },
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Opzioni Lista Canali")
-                            }
-                        },
-                        text = {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            appTheme = "dark"
-                                            appPrefs.edit().putString("app_theme", "dark").apply()
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = if (darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    ) {
-                                        Text("Scuro")
-                                    }
-                                    Button(
-                                        onClick = {
-                                            appTheme = "light"
-                                            appPrefs.edit().putString("app_theme", "light").apply()
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            contentColor = if (!darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    ) {
-                                        Text("Chiaro")
-                                    }
-                                }
+				if (showSettingsDialog) {
+					Dialog(onDismissRequest = { showSettingsDialog = false }) {
+						Surface(
+							modifier = Modifier
+								.fillMaxWidth(0.88f)
+								.wrapContentHeight(),
+							shape = RoundedCornerShape(24.dp),
+							color = MaterialTheme.colorScheme.surface,
+							border = BorderStroke(2.dp, Color(0xFF00E5FF))
+						) {
+							Column(
+								modifier = Modifier
+									.padding(20.dp)
+									.verticalScroll(rememberScrollState()),
+								verticalArrangement = Arrangement.spacedBy(16.dp)
+							) {
+								// Intestazione personalizzata pulita
+								Row(verticalAlignment = Alignment.CenterVertically) {
+									Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+									Spacer(modifier = Modifier.width(8.dp))
+									Text("Opzioni Lista Canali", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+								}
 
-                                Divider()
+								Divider()
 
-                                Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Button(
-                                    onClick = {
-                                        showSettingsDialog = false
-                                        fetchChannelsAction(true)
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("🔄 Aggiorna Lista Canali")
-                                }
+								Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+								Row(
+									modifier = Modifier.fillMaxWidth(),
+									horizontalArrangement = Arrangement.spacedBy(8.dp)
+								) {
+									Button(
+										onClick = {
+											appTheme = "dark"
+											appPrefs.edit().putString("app_theme", "dark").apply()
+										},
+										modifier = Modifier.weight(1f),
+										colors = ButtonDefaults.buttonColors(
+											containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+											contentColor = if (darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+										)
+									) {
+										Text("Scuro")
+									}
+									Button(
+										onClick = {
+											appTheme = "light"
+											appPrefs.edit().putString("app_theme", "light").apply()
+										},
+										modifier = Modifier.weight(1f),
+										colors = ButtonDefaults.buttonColors(
+											containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+											contentColor = if (!darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+										)
+									) {
+										Text("Chiaro")
+									}
+								}
 
-                                Divider()
+								Divider()
 
-                                Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                var selectedCountry by remember { 
-                                    mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
-                                }
+								Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+								Button(
+									onClick = {
+										showSettingsDialog = false
+										fetchChannelsAction(true)
+									},
+									modifier = Modifier.fillMaxWidth(),
+									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+								) {
+									Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+									Spacer(modifier = Modifier.width(8.dp))
+									Text("Aggiorna Lista Canali")
+								}
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
-                                        val isSelected = selectedCountry.equals(country, ignoreCase = true)
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                selectedCountry = country
-                                                appPrefs.edit().putString("epg_country_filter", country).apply()
-                                            },
-                                            label = { Text(country, style = MaterialTheme.typography.labelMedium) },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
+								Divider()
 
-                                Spacer(modifier = Modifier.height(4.dp))
+								Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+								Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+								var selectedCountry by remember { 
+									mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
+								}
 
-                                Button(
-                                    onClick = {
-                                        showSettingsDialog = false
-                                        val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
-                                        scope.launch(Dispatchers.IO) {
-                                            withContext(Dispatchers.Main) {
-                                                isEpgLoading = true
-                                            }
-                                            try {
-                                                val currentPortalList = channelDao.getAllChannelsList().filter {
-                                                    it.id.startsWith(portalPrefix)
-                                                }
-                                                val updated = epgRepository.autoAssociatePortalChannels(
-                                                    portalChannels = currentPortalList,
-                                                    countryCode = countryToUse,
-                                                    forceOverwrite = true
-                                                )
-                                                channelDao.insertChannels(updated)
-                                                epgMappingStore.savePortalMappings(portalIdentity, updated)
+								Row(
+									modifier = Modifier.fillMaxWidth(),
+									horizontalArrangement = Arrangement.spacedBy(6.dp)
+								) {
+									listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
+										val isSelected = selectedCountry.equals(country, ignoreCase = true)
+										FilterChip(
+											selected = isSelected,
+											onClick = {
+												selectedCountry = country
+												appPrefs.edit().putString("epg_country_filter", country).apply()
+											},
+											label = { Text(country, style = MaterialTheme.typography.labelMedium) },
+											modifier = Modifier.weight(1f)
+										)
+									}
+								}
 
-                                                val matchedCount = updated.count { it.tvgId.isNotBlank() }
-                                                val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
-                                                val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
-                                                withContext(Dispatchers.Main) {
-                                                    Toast.makeText(this@ChannelsActivity, "✅ Salvati nel JSON $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
-                                                    epgInfoMap = newInfoMap
-                                                    epgProgramsMap = newProgramsMap
-                                                }
-                                            } finally {
-                                                withContext(Dispatchers.Main) {
-                                                    isEpgLoading = false
-                                                }
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                                ) {
-                                    Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("🔄 Aggiorna EPG [$selectedCountry]")
-                                }
+								Spacer(modifier = Modifier.height(4.dp))
 
-                                Divider()
+								Button(
+									onClick = {
+										showSettingsDialog = false
+										val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
+										scope.launch(Dispatchers.IO) {
+											withContext(Dispatchers.Main) {
+												isEpgLoading = true
+											}
+											try {
+												val currentPortalList = channelDao.getAllChannelsList().filter {
+													it.id.startsWith(portalPrefix)
+												}
+												val updated = epgRepository.autoAssociatePortalChannels(
+													portalChannels = currentPortalList,
+													countryCode = countryToUse,
+													forceOverwrite = true
+												)
+												channelDao.insertChannels(updated)
+												epgMappingStore.savePortalMappings(portalIdentity, updated)
 
-                                Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
-                                    value = channelTextSize,
-                                    onValueChange = { 
-                                        channelTextSize = it
-                                        appPrefs.edit().putFloat("channel_text_size", it).apply()
-                                    },
-                                    valueRange = 12f..24f,
-                                    steps = 11
-                                )
+												val matchedCount = updated.count { it.tvgId.isNotBlank() }
+												val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
+												val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
+												withContext(Dispatchers.Main) {
+													Toast.makeText(this@ChannelsActivity, "Salvati $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
+													epgInfoMap = newInfoMap
+													epgProgramsMap = newProgramsMap
+												}
+											} finally {
+												withContext(Dispatchers.Main) {
+													isEpgLoading = false
+												}
+											}
+										}
+									},
+									modifier = Modifier.fillMaxWidth(),
+									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+								) {
+									Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
+									Spacer(modifier = Modifier.width(8.dp))
+									Text("Aggiorna EPG [$selectedCountry]")
+								}
 
-                                Text("Dimensione Loghi: ${logoSize}dp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
-                                    value = logoSize.toFloat(),
-                                    onValueChange = { 
-                                        logoSize = it.toInt()
-                                        appPrefs.edit().putInt("logo_size", it.toInt()).apply()
-                                    },
-                                    valueRange = 32f..72f,
-                                    steps = 8
-                                )
+								Divider()
 
-                                Text("Dimensione Testo Guida TV: ${epgTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
-                                    value = epgTextSize,
-                                    onValueChange = { 
-                                        epgTextSize = it
-                                        appPrefs.edit().putFloat("epg_text_size", it).apply()
-                                    },
-                                    valueRange = 10f..20f,
-                                    steps = 9
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showSettingsDialog = false }) {
-                                Text("Chiudi")
-                            }
-                        }
-                    )
-                }
+								Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+								Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
+								Slider(
+									value = channelTextSize,
+									onValueChange = { 
+										channelTextSize = it
+										appPrefs.edit().putFloat("channel_text_size", it).apply()
+									},
+									valueRange = 12f..24f,
+									steps = 11
+								)
+
+								Text("Dimensione Loghi: ${logoSize}dp", style = MaterialTheme.typography.bodySmall)
+								Slider(
+									value = logoSize.toFloat(),
+									onValueChange = { 
+										logoSize = it.toInt()
+										appPrefs.edit().putInt("logo_size", it.toInt()).apply()
+									},
+									valueRange = 32f..72f,
+									steps = 8
+								)
+
+								Text("Dimensione Testo Guida TV: ${epgTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
+								Slider(
+									value = epgTextSize,
+									onValueChange = { 
+										epgTextSize = it
+										appPrefs.edit().putFloat("epg_text_size", it).apply()
+									},
+									valueRange = 10f..20f,
+									steps = 9
+								)
+
+								Spacer(modifier = Modifier.height(8.dp))
+
+								// Pulsante di chiusura in fondo al contenuto scorrevole
+								Button(
+									onClick = { showSettingsDialog = false },
+									modifier = Modifier.fillMaxWidth(),
+									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
+								) {
+									Text(
+									    text = "Chiudi",
+										color = Color(0xFFEF4444),
+										fontWeight = FontWeight.Bold
+									)
+								}
+							}
+						}
+					}
+				}
+
 
                 if (showGroupDialog) {
                     AlertDialog(
@@ -1353,127 +1372,162 @@ class ChannelsActivity : ComponentActivity() {
             appendLine("• CMD / Stream: ${channel.cmd.ifBlank { channel.url }}")
         }
 
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Dettagli & Assegnazione EPG",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (showDetailDialog) { // Mantieni la variabile di controllo che usi tu per aprire il dialog
+				Dialog(onDismissRequest = onDismiss) {
+					Surface(
+						modifier = Modifier
+							.fillMaxWidth(0.88f)
+							.wrapContentHeight(),
+						shape = RoundedCornerShape(24.dp),
+						color = MaterialTheme.colorScheme.surface,
+						border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
+					) {
+						Column(
+							modifier = Modifier
+								.padding(20.dp)
+								.verticalScroll(scrollState),
+							verticalArrangement = Arrangement.spacedBy(14.dp)
+						) {
+							// Intestazione con icona e titolo
+							Row(verticalAlignment = Alignment.CenterVertically) {
+								Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+								Spacer(modifier = Modifier.width(8.dp))
+								Text(
+									text = "Dettagli & Assegnazione EPG",
+									style = MaterialTheme.typography.titleMedium,
+									fontWeight = FontWeight.Bold
+								)
+							}
 
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+							Divider(modifier = Modifier.padding(vertical = 2.dp))
 
-                    OutlinedTextField(
-                        value = editableTvgId,
-                        onValueChange = { editableTvgId = it },
-                        label = { Text("ID EPG Associato") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+							// Info Canale
+							Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+							Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                    Spacer(modifier = Modifier.height(4.dp))
+							Spacer(modifier = Modifier.height(2.dp))
 
-                    Text(
-                        text = "Cerca ID nell'EPG ufficiale:",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
+							OutlinedTextField(
+								value = editableTvgId,
+								onValueChange = { editableTvgId = it },
+								label = { Text("ID EPG Associato") },
+								modifier = Modifier.fillMaxWidth(),
+								singleLine = true
+							)
 
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { 
-                            searchQuery = it 
-                            isDropdownExpanded = it.isNotBlank()
-                        },
-                        placeholder = { Text("Es. Sky Sport, Rai 1, Movistar...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
+							Spacer(modifier = Modifier.height(2.dp))
 
-                    if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 160.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            LazyColumn(modifier = Modifier.padding(4.dp)) {
-                                items(filteredMappings) { mapping: EpgChannelMapping ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                editableTvgId = mapping.siteId
-                                                searchQuery = ""
-                                                isDropdownExpanded = false
-                                            }
-                                            .padding(8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = mapping.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = mapping.siteId,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(fullDetailsText))
-                            Toast.makeText(context, "Dettagli copiati!", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Text("Copia")
-                    }
-                    Button(
-                        onClick = {
-                            onSaveTvgId(editableTvgId.trim())
-                            Toast.makeText(context, "ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
-                            onDismiss()
-                        }
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Salva ID")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("Chiudi")
-                }
-            }
-        )
-    }
+							Text(
+								text = "Cerca ID nell'EPG ufficiale:",
+								style = MaterialTheme.typography.bodySmall,
+								fontWeight = FontWeight.Bold
+							)
+
+							OutlinedTextField(
+								value = searchQuery,
+								onValueChange = { 
+									searchQuery = it 
+									isDropdownExpanded = it.isNotBlank()
+								},
+								placeholder = { Text("Es. Sky Sport, Rai 1, Movistar...") },
+								modifier = Modifier.fillMaxWidth(),
+								singleLine = true,
+								leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+							)
+
+							if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
+								Card(
+									modifier = Modifier
+										.fillMaxWidth()
+										.heightIn(max = 160.dp),
+									elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+								) {
+									LazyColumn(modifier = Modifier.padding(4.dp)) {
+										items(filteredMappings) { mapping: EpgChannelMapping ->
+											Row(
+												modifier = Modifier
+													.fillMaxWidth()
+													.clickable {
+														editableTvgId = mapping.siteId
+														searchQuery = ""
+														isDropdownExpanded = false
+													}
+													.padding(8.dp),
+												horizontalArrangement = Arrangement.SpaceBetween
+											) {
+												Text(
+													text = mapping.name,
+													style = MaterialTheme.typography.bodyMedium,
+													fontWeight = FontWeight.Medium
+												)
+												Text(
+													text = mapping.siteId,
+													style = MaterialTheme.typography.bodySmall,
+													color = MaterialTheme.colorScheme.primary
+												)
+											}
+											Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+										}
+									}
+								}
+							}
+
+							Spacer(modifier = Modifier.height(8.dp))
+
+							// Pulsanti di azione in basso (Chiudi, Copia, Salva ID) ordinati e puliti
+							Row(
+								modifier = Modifier.fillMaxWidth(),
+								horizontalArrangement = Arrangement.spacedBy(8.dp)
+							) {
+								TextButton(
+									onClick = onDismiss,
+									modifier = Modifier.weight(1f)
+								) {
+									Text(
+										text = "Chiudi",
+										color = Color(0xFFEF4444),
+										fontWeight = FontWeight.Bold
+									)
+								}
+								
+								TextButton(
+									onClick = {
+										clipboardManager.setText(AnnotatedString(fullDetailsText))
+										Toast.makeText(context, "Dettagli copiati!", Toast.LENGTH_SHORT).show()
+									},
+									modifier = Modifier.weight(1f)
+								) {
+									Text(
+										text = "Copia",
+										color = MaterialTheme.colorScheme.onSurface,
+										fontWeight = FontWeight.Bold
+									)
+								}
+							}
+
+							Button(
+								onClick = {
+									onSaveTvgId(editableTvgId.trim())
+									Toast.makeText(context, "ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
+									onDismiss()
+								},
+								modifier = Modifier.fillMaxWidth(),
+								colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+							) {
+								Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+								Spacer(modifier = Modifier.width(4.dp))
+								Text(
+									text = "Salva ID",
+									color = MaterialTheme.colorScheme.onSurface,
+									fontWeight = FontWeight.Bold
+								)
+							}
+						}
+					}
+				}
+			}
+		}
+	}		
     
     private fun channelSortNumber(channel: Channel): Int {
     if (channel.number > 0) return channel.number
