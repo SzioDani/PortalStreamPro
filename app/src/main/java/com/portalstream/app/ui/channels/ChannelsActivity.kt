@@ -68,6 +68,7 @@ import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
 import com.portalstream.app.domain.model.Channel
+import com.portalstream.app.domain.model.DttOrder
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
@@ -200,27 +201,31 @@ class ChannelsActivity : ComponentActivity() {
                     portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
                 }
 
-                // ORDINAMENTO INTELLIGENTE CANALI
+                // ORDINAMENTO CANALI STILE DTT
                 val currentChannels = remember(
                     portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
-                    portalChannelsOnly.filter { channel ->
-                        
-                        val matchesGroup = selectedGroup == null || channel.group == selectedGroup
-                        val matchesSearch = searchQuery.isBlank() ||
-                              channel.name.contains(searchQuery, ignoreCase = true)
-                        val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
-                        val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
+                    portalChannelsOnly
+                        .filter { channel ->
+                            val matchesGroup = selectedGroup == null || channel.group == selectedGroup
+                            val matchesSearch = searchQuery.isBlank() ||
+                                    channel.name.contains(searchQuery, ignoreCase = true)
+                            val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
+                            val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
-                        matchesGroup && matchesSearch && matchesFavorites && matchesEpg
-                    }.sortedWith(
-                        compareBy<Channel>(
-                            { channelSortNumber(it) },
-                            { it.name.lowercase() }
-                        )
-                    )
+                            matchesGroup && matchesSearch && matchesFavorites && matchesEpg
+                         }
+                         // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
+                         .map { channel -> channel to (DttOrder.rankOf(channel.name) ?: Int.MAX_VALUE) }
+                         .sortedWith(
+                             compareBy<Pair<Channel, Int>>(
+                                 { it.second },                                                  // 1) posizione DTT
+                                 { if (it.first.number > 0) it.first.number else Int.MAX_VALUE }, // 2) numero del portale
+                                 { it.first.name.lowercase() }                                   // 3) ordine alfabetico
+                             )
+                           )
+                           .map { it.first }
                 }
-
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
                     scope.launch(Dispatchers.IO) {
                         try {
