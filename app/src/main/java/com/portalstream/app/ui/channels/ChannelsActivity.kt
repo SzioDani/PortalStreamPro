@@ -204,25 +204,19 @@ class ChannelsActivity : ComponentActivity() {
                     portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
                     portalChannelsOnly.filter { channel ->
+                        
                         val matchesGroup = selectedGroup == null || channel.group == selectedGroup
                         val matchesSearch = searchQuery.isBlank() ||
-                                channel.name.contains(searchQuery, ignoreCase = true)
+                              channel.name.contains(searchQuery, ignoreCase = true)
                         val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
                         val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
                         matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }.sortedWith(
-                        Comparator { c1, c2 ->
-                            val num1 = c1.number.takeIf { it > 0 } ?: extractChannelNumber(c1.name) ?: Int.MAX_VALUE
-                            val num2 = c2.number.takeIf { it > 0 } ?: extractChannelNumber(c2.name) ?: Int.MAX_VALUE
-                            
-                            val compNum = num1.compareTo(num2)
-                            if (compNum != 0) {
-                                compNum
-                            } else {
-                                c1.name.compareTo(c2.name, ignoreCase = true)
-                            }
-                        }
+                        compareBy<Channel>(
+                            { channelSortNumber(it) },
+                            { it.name.lowercase() }
+                        )
                     )
                 }
 
@@ -1480,7 +1474,13 @@ class ChannelsActivity : ComponentActivity() {
             }
         )
     }
-
+    
+    private fun channelSortNumber(channel: Channel): Int {
+    if (channel.number > 0) return channel.number
+    val fromName: Int? = extractChannelNumber(channel.name)
+    return fromName ?: Int.MAX_VALUE   // Senza numero finisce in fondo alla lista
+    }
+    
     private fun extractChannelNumber(name: String): Int {
         val regex = Regex("""\b(\d+)\b""")
         val match = regex.find(name)
