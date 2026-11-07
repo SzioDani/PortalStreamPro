@@ -68,7 +68,7 @@ import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.data.repository.EpgInfo
 import com.portalstream.app.data.repository.EpgRepository
 import com.portalstream.app.domain.model.Channel
-import com.portalstream.app.domain.model.DttOrder
+import com.portalstream.app.domain.DttOrder
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.network.XtreamClient
 import com.portalstream.app.streaming.M3UParser
