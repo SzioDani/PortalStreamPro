@@ -23,8 +23,8 @@ object DttOrder {
         listOf("rai 5"),
         listOf("rai movie"),
         listOf("rai premium"),
-        listOf("cielo"),
-        listOf("twenty seven", "27 twenty seven", "27"),
+        listOf("cielo", "cielo TV", "Cielo Tv", "Cielo TV"),
+        listOf("twenty seven", "27 twenty seven", "27", "27 Twenty Seven", "27 TwentySeven", "Twentyseven"),
         listOf("tv2000", "tv 2000"),
         listOf("la7d", "la7 d"),
         listOf("la5", "la 5"),
@@ -51,7 +51,10 @@ object DttOrder {
         listOf("rai scuola"),
         listOf("sky tg24", "sky tg 24"),
         listOf("tgcom24", "tgcom 24"),
-        listOf("dmax", "d max")
+        listOf("dmax", "d max", "DMAX", "DMax", "Dmax"),
+        listOf("Hgtv-Home & Garden", "HGTV-Home & Garden"),
+        listOf("Motor Trend", "MOTOR TREND", "motor trend", "Turbo", "turbo", "TURBO")
+        
         // 👆 Aggiungi/sposta qui i canali per raggiungere l'ordine che vuoi
     )
 
