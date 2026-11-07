@@ -186,8 +186,8 @@ class ChannelsActivity : ComponentActivity() {
                 var statusMessage by remember { mutableStateOf("") }
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
-                var epgInfoMap by remember { mutableStateOf>(emptyMap()) }
-                var epgProgramsMap by remember { mutableStateOf>>(emptyMap()) }
+                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
+                var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
 
                 val portalChannelsOnly = remember(allChannels, portalPrefix, portalId) {
                     allChannels.filter { channel ->
