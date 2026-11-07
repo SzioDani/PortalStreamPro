@@ -419,7 +419,7 @@ fun PortalFormDialog(
                     }) {
                         Text(
                             text = if (existing == null) "Salva" else "OK", 
-                            color = Color(0xFFEF4444), 
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                     }
