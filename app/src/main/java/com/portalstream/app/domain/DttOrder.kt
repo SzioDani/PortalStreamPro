@@ -8,12 +8,12 @@ package com.portalstream.app.domain
 object DttOrder {
 
     private val order: List<List<String>> = listOf(
-        listOf("rai 1", "rai uno"),                          // 1
-        listOf("rai 2", "rai due"),                          // 2
-        listOf("rai 3", "rai tre"),                          // 3
-        listOf("rete 4"),                                    // 4
-        listOf("canale 5"),                                  // 5
-        listOf("italia 1"),                                  // 6
+        listOf("rai 1", "rai uno", "Rai 1", "Rai Uno", "Rai1"),                          // 1
+        listOf("rai 2", "rai due", "Rai 2", "Rai Due", "Rai2"),                          // 2
+        listOf("rai 3", "rai tre", "Rai 3", "Rai Tre", "Rai3"),                          // 3
+        listOf("rete 4", "Rete 4","Rete4"),                                    // 4
+        listOf("canale 5", "Canale 5"),                                  // 5
+        listOf("italia 1", "Italia 1"),                                  // 6
         listOf("la7", "la 7"),                               // 7
         listOf("tv8", "tv 8"),                               // 8
         listOf("nove", "9"),                                 // 9
