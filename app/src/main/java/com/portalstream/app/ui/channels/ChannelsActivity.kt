@@ -211,20 +211,22 @@ class ChannelsActivity : ComponentActivity() {
                             val matchesSearch = searchQuery.isBlank() ||
                                     channel.name.contains(searchQuery, ignoreCase = true)
                             val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
-                            val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
+                            val matchesEpg = !showOnlyEpg ||
+                                    channel.tvgId.isNotBlank() ||
+                                    channel.customSid.isNotBlank()
 
                             matchesGroup && matchesSearch && matchesFavorites && matchesEpg
-                         }
-                         // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
-                         .map { channel -> channel to (DttOrder.rankOf(channel.name) ?: Int.MAX_VALUE) }
-                         .sortedWith(
-                             compareBy<Pair<Channel, Int>>(
-                                 { it.second },                                                  // 1) posizione DTT
-                                 { if (it.first.number > 0) it.first.number else Int.MAX_VALUE }, // 2) numero del portale
-                                 { it.first.name.lowercase() }                                   // 3) ordine alfabetico
-                             )
-                           )
-                           .map { it.first }
+                        }
+                        // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
+                        .map { channel -> channel to (DttOrder.rankOf(channel.name) ?: Int.MAX_VALUE) }
+                        .sortedWith(
+                            compareBy<Pair<Channel, Int>>(
+                                { it.second },                                                    // 1) posizione DTT
+                                { if (it.first.number > 0) it.first.number else Int.MAX_VALUE }, // 2) numero del portale
+                                { it.first.name.lowercase() }                                     // 3) ordine alfabetico
+                            )
+                        )
+                        .map { it.first }
                 }
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
                     scope.launch(Dispatchers.IO) {
