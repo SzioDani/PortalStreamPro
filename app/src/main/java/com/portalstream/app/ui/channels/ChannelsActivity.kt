@@ -199,7 +199,7 @@ class ChannelsActivity : ComponentActivity() {
                     portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
                 }
 
-                                // ORDINAMENTO INTELLIGENTE CANALI
+                // ORDINAMENTO INTELLIGENTE CANALI
                 val currentChannels = remember(
                     portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
@@ -212,11 +212,10 @@ class ChannelsActivity : ComponentActivity() {
 
                         matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }.sortedWith(
-                        compareBy<Channel> { channel: Channel ->
-                            channel.number.toIntOrNull() ?: extractChannelNumber(channel.name) ?: 9999
-                        }.thenBy { channel: Channel ->
-                            channel.name
-                        }
+                        compareBy(
+                            { it.number.toIntOrNull() ?: extractChannelNumber(it.name) },
+                            { it.name }
+                        )
                     )
                 }
 
