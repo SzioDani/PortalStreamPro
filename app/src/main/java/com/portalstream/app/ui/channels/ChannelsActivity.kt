@@ -146,14 +146,14 @@ class ChannelsActivity : ComponentActivity() {
 
             // TEMA SCURO OTTIMIZZATO
             val customDarkScheme = darkColorScheme(
-                primary = colorResource(id = R.color.primary),
-                secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFF0B0F19),
-                surface = Color(0xFF131B2E),
-                onBackground = Color(0xFFF8FAFC),
-                onSurface = Color(0xFFF8FAFC),
-                surfaceVariant = Color(0xFF1E293B),
-                outline = Color(0xFF334155)
+                primary = colorResource(id = R.color.primary),       // Colore primario (pulsanti principali, accenti)
+                secondary = colorResource(id = R.color.secondary),   // Colore secondario (es. pulsante EPG)
+                background = Color(0xFF0B0F19),                      // Sfondo generale dell'Activity
+                surface = Color(0xFF131B2E),                         // Sfondo delle card, dei dialoghi e delle superfici
+                onBackground = Color(0xFFF8FAFC),                    // Colore del testo/icone sopra il background
+                onSurface = Color(0xFFF8FAFC),                       // Colore del testo/icone sopra le superfici e i dialoghi
+                surfaceVariant = Color(0xFF1E293B),                  // Sfondo alternativo per elementi secondari (es. pulsanti non attivi)
+                outline = Color(0xFF334155)                          // Colore dei bordi e delle linee divisorie (divider)
             )
 
             MaterialTheme(
