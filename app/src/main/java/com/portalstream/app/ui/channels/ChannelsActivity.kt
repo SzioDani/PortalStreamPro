@@ -212,11 +212,11 @@ class ChannelsActivity : ComponentActivity() {
 
                         matchesGroup && matchesSearch && matchesFavorites && matchesEpg
                     }.sortedWith(
-                        Comparator.comparing<Channel, Int> { channel ->
+                        compareBy<Channel, Int> { channel ->
                             channel.number.toIntOrNull() ?: extractChannelNumber(channel.name) ?: 9999
-                        }.thenComparing(
-                            Comparator.comparing { channel: Channel -> channel.name }
-                        )
+                        }.thenBy { channel ->
+                            channel.name
+                        }
                     )
                 }
 
