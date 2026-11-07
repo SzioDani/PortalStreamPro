@@ -447,7 +447,7 @@ class ChannelsActivity : ComponentActivity() {
 								) {
 									Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
 									Spacer(modifier = Modifier.width(8.dp))
-									Text("Aggiorna Lista Canali")
+									Text("Aggiorna Lista Canali", fontWeight = FontWeight.Bold)
 								}
 
 								Divider()
@@ -473,10 +473,14 @@ class ChannelsActivity : ComponentActivity() {
 											label = {
                                                 Text(
                                                     text = country,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    maxLines = 1
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1  
                                                 )
                                             },
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                enabled = true,
+                                                selected = isSelected
+                                            ),
 											modifier = Modifier.weight(1f)
 										)
 									}
@@ -524,7 +528,7 @@ class ChannelsActivity : ComponentActivity() {
 								) {
 									Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
 									Spacer(modifier = Modifier.width(8.dp))
-									Text("Aggiorna EPG [$selectedCountry]")
+									Text("Aggiorna EPG [ $selectedCountry ]", fontWeight = FontWeight.Bold)
 								}
 
 								Divider()
