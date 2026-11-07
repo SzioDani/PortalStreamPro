@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -30,7 +31,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
@@ -77,7 +80,6 @@ import java.net.URL
 import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
-import androidx.compose.ui.res.colorResource
 import com.portalstream.app.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -102,7 +104,6 @@ class ChannelsActivity : ComponentActivity() {
         val macAddress = intent.getStringExtra(EXTRA_MAC) ?: ""
         val expireDate = intent.getStringExtra(EXTRA_EXPIRE_DATE) ?: ""
 
-        // 🔑 Impronta Digitale Unica del portale (distingue anche due MAC :03 e :05 sullo stesso server!)
         val portalIdentity = PortalIdentity(
             portalId = portalId,
             name = title,
@@ -130,18 +131,32 @@ class ChannelsActivity : ComponentActivity() {
             var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
             var epgTextSize by remember { mutableStateOf(appPrefs.getFloat("epg_text_size", 14f)) }
             
+            // TEMA CHIARO PROFESSIONALE
             val customLightScheme = lightColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFCBD5E1),   // Sfondo generale della schermata (grigio-azzurro medio per dare stacco)
-                surface = Color(0xFFc9d1db),       // Le CARD: un bianco sporco/grigio lunare chiarissimo (perfetto per non far sparire i loghi bianchi)
-                onBackground = Color(0xFF0F172A),  // Testo scuro per i titoli e la barra in alto
-                onSurface = Color(0xFF0F172A),     // Testo scuro e ben marcato dentro le card
-                surfaceVariant = Color(0xFF94A3B8) // Per i pulsanti secondari in alto (Preferiti, Gruppi, Guida TV)
+                background = Color(0xFFF1F5F9),
+                surface = Color(0xFFFFFFFF),
+                onBackground = Color(0xFF0F172A),
+                onSurface = Color(0xFF0F172A),
+                surfaceVariant = Color(0xFFE2E8F0),
+                outline = Color(0xFFCBD5E1)
+            )
+
+            // TEMA SCURO OTTIMIZZATO
+            val customDarkScheme = darkColorScheme(
+                primary = colorResource(id = R.color.primary),
+                secondary = colorResource(id = R.color.secondary),
+                background = Color(0xFF0B0F19),
+                surface = Color(0xFF131B2E),
+                onBackground = Color(0xFFF8FAFC),
+                onSurface = Color(0xFFF8FAFC),
+                surfaceVariant = Color(0xFF1E293B),
+                outline = Color(0xFF334155)
             )
 
             MaterialTheme(
-                colorScheme = if (darkTheme) darkColorScheme() else customLightScheme
+                colorScheme = if (darkTheme) customDarkScheme else customLightScheme
             ) {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
                 val localChannels = remember { ChannelCache.take() }
@@ -171,10 +186,9 @@ class ChannelsActivity : ComponentActivity() {
                 var statusMessage by remember { mutableStateOf("") }
                 var showGroupDialog by remember { mutableStateOf(false) }
                 var groupSearchQuery by remember { mutableStateOf("") }
-                var epgInfoMap by remember { mutableStateOf<Map<String, EpgInfo>>(emptyMap()) }
-                var epgProgramsMap by remember { mutableStateOf<Map<String, List<EpgProgram>>>(emptyMap()) }
+                var epgInfoMap by remember { mutableStateOf>(emptyMap()) }
+                var epgProgramsMap by remember { mutableStateOf>>(emptyMap()) }
 
-                // Filtra rigorosamente SOLO i canali appartenenti a QUESTO portale
                 val portalChannelsOnly = remember(allChannels, portalPrefix, portalId) {
                     allChannels.filter { channel ->
                         channel.id.startsWith(portalPrefix) || (portalId == 0 && !channel.id.startsWith("ch_"))
@@ -185,6 +199,7 @@ class ChannelsActivity : ComponentActivity() {
                     portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
                 }
 
+                // ORDINAMENTO INTELLIGENTE CANALI
                 val currentChannels = remember(
                     portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
                 ) {
@@ -196,7 +211,13 @@ class ChannelsActivity : ComponentActivity() {
                         val matchesEpg = !showOnlyEpg || channel.tvgId.isNotBlank() || channel.customSid.isNotBlank()
 
                         matchesGroup && matchesSearch && matchesFavorites && matchesEpg
-                    }
+                    }.sortedWith(
+                        compareBy<Channel> { 
+                            it.number.toIntOrNull() ?: extractChannelNumber(it.name) ?: 9999
+                        }.thenBy { 
+                            it.name 
+                        }
+                    )
                 }
 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
@@ -207,11 +228,7 @@ class ChannelsActivity : ComponentActivity() {
                                 statusMessage = ""
                             }
 
-                            // 1. Controlliamo subito il nostro file JSON visibile (epg_mappings.json)
                             val savedJsonMappings = epgMappingStore.getSavedMappings(portalIdentity)
-
-                            // Se non è un refresh manuale e abbiamo già i canali di QUESTO portale nel DB,
-                            // evitiamo persino di riscaricare la lista da internet!
                             val existingPortalChannels = channelDao.getAllChannelsList().filter {
                                 it.id.startsWith(portalPrefix)
                             }
@@ -273,7 +290,6 @@ class ChannelsActivity : ComponentActivity() {
                                     val validFetched = fetched.mapIndexed { index, channel ->
                                         val rawPart = if (channel.id.isBlank()) "${index}_${channel.name.hashCode()}" else channel.id
                                         val safeId = "$portalPrefix$rawPart"
-                                        // Se esiste già un ID EPG nel nostro JSON per questo preciso safeId, lo applichiamo subito!
                                         val savedTvgId = savedJsonMappings?.get(safeId) ?: channel.tvgId
                                         channel.copy(
                                             id = safeId,
@@ -281,7 +297,6 @@ class ChannelsActivity : ComponentActivity() {
                                             tvgId = savedTvgId
                                         )
                                     }
-                                    // Pulisce vecchi canali di questo portale e salva quelli nuovi
                                     channelDao.deleteChannelsByPlaylist(portalId)
                                     channelDao.deleteChannelsByPrefix("ch_${portalId}_")
                                     channelDao.insertChannels(validFetched)
@@ -299,13 +314,10 @@ class ChannelsActivity : ComponentActivity() {
                                     }
                                 }
 
-                                // 🟢 GESTIONE INTELLIGENTE EPG TRAMITE IL FILE JSON
                                 withContext(Dispatchers.Main) { isEpgLoading = true }
                                 try {
                                     val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
 
-                                    // Se NON avevamo ancora il portale nel file JSON (prima apertura o MAC cambiato),
-                                    // facciamo la ricerca automatica SOLO per questo portale e salviamo tutto nel JSON!
                                     val finalPortalChannels = if (savedJsonMappings == null) {
                                         Log.d(TAG, "🔍 Prima configurazione EPG per portale $portalId: avvio ricerca automatica e salvataggio su JSON...")
                                         val associated = epgRepository.autoAssociatePortalChannels(
@@ -321,7 +333,6 @@ class ChannelsActivity : ComponentActivity() {
                                         portalChannelsToUse
                                     }
 
-                                    // Calcola i programmi SOLO per i canali di QUESTO portale!
                                     val newInfoMap = epgRepository.getAllCurrentEpg(finalPortalChannels, countryToUse)
                                     val newProgramsMap = epgRepository.getProgramsForChannels(finalPortalChannels, countryToUse)
 
@@ -360,7 +371,13 @@ class ChannelsActivity : ComponentActivity() {
                 if (showSettingsDialog) {
                     AlertDialog(
                         onDismissRequest = { showSettingsDialog = false },
-                        title = { Text("⚙️ Opzioni Lista Canali") },
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Opzioni Lista Canali")
+                            }
+                        },
                         text = {
                             Column(
                                 modifier = Modifier
@@ -412,13 +429,14 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text("🔄 Aggiorna Lista Canali")
                                 }
 
                                 Divider()
 
                                 Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                
                                 Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 var selectedCountry by remember { 
                                     mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
@@ -450,7 +468,7 @@ class ChannelsActivity : ComponentActivity() {
                                         val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
                                         scope.launch(Dispatchers.IO) {
                                             withContext(Dispatchers.Main) {
-                                                isEpgLoading = true // 👈 Attiva il bannerino!
+                                                isEpgLoading = true
                                             }
                                             try {
                                                 val currentPortalList = channelDao.getAllChannelsList().filter {
@@ -474,7 +492,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 }
                                             } finally {
                                                 withContext(Dispatchers.Main) {
-                                                    isEpgLoading = false // 👈 Nasconde il bannerino quando ha finito!
+                                                    isEpgLoading = false
                                                 }
                                             }
                                         }
@@ -482,13 +500,14 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                 ) {
+                                    Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text("🔄 Aggiorna EPG [$selectedCountry]")
                                 }
 
                                 Divider()
 
                                 Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                
                                 Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
                                 Slider(
                                     value = channelTextSize,
@@ -543,7 +562,7 @@ class ChannelsActivity : ComponentActivity() {
                                         .height(44.dp)
                                         .padding(bottom = 8.dp),
                                     shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                                 ) {
                                     Row(
@@ -650,7 +669,7 @@ class ChannelsActivity : ComponentActivity() {
                     )
                 }
 
-                Surface(modifier = Modifier.fillMaxSize()) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val configuration = LocalConfiguration.current
                     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -663,10 +682,10 @@ class ChannelsActivity : ComponentActivity() {
                                 LottieAnimation(
                                     composition = composition,
                                     iterations = LottieConstants.IterateForever,
-                                    modifier = Modifier.size(160.dp) // Modifica la dimensione a piacimento (es. 64.dp, 80.dp, ecc.)
+                                    modifier = Modifier.size(160.dp)
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Caricamento canali...")
+                                Text("Caricamento canali...", color = MaterialTheme.colorScheme.onBackground)
                             }
                         }
                     } else {
@@ -685,7 +704,8 @@ class ChannelsActivity : ComponentActivity() {
                                 Text(
                                     text = title,
                                     style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                                 IconButton(
                                     onClick = { showSettingsDialog = true },
@@ -695,7 +715,7 @@ class ChannelsActivity : ComponentActivity() {
                                         Icons.Default.Settings,
                                         contentDescription = "Impostazioni",
                                         modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurface
+                                        tint = MaterialTheme.colorScheme.onBackground
                                     )
                                 }
                             }
@@ -706,7 +726,7 @@ class ChannelsActivity : ComponentActivity() {
                                     .height(44.dp)
                                     .padding(bottom = if (isLandscape) 4.dp else 8.dp),
                                 shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                             ) {
                                 Row(
@@ -718,7 +738,7 @@ class ChannelsActivity : ComponentActivity() {
                                     Icon(
                                         imageVector = Icons.Default.Search,
                                         contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
+                                        modifier = Modifier.size(18.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -816,14 +836,13 @@ class ChannelsActivity : ComponentActivity() {
                                 )
                             }
 
-                            // 🟡 BANNERINO DISCRETO IN ALTO DURANTE IL CARICAMENTO EPG
                             if (isEpgLoading) {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 8.dp),
                                     shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.secondaryContainer
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -849,7 +868,6 @@ class ChannelsActivity : ComponentActivity() {
                             }
 
                             if (showOnlyEpg && isEpgLoading && epgProgramsMap.isEmpty()) {
-                                // 📺 SCHERMATA DEDICATA SE PREMI "GUIDA TV" MENTRE L'EPG STA ANCORA ARRIVANDO
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
@@ -866,10 +884,9 @@ class ChannelsActivity : ComponentActivity() {
                                     }
                                 }
                             } else if (currentChannels.isEmpty()) {
-                                // ❌ CASO LISTA VUOTA NORMALE
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text(
-                                        text = if (statusMessage.isNotBlank()) statusMessage else "🔍 Nessun canale trovato",
+                                        text = if (statusMessage.isNotBlank()) statusMessage else "Nessun canale trovato",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center
@@ -917,7 +934,7 @@ class ChannelsActivity : ComponentActivity() {
                                                     }
                                                 } catch (e: Exception) {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(this@ChannelsActivity, "❌ Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(this@ChannelsActivity, "Errore: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                                                     }
                                                 } finally {
                                                     withContext(Dispatchers.Main) { loadingChannelId = null }
@@ -970,7 +987,6 @@ class ChannelsActivity : ComponentActivity() {
                             scope.launch(Dispatchers.IO) {
                                 val updatedChannel = selectedChannel.copy(tvgId = newTvgId)
                                 channelDao.insertChannel(updatedChannel)
-                                // 💾 Salva immediatamente l'ID manuale anche dentro epg_mappings.json!
                                 epgMappingStore.saveSingleChannelMapping(portalIdentity, updatedChannel, newTvgId)
 
                                 val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
@@ -1014,13 +1030,18 @@ class ChannelsActivity : ComponentActivity() {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 5.dp)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(16.dp)
+                )
                 .combinedClickable(
                     onClick = onPlayClick,
                     onLongClick = onLongClick
                 ),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
-            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Row(
@@ -1063,7 +1084,6 @@ class ChannelsActivity : ComponentActivity() {
 
                     if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        // 🟢 PROGRAMMA IN CORSO
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -1081,7 +1101,7 @@ class ChannelsActivity : ComponentActivity() {
                             }
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "${epgInfo.currentProgram}",
+                                text = epgInfo.currentProgram,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colorResource(id = R.color.text_neonciano),
                                 fontWeight = FontWeight.Medium,
@@ -1100,7 +1120,6 @@ class ChannelsActivity : ComponentActivity() {
                             }
                         }
                         Spacer(modifier = Modifier.height(2.dp))
-                        // ⏭️ PROGRAMMA SUCCESSIVO ("Dopo:")
                         if (epgInfo.nextProgram.isNotBlank()) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1117,9 +1136,9 @@ class ChannelsActivity : ComponentActivity() {
                                       tint = colorResource(id = R.color.text_pinkcyber)
                                   )
                                 }
-                                   Spacer(modifier = Modifier.width(4.dp))
-                                   Text(
-                                   text = "${epgInfo.nextProgram}",
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                   text = epgInfo.nextProgram,
                                    style = MaterialTheme.typography.labelSmall,
                                    color = colorResource(id = R.color.text_pinkcyber),
                                    fontWeight = FontWeight.Medium,
@@ -1168,20 +1187,19 @@ class ChannelsActivity : ComponentActivity() {
     ) {
         val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
         val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
-        
         var expandedProgramKey by remember { mutableStateOf<String?>(null) }
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 6.dp)
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), shape = RoundedCornerShape(16.dp))
                 .combinedClickable(
                     onClick = onPlayClick,
                     onLongClick = onLongClick
                 ),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -1196,11 +1214,15 @@ class ChannelsActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = "▶ Avvia",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Avvia",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
@@ -1216,11 +1238,6 @@ class ChannelsActivity : ComponentActivity() {
                         epgPrograms.forEach { prog ->
                             val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
-                            
-                            val mainTitle = prog.title
-                            val subTitle = prog.subTitle ?: ""
-                            val episodeInfo = prog.episodeNum ?: ""
-                            
                             val progKey = "${prog.title}_${prog.startTime}"
                             val isExpanded = expandedProgramKey == progKey
 
@@ -1230,9 +1247,9 @@ class ChannelsActivity : ComponentActivity() {
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(
                                         color = if (isCurrent) 
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
                                         else
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                     )
                                     .clickable {
                                         expandedProgramKey = if (isExpanded) null else progKey
@@ -1249,7 +1266,7 @@ class ChannelsActivity : ComponentActivity() {
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
-                                            text = mainTitle,
+                                            text = prog.title,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                             color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -1257,22 +1274,6 @@ class ChannelsActivity : ComponentActivity() {
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
                                         )
-                                        
-                                        if (episodeInfo.isNotBlank()) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = " $episodeInfo ",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-
                                         if (isCurrent) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
@@ -1297,18 +1298,6 @@ class ChannelsActivity : ComponentActivity() {
                                         color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1
-                                    )
-                                }
-
-                                if (subTitle.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "• $subTitle",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 1f).sp),
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
@@ -1367,11 +1356,15 @@ class ChannelsActivity : ComponentActivity() {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = {
-                Text(
-                    text = "ℹ️ Dettagli & Assegnazione EPG",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Dettagli & Assegnazione EPG",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             },
             text = {
                 Column(
@@ -1381,14 +1374,14 @@ class ChannelsActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall)
+                    Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     Divider(modifier = Modifier.padding(vertical = 4.dp))
 
                     OutlinedTextField(
                         value = editableTvgId,
                         onValueChange = { editableTvgId = it },
-                        label = { Text("ID EPG Associato carico il palinsesto...") },
+                        label = { Text("ID EPG Associato") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -1396,7 +1389,7 @@ class ChannelsActivity : ComponentActivity() {
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "🔍 Cerca ID nell'EPG ufficiale:",
+                        text = "Cerca ID nell'EPG ufficiale:",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -1409,7 +1402,8 @@ class ChannelsActivity : ComponentActivity() {
                         },
                         placeholder = { Text("Es. Sky Sport, Rai 1, Movistar...") },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                     )
 
                     if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
@@ -1463,10 +1457,12 @@ class ChannelsActivity : ComponentActivity() {
                     Button(
                         onClick = {
                             onSaveTvgId(editableTvgId.trim())
-                            Toast.makeText(context, "✅ ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         }
                     ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Salva ID")
                     }
                 }
@@ -1477,6 +1473,12 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         )
+    }
+
+    private fun extractChannelNumber(name: String): Int {
+        val regex = Regex("""\b(\d+)\b""")
+        val match = regex.find(name)
+        return match?.value?.toIntOrNull() ?: 9999
     }
 
     private fun extractRawId(safeId: String): String {
