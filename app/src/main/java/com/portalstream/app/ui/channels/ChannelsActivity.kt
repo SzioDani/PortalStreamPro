@@ -134,7 +134,7 @@ class ChannelsActivity : ComponentActivity() {
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
                 background = Color(0xFFCBD5E1),   // Sfondo generale della schermata (grigio-azzurro medio per dare stacco)
-                surface = Color(0xFFF8FAFC),       // Le CARD: un bianco sporco/grigio lunare chiarissimo (perfetto per non far sparire i loghi bianchi)
+                surface = Color(0xFFc9d1db),       // Le CARD: un bianco sporco/grigio lunare chiarissimo (perfetto per non far sparire i loghi bianchi)
                 onBackground = Color(0xFF0F172A),  // Testo scuro per i titoli e la barra in alto
                 onSurface = Color(0xFF0F172A),     // Testo scuro e ben marcato dentro le card
                 surfaceVariant = Color(0xFF94A3B8) // Per i pulsanti secondari in alto (Preferiti, Gruppi, Guida TV)
