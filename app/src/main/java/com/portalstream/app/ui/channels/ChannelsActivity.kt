@@ -463,7 +463,13 @@ class ChannelsActivity : ComponentActivity() {
 												selectedCountry = country
 												appPrefs.edit().putString("epg_country_filter", country).apply()
 											},
-											label = { Text(country, style = MaterialTheme.typography.labelMedium) },
+											label = {
+                                                Text(
+                                                    text = country,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    maxLines = 1
+                                                )
+                                            },
 											modifier = Modifier.weight(1f)
 										)
 									}
