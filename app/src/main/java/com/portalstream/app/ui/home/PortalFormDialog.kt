@@ -190,11 +190,37 @@ fun PortalFormDialog(
         else -> "Portale"
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .width(320.dp) // Larghezza stretta e coerente con l'altro dialogo
+                .border(
+                    width = 1.5.dp,
+                    color = Color(0xFF00E5FF), // Cornice ciano neon coordinata
+                    shape = RoundedCornerShape(28.dp)
+                ),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Titolo del Dialog
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -215,13 +241,15 @@ fun PortalFormDialog(
                             maxLines = 2
                         )
                         Spacer(Modifier.height(4.dp))
-                        Row {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             OutlinedButton(onClick = {
                                 clipboard.getText()?.text?.let { url = it }
                             }) {
                                 Text("Incolla")
                             }
-                            Spacer(Modifier.width(8.dp))
                             OutlinedButton(onClick = onPickFile) {
                                 Text("Sfoglia file")
                             }
@@ -357,39 +385,46 @@ fun PortalFormDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val base = existing ?: Portal(id = 0)
-                onSave(
-                    base.copy(
-                        name = name.trim(),
-                        type = type,
-                        url = url.trim(),
-                        macAddress = mac.trim(),
-                        server = server.trim(),
-                        username = username.trim(),
-                        password = password,
-                        streamFormat = streamFormat,
-                        forceStreamLink = forceLink,
-                        useVpn = useVpn,
-                        profile = profile.trim(),
-                        useCustomUserAgent = useCustomUa,
-                        userAgent = userAgent.trim()
-                    )
-                )
-            }) {
-                Text(if (existing == null) "Salva" else "OK", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { 
-                Text(
-                    text = "Annulla",
-                    color = Color(0xFFEF4444)
-                )       
+
+                Spacer(Modifier.height(16.dp))
+
+                // Pulsanti Annulla e Salva disposti in basso in modo pulito
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) { 
+                        Text("Annulla", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold) 
+                    }
+                    TextButton(onClick = {
+                        val base = existing ?: Portal(id = 0)
+                        onSave(
+                            base.copy(
+                                name = name.trim(),
+                                type = type,
+                                url = url.trim(),
+                                macAddress = mac.trim(),
+                                server = server.trim(),
+                                username = username.trim(),
+                                password = password,
+                                streamFormat = streamFormat,
+                                forceStreamLink = forceLink,
+                                useVpn = useVpn,
+                                profile = profile.trim(),
+                                useCustomUserAgent = useCustomUa,
+                                userAgent = userAgent.trim()
+                            )
+                        )
+                    }) {
+                        Text(
+                            text = if (existing == null) "Salva" else "OK", 
+                            color = Color(0xFFEF4444), 
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
-    )
+    }
 }
