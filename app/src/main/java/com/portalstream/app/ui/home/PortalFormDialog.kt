@@ -150,7 +150,7 @@ fun AddPortalTypeDialog(
                 ) {
                     Text(
                         text = "Annulla",
-                        color = Color(0xFFFF5252),
+                        color = Color(0xFFEF4444),
                         fontWeight = FontWeight.Bold
                     )
                 }
