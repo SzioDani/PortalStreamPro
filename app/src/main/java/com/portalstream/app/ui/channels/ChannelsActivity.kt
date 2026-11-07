@@ -586,125 +586,199 @@ class ChannelsActivity : ComponentActivity() {
 					}
 				}
 
-
                 if (showGroupDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showGroupDialog = false },
-                        title = { Text("Seleziona Gruppo") },
-                        text = {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(44.dp)
-                                        .padding(bottom = 8.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Search,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(
-                                            modifier = Modifier.weight(1f),
-                                            contentAlignment = Alignment.CenterStart
-                                        ) {
-                                            if (groupSearchQuery.isEmpty()) {
-                                                Text(
-                                                    text = "Cerca categoria...",
-                                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                            BasicTextField(
-                                                value = groupSearchQuery,
-                                                onValueChange = { groupSearchQuery = it },
+				    Dialog(onDismissRequest = { showGroupDialog = false }) {
+				        Surface(
+				            modifier = Modifier
+				                .fillMaxWidth(0.88f)
+				                .wrapContentHeight(),
+				            shape = RoundedCornerShape(24.dp),
+				            color = MaterialTheme.colorScheme.surface,
+				            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
+				        ) {
+				            Column(
+				                modifier = Modifier
+				                    .padding(20.dp)
+				                    .verticalScroll(rememberScrollState()),
+				                verticalArrangement = Arrangement.spacedBy(14.dp)
+				            ) {
+				                // Intestazione del Dialog
+				                Row(verticalAlignment = Alignment.CenterVertically) {
+				                    Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+				                    Spacer(modifier = Modifier.width(8.dp))
+				                    Text(
+				                        text = "Seleziona Gruppo",
+				                        style = MaterialTheme.typography.titleMedium,
+				                        fontWeight = FontWeight.Bold
+				                    )
+				                }
+				
+				                Divider(modifier = Modifier.padding(vertical = 2.dp))
+				
+				                // Barra di ricerca della categoria
+				                Surface(
+				                    modifier = Modifier
+				                        .fillMaxWidth()
+				                        .height(44.dp),
+				                    shape = RoundedCornerShape(12.dp),
+				                    color = MaterialTheme.colorScheme.surfaceVariant,
+				                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+				                ) {
+				                    Row(
+				                        modifier = Modifier
+				                            .fillMaxSize()
+				                            .padding(horizontal = 12.dp),
+				                        verticalAlignment = Alignment.CenterVertically
+				                    ) {
+				                        Icon(
+				                            imageVector = Icons.Default.Search,
+				                            contentDescription = null,
+				                            modifier = Modifier.size(18.dp),
+				                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+				                        )
+				                        Spacer(modifier = Modifier.width(8.dp))
+				                        Box(
+				                            modifier = Modifier.weight(1f),
+				                            contentAlignment = Alignment.CenterStart
+				                        ) {
+				                            if (groupSearchQuery.isEmpty()) {
+				                                Text(
+				                                    text = "Cerca categoria...",
+				                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+				                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+				                                )
+				                            }
+				                            BasicTextField(
+				                                value = groupSearchQuery,
+				                                onValueChange = { groupSearchQuery = it },
                                                 singleLine = true,
-                                                textStyle = MaterialTheme.typography.bodySmall.copy(
-                                                    fontSize = 13.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                ),
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                        if (groupSearchQuery.isNotEmpty()) {
-                                            IconButton(
-                                                onClick = { groupSearchQuery = "" },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Clear,
-                                                    contentDescription = "Cancella",
-                                                    modifier = Modifier.size(16.dp),
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
-                                    val baseList = if (groupSearchQuery.isBlank()) allGroups
-                                    else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
-                                    baseList.sortedWith(compareByDescending<String> { favoriteGroups.contains(it) }.thenBy { it })
-                                }
-
-                                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)) {
-                                    item {
-                                        ListItem(
-                                            headlineContent = { Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyMedium) },
-                                            modifier = Modifier.clickable {
-                                                selectedGroup = null
-                                                showOnlyFavorites = false
-                                                showOnlyEpg = false
-                                                showGroupDialog = false
-                                            }
-                                        )
-                                        Divider()
-                                    }
-                                    items(filteredGroups) { group ->
-                                        val isFavGroup = favoriteGroups.contains(group)
-                                        ListItem(
-                                            headlineContent = { Text(group.ifBlank { "Generale" }, style = MaterialTheme.typography.bodyMedium) },
-                                            trailingContent = {
-                                                IconButton(onClick = {
-                                                    val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
-                                                    favoriteGroups = newFavs
-                                                    prefs.edit().putStringSet("favorite_groups", newFavs).apply()
-                                                }, modifier = Modifier.size(24.dp)) {
-                                                    Icon(
-                                                        imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                                        contentDescription = null,
-                                                        tint = if (isFavGroup) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                            },
-                                            modifier = Modifier.clickable {
-                                                selectedGroup = group
-                                                showOnlyFavorites = false
-                                                showOnlyEpg = false
-                                                showGroupDialog = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showGroupDialog = false }) { Text("Chiudi") }
-                        }
-                    )
-                }
+				                                textStyle = MaterialTheme.typography.bodySmall.copy(
+				                                    fontSize = 13.sp,
+				                                    color = MaterialTheme.colorScheme.onSurface
+				                                ),
+				                                modifier = Modifier.fillMaxWidth()
+				                            )
+				                        }
+				                        if (groupSearchQuery.isNotEmpty()) {
+				                            IconButton(
+				                                onClick = { groupSearchQuery = "" },
+				                                modifier = Modifier.size(24.dp)
+				                            ) {
+				                                Icon(
+				                                    imageVector = Icons.Default.Clear,
+				                                    contentDescription = "Cancella",
+				                                    modifier = Modifier.size(16.dp),
+				                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+				                                )
+				                            }
+				                        }
+				                    }
+				                }
+				
+				                val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
+				                    val baseList = if (groupSearchQuery.isBlank()) allGroups
+				                    else allGroups.filter { it.contains(groupSearchQuery, ignoreCase = true) }
+				                    baseList.sortedWith(compareByDescending<String> { favoriteGroups.contains(it) }.thenBy { it })
+				                }
+				
+				                // Lista dei gruppi con feedback visivo al click
+				                Column(
+				                    modifier = Modifier
+				                        .fillMaxWidth()
+				                        .heightIn(max = 260.dp)
+				                        .verticalScroll(rememberScrollState()),
+				                    verticalArrangement = Arrangement.spacedBy(4.dp)
+				                ) {
+				                    // Opzione "Tutti i Gruppi" con effetto ripple/colore al tocco
+				                    Surface(
+				                        modifier = Modifier
+				                            .fillMaxWidth()
+				                            .clip(RoundedCornerShape(8.dp))
+				                            .clickable {
+				                                selectedGroup = null
+				                                showOnlyFavorites = false
+				                                showOnlyEpg = false
+				                                showGroupDialog = false
+				                            },
+				                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+				                    ) {
+				                        Padding(12.dp).let { _ ->
+				                            Row(
+				                                modifier = Modifier.padding(12.dp),
+				                                verticalAlignment = Alignment.CenterVertically
+				                            ) {
+				                                Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+				                            }
+				                        }
+				                    }
+				
+				                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+				
+				                    // Elementi della lista filtrata
+				                    filteredGroups.forEach { group ->
+				                        val isFavGroup = favoriteGroups.contains(group)
+				                        Surface(
+				                            modifier = Modifier
+				                                .fillMaxWidth()
+				                                .clip(RoundedCornerShape(8.dp))
+				                                .clickable {
+				                                    selectedGroup = group
+				                                    showOnlyFavorites = false
+				                                    showOnlyEpg = false
+				                                    showGroupDialog = false
+				                                },
+				                            color = Color.Transparent
+				                        ) {
+				                            Row(
+				                                modifier = Modifier
+				                                    .fillMaxWidth()
+				                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+				                                verticalAlignment = Alignment.CenterVertically,
+				                                horizontalArrangement = Arrangement.SpaceBetween
+				                            ) {
+				                                Text(
+				                                    text = group.ifBlank { "Generale" },
+				                                    style = MaterialTheme.typography.bodyMedium,
+				                                    modifier = Modifier.weight(1f)
+				                                )
+				                                IconButton(
+				                                    onClick = {
+				                                        val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
+				                                        favoriteGroups = newFavs
+				                                        prefs.edit().putStringSet("favorite_groups", newFavs).apply()
+				                                    },
+				                                    modifier = Modifier.size(32.dp)
+				                                ) {
+				                                    Icon(
+				                                        imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+				                                        contentDescription = null,
+				                                        tint = if (isFavGroup) Color(0xFF00E5FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+				                                        modifier = Modifier.size(18.dp)
+				                                    )
+				                                }
+				                            }
+				                        }
+				                    }
+				                }
+				
+				                Spacer(modifier = Modifier.height(4.dp))
+				
+				                // Pulsante Chiudi in basso
+				                Button(
+				                    onClick = { showGroupDialog = false },
+				                    modifier = Modifier.fillMaxWidth(),
+				                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+				                ) {
+				                    Text(
+				                        text = "Chiudi",
+				                        color = Color(0xFF00E5FF),
+				                        fontWeight = FontWeight.Bold
+				                    )
+				                }
+				            }
+				        }
+				    }
+				}
 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val configuration = LocalConfiguration.current
@@ -1573,3 +1647,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
+
