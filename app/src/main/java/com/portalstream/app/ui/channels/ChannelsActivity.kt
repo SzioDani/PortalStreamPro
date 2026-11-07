@@ -702,13 +702,15 @@ class ChannelsActivity : ComponentActivity() {
 				                            },
 				                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
 				                    ) {
-				                        Padding(12.dp).let { _ ->
-				                            Row(
-				                                modifier = Modifier.padding(12.dp),
-				                                verticalAlignment = Alignment.CenterVertically
-				                            ) {
-				                                Text("Tutti i Gruppi", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-				                            }
+				                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ){
+                                            Text(
+                                                text = "Tutti i Gruppi", 
+                                                style = MaterialTheme.typography.bodyMedium, 
+                                                fontWeight = FontWeight.SemiBold
+                                            )
 				                        }
 				                    }
 				
