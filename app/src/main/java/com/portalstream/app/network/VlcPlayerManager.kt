@@ -31,10 +31,12 @@ class VlcPlayerManager(private val context: Context) {
             add("--live-caching=8000")
             add("--disc-caching=8000")
             add("--file-caching=8000")
+            // Essenziali per flussi .ts instabili dei portali MAC
             add("--clock-jitter=-1")
             add("--clock-synchro=0")
             add("--udp-timeout=40000")
-            add("--http-continuous")
+            // 🇮🇹 Dice a LibVLC di scegliere subito la traccia principale Italiana sui canali Rai!
+            add("--audio-language=it,ita,italiano")
         }
 
         libVLC = LibVLC(context, options)
@@ -58,13 +60,24 @@ class VlcPlayerManager(private val context: Context) {
 
         mp.attachViews(layout, null, false, true)
 
+        val lowerUrl = streamUrl.lowercase()
+        val isRawMacStream = lowerUrl.contains("live.php") ||
+                lowerUrl.contains("extension=ts") ||
+                lowerUrl.endsWith(".ts")
+
         val media = Media(vlc, Uri.parse(streamUrl)).apply {
             setHWDecoderEnabled(true, true)
-            addOption(":http-continuous")
             addOption(":http-reconnect")
-            addOption(":clock-jitter=0")
             addOption(":network-caching=8000")
             addOption(":live-caching=8000")
+            addOption(":audio-language=it,ita,italiano")
+
+            // :http-continuous e :clock-jitter=0 SOLO sui flussi grezzi MAC (.ts),
+            // altrimenti i canali Rai multi-traccia (HLS/relinker) si bloccano in avvio!
+            if (isRawMacStream) {
+                addOption(":http-continuous")
+                addOption(":clock-jitter=0")
+            }
 
             if (!userAgent.isNullOrBlank()) {
                 addOption(":http-user-agent=$userAgent")
@@ -74,15 +87,30 @@ class VlcPlayerManager(private val context: Context) {
         mp.media = media
         media.release()
 
-        fun refreshAudio() {
-            val tracks = mp.audioTracks?.toList() ?: emptyList()
-            var currentId = mp.audioTrack
-            val validTracks = tracks.filter { it.id != -1 }
+        var hasAutoSelectedBestTrack = false
 
-            if (currentId == -1 && validTracks.isNotEmpty()) {
-                val defaultTrackId = validTracks.first().id
-                mp.audioTrack = defaultTrackId
-                currentId = defaultTrackId
+        fun refreshAudio(allowAutoSelect: Boolean) {
+            val tracks = mp.audioTracks?.toList() ?: emptyList()
+            val validTracks = tracks.filter { it.id != -1 }
+            var currentId = mp.audioTrack
+
+            if (allowAutoSelect && validTracks.isNotEmpty() && !hasAutoSelectedBestTrack) {
+                hasAutoSelectedBestTrack = true
+
+                // Cerca la traccia migliore (Italiano / Main, evitando "oth" o "audiodescrizione")
+                val bestTrack = validTracks.firstOrNull { t ->
+                    val n = t.name.lowercase()
+                    (n.contains("ita") || n.contains("it") || n.contains("main") || n.contains("traccia 1") || n.contains("track 1")) &&
+                        !n.contains("oth") && !n.contains("descri")
+                } ?: validTracks.firstOrNull { t ->
+                    val n = t.name.lowercase()
+                    !n.contains("oth") && !n.contains("descri")
+                } ?: validTracks.first()
+
+                if (currentId == -1 || validTracks.none { it.id == currentId }) {
+                    mp.audioTrack = bestTrack.id
+                    currentId = bestTrack.id
+                }
             }
 
             val mapped = validTracks.map { t ->
@@ -107,18 +135,22 @@ class VlcPlayerManager(private val context: Context) {
                     onBuffering(false)
                     onPlayingState(true)
                     layout.post { onFormatRefreshNeeded() }
-                    refreshAudio()
+                    refreshAudio(allowAutoSelect = true)
                 }
                 MediaPlayer.Event.Vout -> {
                     if (event.voutCount > 0) {
                         layout.post { onFormatRefreshNeeded() }
+                        refreshAudio(allowAutoSelect = true)
                     }
                 }
                 MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> {
                     onPlayingState(false)
                 }
-                MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESSelected, MediaPlayer.Event.ESDeleted -> {
-                    refreshAudio()
+                MediaPlayer.Event.ESSelected -> {
+                    // Aggiorna solo la lista UI senza forzare cambi traccia mentre carica
+                    if (mp.isPlaying) {
+                        refreshAudio(allowAutoSelect = false)
+                    }
                 }
                 MediaPlayer.Event.EncounteredError -> {
                     onBuffering(false)
@@ -228,13 +260,15 @@ class VlcPlayerManager(private val context: Context) {
         val trackName = (selectedTrackDesc?.name ?: "Traccia $activeId")
             .replace("main - ", "")
 
+        var media: IMedia? = null
         try {
-            val media = mp.media
+            media = mp.media
             if (media != null) {
                 val count = media.trackCount
                 for (i in 0 until count) {
                     val t = media.getTrack(i)
-                    if (t != null && t.type == IMedia.Track.Type.Audio && t is IMedia.AudioTrack) {
+                    // Verifica che t.id corrisponda esattamente alla traccia activeId!
+                    if (t != null && t.type == IMedia.Track.Type.Audio && t.id == activeId && t is IMedia.AudioTrack) {
                         val codec = when (t.codec?.uppercase()) {
                             "MPGA", "MP2", "MP3" -> "MP2"
                             "A52", "AC3" -> "AC3"
@@ -249,7 +283,8 @@ class VlcPlayerManager(private val context: Context) {
                             8 -> "7.1"
                             else -> if (t.channels > 0) "${t.channels}ch" else null
                         }
-                        val details = listOfNotNull(codec, channels).joinToString(" • ")
+                        val lang = t.language?.takeIf { it.isNotBlank() }?.uppercase()
+                        val details = listOfNotNull(lang, codec, channels).joinToString(" • ")
                         if (details.isNotBlank()) {
                             return "$trackName ($details)"
                         }
@@ -258,6 +293,8 @@ class VlcPlayerManager(private val context: Context) {
             }
         } catch (_: Exception) {
             Log.e("PlayerDebug", "Errore nel parsing audio info")
+        } finally {
+            media?.release()
         }
 
         return trackName
