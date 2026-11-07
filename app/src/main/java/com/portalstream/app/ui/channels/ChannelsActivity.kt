@@ -771,7 +771,7 @@ class ChannelsActivity : ComponentActivity() {
 				                ) {
 				                    Text(
 				                        text = "Chiudi",
-				                        color = Color(0xFF00E5FF),
+				                        color = Color(0xFFEF4444),
 				                        fontWeight = FontWeight.Bold
 				                    )
 				                }
