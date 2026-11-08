@@ -18,16 +18,18 @@ data class PortalIdentity(
     val password: String,
     val expireDate: String
 ) {
-    // Impronta digitale unica: se cambia anche solo il MAC (es. da :03 a :05) o la scadenza, la firma cambia!
     val signature: String
         get() = "${type.uppercase()}|${url.trim()}|${server.trim()}|${mac.trim().uppercase()}|${username.trim()}|${password.trim()}|${expireDate.trim()}"
+
+    // Chiave del server (indipendente dal MAC address, per riutilizzare gli ID se cambi MAC sullo stesso server)
+    val serverKey: String
+        get() = (server.ifBlank { url }).trim().lowercase()
 }
 
 class EpgMappingStore(context: Context) {
 
     private val TAG = "EpgMappingStore"
 
-    // File JSON visibile in Android/data/com.portalstream.app/files/epg_mappings.json
     private val file: File = run {
         val externalDir = context.getExternalFilesDir(null) ?: context.filesDir
         File(externalDir, "epg_mappings.json")
@@ -35,7 +37,7 @@ class EpgMappingStore(context: Context) {
 
     /**
      * Restituisce la mappa [channelId -> epgId] salvata per questo portale.
-     * Se il portale è stato modificato (es. MAC cambiato da :03 a :05), cancella i vecchi dati e restituisce null.
+     * Se la mappa nel JSON era vuota ("mappings": {}), restituisce null così l'app esegue l'associazione!
      */
     @Synchronized
     fun getSavedMappings(identity: PortalIdentity): Map<String, String>? {
@@ -47,12 +49,16 @@ class EpgMappingStore(context: Context) {
                 if (obj.optInt("portalId", -1) == identity.portalId) {
                     val savedSignature = obj.optString("signature", "")
                     if (savedSignature != identity.signature) {
-                        Log.d(TAG, "♻️ Firma cambiata per il portale ${identity.portalId} (es. MAC modificato). Pulizia vecchi ID...")
-                        deletePortalMappings(identity.portalId)
+                        Log.d(TAG, "♻️ Firma cambiata per il portale ${identity.portalId}. Ricalcolo preservando i nomi grezzi...")
                         return null
                     }
 
-                    val mappingsObj = obj.optJSONObject("mappings") ?: return emptyMap()
+                    val mappingsObj = obj.optJSONObject("mappings") ?: return null
+                    if (mappingsObj.length() == 0) {
+                        Log.d(TAG, "⚠️ Mappa JSON vuota per il portale [${identity.portalId}], avvio associazione automatica...")
+                        return null
+                    }
+
                     val result = mutableMapOf<String, String>()
                     val keys = mappingsObj.keys()
                     while (keys.hasNext()) {
@@ -63,6 +69,7 @@ class EpgMappingStore(context: Context) {
                             result[channelId] = epgId
                         }
                     }
+                    if (result.isEmpty()) return null
                     Log.d(TAG, "⚡ Caricati ${result.size} ID EPG istantanei dal JSON per il portale [${identity.portalId}]")
                     return result
                 }
@@ -75,7 +82,41 @@ class EpgMappingStore(context: Context) {
     }
 
     /**
-     * Salva o sovrascrive l'intero blocco degli ID EPG trovati per uno specifico portale.
+     * 🧠 MEMORIA STORICA PER SERVER E NOME GREZZO (rawName):
+     * Recupera tutti gli abbinamenti [rawName -> epgId] già noti nel JSON (inclusi quelli manuali),
+     * così anche se cambi MAC address sullo stesso server l'associazione avviene in Tempo 0!
+     */
+    @Synchronized
+    fun getKnownRawNameMappings(serverUrl: String = ""): Map<String, String> {
+        if (!file.exists()) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        return try {
+            val arr = JSONArray(file.readText())
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val mappingsObj = obj.optJSONObject("mappings") ?: continue
+                val keys = mappingsObj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val item = mappingsObj.optJSONObject(key) ?: continue
+                    val rawName = item.optString("rawName", "").trim()
+                    val epgId = item.optString("epgId", "").trim()
+                    val isManual = item.optBoolean("manual", false)
+                    if (rawName.isNotEmpty() && epgId.isNotEmpty()) {
+                        if (isManual || !result.containsKey(rawName)) {
+                            result[rawName] = epgId
+                        }
+                    }
+                }
+            }
+            result
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    /**
+     * Salva o sovrascrive gli ID EPG trovati per uno specifico portale, preservando eventuali ID manuali.
      */
     @Synchronized
     fun savePortalMappings(identity: PortalIdentity, channels: List<Channel>) {
@@ -86,23 +127,49 @@ class EpgMappingStore(context: Context) {
                 JSONArray()
             }
 
+            // Recuperiamo gli eventuali ID manuali già salvati per questo portale così non vanno mai persi
+            val existingManualByChannelId = mutableMapOf<String, String>()
+            val existingManualByRawName = mutableMapOf<String, String>()
+
             val newArr = JSONArray()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
-                if (obj.optInt("portalId", -1) != identity.portalId) {
+                if (obj.optInt("portalId", -1) == identity.portalId) {
+                    val oldMappings = obj.optJSONObject("mappings")
+                    if (oldMappings != null) {
+                        val keys = oldMappings.keys()
+                        while (keys.hasNext()) {
+                            val chId = keys.next()
+                            val item = oldMappings.optJSONObject(chId)
+                            if (item?.optBoolean("manual", false) == true) {
+                                val epgId = item.optString("epgId", "")
+                                val rawName = item.optString("rawName", "")
+                                if (epgId.isNotBlank()) {
+                                    existingManualByChannelId[chId] = epgId
+                                    if (rawName.isNotBlank()) existingManualByRawName[rawName] = epgId
+                                }
+                            }
+                        }
+                    }
+                } else {
                     newArr.put(obj)
                 }
             }
 
             val mappingsObj = JSONObject()
             channels.forEach { ch ->
-                val finalEpgId = ch.tvgId.ifBlank { ch.customSid }
+                val manualId = existingManualByChannelId[ch.id] ?: existingManualByRawName[ch.name]
+                val finalEpgId = manualId ?: ch.tvgId.ifBlank { ch.customSid }
+                val isManual = manualId != null
+
                 if (finalEpgId.isNotBlank()) {
                     mappingsObj.put(
                         ch.id,
                         JSONObject().apply {
                             put("rawName", ch.name)
+                            put("group", ch.group)
                             put("epgId", finalEpgId)
+                            if (isManual) put("manual", true)
                         }
                     )
                 }
@@ -156,7 +223,9 @@ class EpgMappingStore(context: Context) {
                             channel.id,
                             JSONObject().apply {
                                 put("rawName", channel.name)
+                                put("group", channel.group)
                                 put("epgId", newEpgId)
+                                put("manual", true) // 👈 Segna come manuale per proteggerlo sempre!
                             }
                         )
                     }
@@ -171,8 +240,10 @@ class EpgMappingStore(context: Context) {
                         channel.id,
                         JSONObject().apply {
                             put("rawName", channel.name)
+                            put("group", channel.group)
                             put("number", channel.number)
                             put("epgId", newEpgId)
+                            put("manual", true)
                         }
                     )
                 }
@@ -193,15 +264,12 @@ class EpgMappingStore(context: Context) {
             }
 
             file.writeText(arr.toString(2))
-            Log.d(TAG, "✅ ID manuale '$newEpgId' salvato nel JSON per ${channel.id} (${channel.name})")
+            Log.d(TAG, "✅ ID manuale '$newEpgId' salvato e protetto nel JSON per ${channel.id} (${channel.name})")
         } catch (e: Exception) {
             Log.e(TAG, "Errore salvataggio singolo ID in epg_mappings.json", e)
         }
     }
 
-    /**
-     * Cancella tutti gli abbinamenti di un portale quando viene eliminato o modificato.
-     */
     @Synchronized
     fun deletePortalMappings(portalId: Int) {
         if (!file.exists()) return
