@@ -14,7 +14,6 @@ object ItalianEpgDictionary {
         val exclusiveItalian: Boolean = true // true = nome che esiste SOLO in Italia; false = esiste anche all'estero
     )
 
-    // Rinominato in dictionaryEntries per non andare in conflitto con Map.entries di Kotlin
     private val dictionaryEntries: List<EpgEntry> = listOf(
         // --- NAZIONALI & DTT ---
         EpgEntry("rai 1", listOf("Rai1.it", "Rai.1.it"), listOf("rai 1", "rai uno", "rai1", "raiuno"), exclusiveItalian = true),
@@ -32,10 +31,10 @@ object ItalianEpgDictionary {
         EpgEntry("rai 5", listOf("Rai5.it", "Rai.5.it"), listOf("rai 5", "rai cinque", "rai5"), exclusiveItalian = true),
         EpgEntry("rai movie", listOf("RaiMovie.it", "Rai.Movie.it"), listOf("rai movie", "raimovie"), exclusiveItalian = true),
         EpgEntry("rai premium", listOf("RaiPremium.it", "Rai.Premium.it"), listOf("rai premium", "raipremium"), exclusiveItalian = true),
-        EpgEntry("cielo", listOf("Cielo.it", "Cielo.HD.it"), listOf("cielo", "cielo tv"), exclusiveItalian = true),
+        EpgEntry("cielo", listOf("cielo.it", "Cielo.it", "Cielo.HD.it"), listOf("cielo", "cielo tv"), exclusiveItalian = true),
         EpgEntry("27 twentyseven", listOf("27.Twentyseven.it", "Twentyseven.it"), listOf("27 twentyseven", "twenty seven", "27 twenty seven", "twentyseven", "27", "canale 27"), exclusiveItalian = false),
         EpgEntry("tv2000", listOf("TV2000.it", "TV.2000.it"), listOf("tv2000", "tv 2000", "tele 2000"), exclusiveItalian = true),
-        EpgEntry("la7d", listOf("LA7d.HD.it", "LA7d.it", "LA7.CINEMA.it"), listOf("la7d", "la 7d", "la7 d", "la 7 d", "la7cinema", "la7 cinema"), exclusiveItalian = true),
+        EpgEntry("la7d", listOf("LA7D.it", "LA7d.HD.it", "LA7.CINEMA.it"), listOf("la7d", "la 7d", "la7 d", "la 7 d", "la7cinema", "la7 cinema"), exclusiveItalian = true),
         EpgEntry("la5", listOf("La.5.it", "La5.it"), listOf("la5", "la 5", "mediaset la 5"), exclusiveItalian = true),
         EpgEntry("real time", listOf("Real.Time.it", "RealTime.it"), listOf("real time", "realtime"), exclusiveItalian = false),
         EpgEntry("qvc", listOf("QVC.it"), listOf("qvc", "qvc italia"), exclusiveItalian = false),
@@ -44,7 +43,7 @@ object ItalianEpgDictionary {
         EpgEntry("focus", listOf("Focus.it"), listOf("focus", "focus tv", "mediaset focus"), exclusiveItalian = false),
         EpgEntry("rtl 102.5", listOf("RTL.102.5.HD.it", "RTL.102.5.it"), listOf("rtl 102 5", "rtl 102.5", "rtl 1025", "rtl1025", "rtl 102 5 tv"), exclusiveItalian = true),
         EpgEntry("warner tv", listOf("Warner.TV.it", "WarnerTV.it"), listOf("warner tv", "warnertv"), exclusiveItalian = false),
-        EpgEntry("giallo", listOf("Giallo.it"), listOf("giallo", "giallo tv"), exclusiveItalian = true),
+        EpgEntry("giallo", listOf("Giallo.TV.it", "Giallo.it"), listOf("giallo", "giallo tv"), exclusiveItalian = true),
         EpgEntry("top crime", listOf("Top.Crime.it", "TopCrime.it"), listOf("top crime", "topcrime"), exclusiveItalian = true),
         EpgEntry("boing", listOf("Boing.it"), listOf("boing", "boing tv"), exclusiveItalian = false),
         EpgEntry("k2", listOf("K2.it"), listOf("k2", "k 2", "k2 tv"), exclusiveItalian = false),
@@ -110,19 +109,36 @@ object ItalianEpgDictionary {
         EpgEntry("sky sport motogp", listOf("Sky.Sport.MotoGP.it"), listOf("sky sport motogp", "sky sport moto gp", "sky motogp"), exclusiveItalian = true),
         EpgEntry("sky sport nba", listOf("Sky.Sport.NBA.it"), listOf("sky sport nba", "sky nba"), exclusiveItalian = false),
         EpgEntry("sky sport golf", listOf("Sky.Sport.Golf.it"), listOf("sky sport golf"), exclusiveItalian = false),
-        EpgEntry("eurosport 1", listOf("Eurosport.1.it", "Eurosport1.it"), listOf("eurosport 1", "eurosport1", "eurosport"), exclusiveItalian = false),
-        EpgEntry("eurosport 2", listOf("Eurosport.2.it", "Eurosport2.it"), listOf("eurosport 2", "eurosport2"), exclusiveItalian = false),
-        EpgEntry("dazn 1", listOf("DAZN.1.it", "Zona.DAZN.it", "DAZN1.it"), listOf("dazn 1", "zona dazn", "dazn1", "dazn"), exclusiveItalian = false),
-        EpgEntry("dazn 2", listOf("DAZN.2.it", "DAZN2.it"), listOf("dazn 2", "dazn2"), exclusiveItalian = false),
-        EpgEntry("solocalcio", listOf("Sportitalia.SoloCalcio.it", "SoloCalcio.it"), listOf("sportitalia solocalcio", "solocalcio", "si solocalcio"), exclusiveItalian = true),
-        EpgEntry("sportitalia", listOf("Sportitalia.it"), listOf("sportitalia", "sport italia", "si tv"), exclusiveItalian = true)
+        EpgEntry("sky sport mix", listOf("Sky.Sport.Mix.it"), listOf("sky sport mix"), exclusiveItalian = false),
+        EpgEntry("sky sport legend", listOf("Sky.Sport.Legend.it"), listOf("sky sport legend"), exclusiveItalian = true),
+
+        // --- SKY SPORT 251-259 / SKY CALCIO 1-9 (Tipici di tutti i portali MAC) ---
+        EpgEntry("sky sport 251", listOf("Sky.Sport..251.it", "Sky.Sport.251.it", "Sky.Sport.Calcio.it"), listOf("sky sport 251", "sky sport calcio 1 251", "sky sport calcio 1", "sky calcio 1", "sky calcio 251"), exclusiveItalian = true),
+        EpgEntry("sky sport 252", listOf("Sky.Sport..252.it", "Sky.Sport.252.it"), listOf("sky sport 252", "sky sport calcio 2 252", "sky sport calcio 2", "sky calcio 2", "sky calcio 252"), exclusiveItalian = true),
+        EpgEntry("sky sport 253", listOf("Sky.Sport..253.it", "Sky.Sport.253.it"), listOf("sky sport 253", "sky sport calcio 3 253", "sky sport calcio 3", "sky calcio 3", "sky calcio 253"), exclusiveItalian = true),
+        EpgEntry("sky sport 254", listOf("Sky.Sport..254.it", "Sky.Sport.254.it"), listOf("sky sport 254", "sky sport calcio 4 254", "sky sport calcio 4", "sky calcio 4", "sky calcio 254"), exclusiveItalian = true),
+        EpgEntry("sky sport 255", listOf("Sky.Sport..255.it", "Sky.Sport.255.it"), listOf("sky sport 255", "sky sport calcio 5 255", "sky sport calcio 5", "sky calcio 5", "sky calcio 255"), exclusiveItalian = true),
+        EpgEntry("sky sport 256", listOf("Sky.Sport..256.it", "Sky.Sport.256.it"), listOf("sky sport 256", "sky sport calcio 6 256", "sky sport calcio 6", "sky calcio 6", "sky calcio 256"), exclusiveItalian = true),
+        EpgEntry("sky sport 257", listOf("Sky.Sport..257.it", "Sky.Sport.257.it"), listOf("sky sport 257", "sky sport calcio 7 257", "sky sport calcio 7", "sky calcio 7", "sky calcio 257"), exclusiveItalian = true),
+        EpgEntry("sky sport 258", listOf("Sky.Sport..258.it", "Sky.Sport.258.it"), listOf("sky sport 258", "sky sport calcio 8 258", "sky sport calcio 8", "sky calcio 8", "sky calcio 258"), exclusiveItalian = true),
+        EpgEntry("sky sport 259", listOf("Sky.Sport..259.it", "Sky.Sport.259.it"), listOf("sky sport 259", "sky sport calcio 9 259", "sky sport calcio 9", "sky calcio 9", "sky calcio 259"), exclusiveItalian = true),
+
+        // --- EUROSPORT, DAZN & ALTRI SPORT ---
+        EpgEntry("eurosport 1", listOf("Eurosport.Italia.it", "Eurosport.1.it", "Eurosport1.it"), listOf("eurosport 1", "eurosport1", "eurosport", "eurosport italia"), exclusiveItalian = false),
+        EpgEntry("eurosport 2", listOf("Eurosport.2.Italia.it", "Eurosport.2.it", "Eurosport2.it"), listOf("eurosport 2", "eurosport2", "eurosport 2 italia"), exclusiveItalian = false),
+        EpgEntry("dazn 1", listOf("DAZN.1.it.it", "DAZN.1.it", "Zona.DAZN.it", "DAZN1.it"), listOf("dazn 1", "zona dazn", "dazn1", "dazn"), exclusiveItalian = false),
+        EpgEntry("dazn 2", listOf("DAZN.2.it.it", "DAZN.2.it", "DAZN2.it"), listOf("dazn 2", "dazn2"), exclusiveItalian = false),
+        EpgEntry("solocalcio", listOf("Solocalcio.it.it", "Sportitalia.SoloCalcio.it", "SoloCalcio.it"), listOf("sportitalia solocalcio", "solocalcio", "si solocalcio"), exclusiveItalian = true),
+        EpgEntry("sportitalia", listOf("Sportitalia.HD.it", "Sportitalia.it"), listOf("sportitalia", "sport italia", "sport italia plus", "sportitalia plus", "si tv"), exclusiveItalian = true),
+        EpgEntry("aci sport tv", listOf("ACI.Sport.Tv.it"), listOf("aci sport tv", "aci sport"), exclusiveItalian = true)
     )
 
     // Regex universali pre-compilate per qualsiasi stile di portale M3U / Xtream / Stalker MAC
     private val prefixRegex = Regex("""^\s*(?:[\[(|★•*🇮🇹]+\s*)?(?:it|ita|italia|italy|dtt|vip|rai|med|mediaset|sky|dazn)\s*[\])|:\-_★•*🇮🇹]+\s*""", RegexOption.IGNORE_CASE)
     private val genericPipePrefixRegex = Regex("""^\s*[a-z0-9_.\-]{2,6}\s*[|:]\s*""", RegexOption.IGNORE_CASE)
     private val leadingChannelNumberRegex = Regex("""^\s*\d{1,4}\s*[\-.:|]\s*""")
-    private val bracketContentRegex = Regex("""[\[(].*?[\])]""")
+    // Rimuove il contenuto tra parentesi SOLO se non è un numero di canale Sky (es. conserva "(251)")
+    private val bracketContentRegex = Regex("""[\[(](?!2[56]\d[\])])[^\]\)]*[\])]""")
     private val specialHdCharsRegex = Regex("""[ᴴᴰᶠᵁ⁴ᴷ⁵⁶²🇮🇹]+""")
     private val nonAlnumRegex = Regex("""[^a-z0-9!]+""")
 
@@ -151,7 +167,7 @@ object ItalianEpgDictionary {
 
     /**
      * Pulisce qualsiasi formato di nome proveniente da portali MAC, Xtream o M3U.
-     * Esempio: "01 - |IT| Hgtv - Home & Garden FHD [H265]" -> "hgtv home garden"
+     * Esempio: "(IT) SKY Sport Calcio 1 (251) ᴴᴰ" -> "sky sport calcio 1 251"
      */
     fun normalizeName(raw: String): String {
         var s = specialHdCharsRegex.replace(raw, " ").lowercase()
