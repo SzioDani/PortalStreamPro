@@ -241,7 +241,7 @@ class ChannelsActivity : ComponentActivity() {
                                 it.id.startsWith(portalPrefix)
                             }
 
-                            val portalChannelsToUse: List<Channel> = if (!isManualRefresh && existingPortalChannels.isNotEmpty() && savedJsonMappings != null) {
+                            val portalChannelsToUse: List<Channel> = if (!isManualRefresh && existingPortalChannels.isNotEmpty() && !savedJsonMappings.isNullOrEmpty()) {
                                 Log.d(TAG, "⚡ Lista canali e ID EPG già pronti per il portale $portalId! Caricamento istantaneo.")
                                 existingPortalChannels.map { ch ->
                                     val jsonEpgId = savedJsonMappings[ch.id]
