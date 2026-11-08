@@ -1,13 +1,17 @@
 package com.portalstream.app.data
 
+import com.portalstream.app.streaming.TorrentStreamEngine
+
 enum class PortalType(val label: String) {
     M3U("M3U"),
     XSTREAM("XStream"),
     MAG("MAG/MAC"),
+    TORRENT("Torrent"),
     UNKNOWN("Sconosciuto");
 
     companion object {
         fun detect(url: String): PortalType = when {
+            TorrentStreamEngine.isTorrentSource(url) -> TORRENT
             url.contains("player_api.php", ignoreCase = true) ||
                 (url.contains("get.php", ignoreCase = true) && url.contains("username=", ignoreCase = true)) -> XSTREAM
             url.contains("stalker_portal", ignoreCase = true) ||
