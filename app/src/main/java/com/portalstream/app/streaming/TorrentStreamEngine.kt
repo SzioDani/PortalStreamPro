@@ -79,7 +79,7 @@ class TorrentStreamEngine(private val context: Context) {
                     }
                     AlertType.TORRENT_ERROR -> {
                         val errAlert = alert as TorrentErrorAlert
-                        Timber.e("TorrentErrorAlert: ${errAlert.error().message()}")
+                        Timber.e("TorrentErrorAlert: ${errAlert.error().message}")
                     }
                     else -> {}
                 }
