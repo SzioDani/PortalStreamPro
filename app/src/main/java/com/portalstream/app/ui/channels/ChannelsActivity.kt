@@ -977,7 +977,7 @@ class ChannelsActivity : ComponentActivity() {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(16.dp),
                                             strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            color = MaterialTheme.colorScheme.secondary
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
