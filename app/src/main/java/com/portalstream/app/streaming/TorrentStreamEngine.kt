@@ -168,7 +168,7 @@ class TorrentStreamEngine(private val context: Context) {
 
                     if (!status.hasMetadata()) {
                         if (ticks % 4 == 0) {
-                            logToFile("In attesa metadati... peer=$peers, speed=${speedKbps}KB/s")
+                            logToFile("tick=$ticks head=$downloadedHeadPieces/$requiredHeadPieces dl=${downloadedBytes / 1024}KB fileLen=${videoFile.length()} peers=$peers speed=${speedKbps}KB/s")
                         }
                         _state.value = TorrentStreamState.Buffering(
                             statusText = "Recupero metadati dal Magnet...",
