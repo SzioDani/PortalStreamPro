@@ -7,14 +7,19 @@ import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
 
 data class EpgChannelMapping(
-    val siteId: String, 
-    val name: String    
+    val siteId: String,
+    val name: String
 )
 
 class EpgChannelMapper {
 
     private val TAG = "EpgChannelMapper"
     private var allMappings: List<EpgChannelMapping> = emptyList()
+
+    // 🚀 Indici O(1) pre-calcolati una sola volta al caricamento dell'XML (Tempo 0!)
+    private var bySiteIdMap: Map<String, EpgChannelMapping> = emptyMap()
+    private var byCanonicalKeyMap: Map<String, EpgChannelMapping> = emptyMap()
+    private var byNormalizedNameMap: Map<String, EpgChannelMapping> = emptyMap()
 
     fun getAllMappings(): List<EpgChannelMapping> = allMappings
 
@@ -55,108 +60,83 @@ class EpgChannelMapper {
                 eventType = parser.next()
             }
             allMappings = mappings
-            Log.d(TAG, "Mappatura caricata: indicizzati ${allMappings.size} canali dall'XML EPG.")
+            buildFastIndexes(mappings)
+            Log.d(TAG, "⚡ Mappatura caricata e indicizzata in Tempo 0: ${allMappings.size} canali XML.")
         } catch (e: Exception) {
             Log.e(TAG, "Errore durante il parsing dei canali dall'XML EPG", e)
         }
     }
 
-    /**
-     * Cerca il miglior riscontro filtrando rigorosamente per nazionalità a monte.
-     */
-    fun findBestMatch(channel: Channel, countryCode: String = "IT"): EpgChannelMapping? {
-        if (allMappings.isEmpty()) {
-            Log.w(TAG, "⚠️ [DIAG] Nessuna mappatura XML disponibile per '${channel.name}'.")
-            return null
-        }
+    private fun buildFastIndexes(mappings: List<EpgChannelMapping>) {
+        val siteMap = HashMap<String, EpgChannelMapping>(mappings.size)
+        val canonicalMap = HashMap<String, EpgChannelMapping>(mappings.size)
+        val normNameMap = HashMap<String, EpgChannelMapping>(mappings.size)
 
-        val targetCountry = countryCode.lowercase()
-        val countryUpper = countryCode.uppercase()
+        for (m in mappings) {
+            siteMap.putIfAbsent(m.siteId.lowercase(), m)
 
-        val groupUpper = channel.group.uppercase().trim()
-        val nameUpper = channel.name.uppercase().trim()
-
-        // 🚀 OTTIMIZZAZIONE UNIVERSALE DEFINITIVA:
-        // Se stiamo cercando la nazione "IT", scartiamo all'istante qualsiasi canale il cui nome o gruppo 
-        // indichi palesemente un'altra nazione (es. "U.S|", "ARG|", "ES|", "DE|", "FR|", "UK|", "USA", "LAT|")
-        if (targetCountry == "it") {
-            // Controlla se il nome inizia con un prefisso estero (es. "U.S|", "ARG|", con qualsiasi numero di lettere/punti)
-            val hasForeignPrefix = Regex("^[A-Z\\.]{2,5}\\s*\\|").find(nameUpper)
-            if (hasForeignPrefix != null) {
-                val prefix = hasForeignPrefix.value.substringBefore("|").replace(".", "").trim()
-                if (prefix != "IT" && prefix != "RAI" && prefix != "SKY") {
-                    return null // Scarta all'istante il canale estero
-                }
+            val norm = ItalianEpgDictionary.normalizeName(m.name)
+            if (norm.isNotEmpty()) {
+                normNameMap.putIfAbsent(norm, m)
             }
 
-            // Scarta gruppi macro o esteri palesi
-            if (groupUpper.contains("USA") || groupUpper.contains("LAT|") || groupUpper.contains("ARG|") ||
-                groupUpper.contains("TURKIYE") || groupUpper.contains("PUNJABI") || groupUpper.startsWith("ES|") ||
-                groupUpper.startsWith("DE|") || groupUpper.startsWith("FR|") || groupUpper.startsWith("UK|") ||
-                groupUpper.startsWith("NL|") || groupUpper.startsWith("PL|") || groupUpper.startsWith("GR|")) {
+            val dictEntry = ItalianEpgDictionary.findEntryForXmlChannel(m.siteId, m.name)
+            if (dictEntry != null) {
+                // Diamo priorità al primo ID preferito se presente
+                val existing = canonicalMap[dictEntry.canonicalKey]
+                if (existing == null || dictEntry.preferredXmlIds.firstOrNull()?.equals(m.siteId, ignoreCase = true) == true) {
+                    canonicalMap[dictEntry.canonicalKey] = m
+                }
+            }
+        }
+
+        bySiteIdMap = siteMap
+        byCanonicalKeyMap = canonicalMap
+        byNormalizedNameMap = normNameMap
+    }
+
+    /**
+     * Cerca il miglior riscontro in Tempo 0 (O(1)) senza fare cicli lenti.
+     */
+    fun findBestMatch(
+        channel: Channel,
+        countryCode: String = "IT",
+        isMegaPortal: Boolean = false
+    ): EpgChannelMapping? {
+        if (allMappings.isEmpty()) return null
+
+        val targetCountry = countryCode.lowercase()
+
+        // 1. Filtro veloce Gruppi/Prefissi Italiani (scarta i 29.000 canali stranieri sui portali MAC)
+        if (targetCountry == "it") {
+            if (!ItalianEpgDictionary.isItalianCandidate(channel.name, channel.group, isMegaPortal)) {
                 return null
             }
         }
 
-        // Controlli standard sui prefissi di 2 lettere
-        val groupPrefix = groupUpper.substringBefore("|").trim()
-        val namePrefix = nameUpper.substringBefore("|").trim()
-
-        if (groupPrefix.length == 2 && groupPrefix != countryUpper) {
-            return null
-        }
-        if (namePrefix.length == 2 && namePrefix != countryUpper && nameUpper.contains("|")) {
-            return null
-        }
-
-        Log.d(TAG, "🌍 [Filtro Nazione] Applicazione filtro per '$targetCountry' sul canale '${channel.name}' (Gruppo: '${channel.group}')")
-
-        // 1. Filtriamo a monte i mapping EPG mantenendo SOLO quelli della nazione scelta
-        val nationalMappings = allMappings.filter { mapping ->
-            val idLower = mapping.siteId.lowercase()
-            idLower.contains(".$targetCountry") || 
-            idLower.contains("_${targetCountry}") || 
-            idLower.startsWith("$targetCountry") ||
-            idLower.contains("/$targetCountry")
-        }
-
-        Log.d(TAG, "📊 Trovati ${nationalMappings.size} canali EPG per la nazione [$countryCode] su un totale di ${allMappings.size}")
-
-        // 2. Controllo ID Diretto tra quelli filtrati per nazione
+        // 2. Controllo ID Diretto O(1) (se la lista M3U ha già un tvg-id compatibile con l'XML)
         val directTvgId = channel.tvgId.ifBlank { channel.customSid }
         if (directTvgId.isNotBlank()) {
-            val match = nationalMappings.find { it.siteId.equals(directTvgId, ignoreCase = true) }
-            if (match != null) {
-                Log.d(TAG, "✅ [ID Diretto - Nazione $countryCode] OK: '${channel.name}' -> ${match.siteId}")
-                return match
-            } else {
-                Log.w(TAG, "❌ [ID Diretto] L'ID '$directTvgId' del canale '${channel.name}' non rientra tra i canali della nazione [$countryCode].")
+            bySiteIdMap[directTvgId.lowercase()]?.let { return it }
+        }
+
+        // 3. Controllo nel nostro Dizionario Italiano O(1) (ItalianEpgDictionary)
+        if (targetCountry == "it") {
+            val entry = ItalianEpgDictionary.findEntryByChannelName(channel.name)
+            if (entry != null) {
+                // Cerca prima tra gli ID XML ufficiali configurati nel dizionario
+                for (prefId in entry.preferredXmlIds) {
+                    bySiteIdMap[prefId.lowercase()]?.let { return it }
+                }
+                // Altrimenti usa la chiave canonica indicizzata dall'XML
+                byCanonicalKeyMap[entry.canonicalKey]?.let { return it }
             }
         }
 
-        // 3. Ricerca per nome ESCLUSIVAMENTE tra i canali della nazione selezionata
-        // 🧼 Pulizia profonda: rimuove prefissi di gruppo (es. "IT| ", "TR| "), marchi di risoluzione e caratteri speciali
-        val cleanChannelName = channel.name
-            .replace(Regex("(?i)^[a-z0-9_#-]+\\s*\\|\\s*"), "") // Rimuove prefissi del tipo "IT| ", "VD| ", "TR| "
-            .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT|SD|RAW|1080P)\\b"), "")
-            .replace(Regex("[^a-zA-Z0-9]"), "")
-            .lowercase()
-
-        Log.v(TAG, "🔍 Ricerca nome pulito '${cleanChannelName}' tra i canali [$countryCode]...")
-
-        val nameMatch = nationalMappings.find { mapping ->
-            val cleanMapName = mapping.name
-                .replace(Regex("(?i)\\b(HD|FHD|HEVC|4K|ITA|IT|SD)\\b"), "")
-                .replace(Regex("[^a-zA-Z0-9]"), "")
-                .lowercase()
-            cleanMapName == cleanChannelName
-        }
-
-        if (nameMatch != null) {
-            Log.d(TAG, "🎯 [Match per Nome - Nazione $countryCode] Trovato: '${channel.name}' -> SiteId: ${nameMatch.siteId} (Nome XML: '${nameMatch.name}')")
-            return nameMatch
-        } else {
-            Log.w(TAG, "⚪ [Nessun Match] Impossibile trovare una corrispondenza per '${channel.name}' nella nazione [$countryCode]")
+        // 4. Controllo per nome normalizzato O(1) (per tutti gli altri canali presenti nell'XML)
+        val normChannelName = ItalianEpgDictionary.normalizeName(channel.name)
+        if (normChannelName.isNotEmpty()) {
+            byNormalizedNameMap[normChannelName]?.let { return it }
         }
 
         return null
