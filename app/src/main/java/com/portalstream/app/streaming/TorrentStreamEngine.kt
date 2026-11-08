@@ -152,7 +152,7 @@ class TorrentStreamEngine(private val context: Context) {
     private fun findActiveTorrentHandle(session: SessionManager): TorrentHandle? {
         val rawSession = session.swig() ?: return null
         val vector: torrent_handle_vector = rawSession.get_torrents()
-        val size = vector.size().toInt()
+        val size = vector.size
         for (i in 0 until size) {
             val th = vector.get(i)
             if (th != null && th.is_valid()) {
@@ -313,7 +313,7 @@ class TorrentStreamEngine(private val context: Context) {
         try {
             val rawSession = session.swig() ?: return
             val vector: torrent_handle_vector = rawSession.get_torrents()
-            val size = vector.size().toInt()
+            val size = vector.size
             for (i in 0 until size) {
                 val th = vector.get(i)
                 if (th != null && th.is_valid()) {
