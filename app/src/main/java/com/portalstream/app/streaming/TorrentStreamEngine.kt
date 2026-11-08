@@ -57,8 +57,7 @@ class TorrentStreamEngine(private val context: Context) {
     val state: StateFlow<TorrentStreamState> = _state.asStateFlow()
 
     private val baseStreamDir: File by lazy {
-        File(context.externalCacheDir ?: context.cacheDir, "torrent_stream").apply {
-            if (!exists()) mkdirs()
+        File(context.cacheDir, "torrent_stream").apply { if (!exists()) mkdirs() }
         }
     }
 
