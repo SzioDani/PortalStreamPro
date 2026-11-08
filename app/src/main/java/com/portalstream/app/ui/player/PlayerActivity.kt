@@ -2,6 +2,7 @@ package com.portalstream.app.ui.player
 
 import android.content.Context
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -51,6 +52,8 @@ import com.portalstream.app.network.ExoPlayerManager
 import com.portalstream.app.network.StreamNetworkHelper
 import com.portalstream.app.network.UiAudioTrack
 import com.portalstream.app.network.VlcPlayerManager
+import com.portalstream.app.streaming.TorrentStreamEngine
+import com.portalstream.app.streaming.TorrentStreamState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.util.VLCVideoLayout
@@ -61,6 +64,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var vlcManager: VlcPlayerManager
     private lateinit var exoManager: ExoPlayerManager
     private lateinit var pipManager: PipManager
+    private var torrentEngine: TorrentStreamEngine? = null
 
     private var streamUrl: String = ""
     private var channelName: String = ""
@@ -95,16 +99,18 @@ class PlayerActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
                 android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
         }
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.BLACK
 
         streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
-            ?: intent.getStringExtra("STREAM_URL") ?: ""
+            ?: intent.getStringExtra("STREAM_URL")
+            ?: intent.dataString
+            ?: ""
         channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
@@ -113,6 +119,12 @@ class PlayerActivity : ComponentActivity() {
             Toast.makeText(this, "URL dello stream non valido", Toast.LENGTH_SHORT).show()
             finish()
             return
+        }
+
+        if (TorrentStreamEngine.isTorrentSource(streamUrl)) {
+            torrentEngine = TorrentStreamEngine(applicationContext).also {
+                it.startStream(streamUrl)
+            }
         }
 
         setContent {
@@ -127,6 +139,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        torrentEngine?.stop()
+        torrentEngine = null
         exoManager.release()
         vlcManager.release()
     }
@@ -142,7 +156,7 @@ class PlayerActivity : ComponentActivity() {
         val playerMode = appPrefs.getString("player_mode", "both")
 
         val currentlyPlaying = (exoManager.exoPlayer?.isPlaying == true) ||
-                (vlcManager.mediaPlayer?.isPlaying == true)
+            (vlcManager.mediaPlayer?.isPlaying == true)
         if ((playerMode == "pip" || playerMode == "both") && currentlyPlaying && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             pipManager.enterPipMode()
         }
@@ -163,6 +177,13 @@ class PlayerActivity : ComponentActivity() {
     fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
+
+        val isTorrent = remember(streamUrl) { TorrentStreamEngine.isTorrentSource(streamUrl) }
+        val torrentState = torrentEngine?.state?.collectAsState()
+
+        var playbackUrl by remember {
+            mutableStateOf(if (isTorrent) "" else streamUrl)
+        }
 
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
@@ -185,9 +206,36 @@ class PlayerActivity : ComponentActivity() {
 
         val configuration = LocalConfiguration.current
 
-        LaunchedEffect(streamUrl) {
-            isBuffering = true
-            useExoPlayer = StreamNetworkHelper.shouldUseExoPlayer(streamUrl, userAgent)
+        // Osserva lo stato del motore Torrent interno
+        LaunchedEffect(torrentState?.value) {
+            when (val st = torrentState?.value) {
+                is TorrentStreamState.Buffering -> {
+                    isBuffering = true
+                }
+                is TorrentStreamState.Ready -> {
+                    errorMessage = null
+                    playbackUrl = Uri.fromFile(st.videoFile).toString()
+                }
+                is TorrentStreamState.Error -> {
+                    isBuffering = false
+                    errorMessage = st.message
+                }
+                else -> {}
+            }
+        }
+
+        LaunchedEffect(playbackUrl) {
+            if (playbackUrl.isNotBlank()) {
+                isBuffering = true
+                useExoPlayer = if (isTorrent) {
+                    // Per i file torrent in download progressivo (.mkv/.avi/.mp4), VLC gestisce benissimo i file parziali,
+                    // mentre i .mp4/.ts funzionano su entrambi (l'utente può anche cambiare al volo col tasto ⚡ Exo/VLC)
+                    val lower = playbackUrl.lowercase()
+                    lower.endsWith(".mp4") || lower.endsWith(".ts")
+                } else {
+                    StreamNetworkHelper.shouldUseExoPlayer(playbackUrl, userAgent)
+                }
+            }
         }
 
         LaunchedEffect(isInPipMode) {
@@ -227,16 +275,16 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // Collegamento Motore ExoPlayer
-        DisposableEffect(useExoPlayer, exoPlayerView) {
-            if (useExoPlayer != true) return@DisposableEffect onDispose {}
+        DisposableEffect(useExoPlayer, exoPlayerView, playbackUrl) {
+            if (useExoPlayer != true || playbackUrl.isBlank()) return@DisposableEffect onDispose {}
             val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
 
             try {
                 exoManager.attachAndStart(
                     playerView = pv,
-                    streamUrl = streamUrl,
+                    streamUrl = playbackUrl,
                     userAgent = userAgent,
-                    aspectRatio = currentAspectRatio, // <-- AGGIUNTO QUI
+                    aspectRatio = currentAspectRatio,
                     scale = currentScale,
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
@@ -253,8 +301,13 @@ class PlayerActivity : ComponentActivity() {
                         exoManager.applyAspectRatioAndScale(pv, currentAspectRatio, currentScale)
                     },
                     onError = {
-                        lifecycleScope.launch {
-                            errorMessage = StreamNetworkHelper.checkHttpError(streamUrl, userAgent)
+                        if (isTorrent) {
+                            // Passa automaticamente a LibVLC se il contenitore del torrent richiede VLC
+                            useExoPlayer = false
+                        } else {
+                            lifecycleScope.launch {
+                                errorMessage = StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
+                            }
                         }
                     }
                 )
@@ -270,14 +323,14 @@ class PlayerActivity : ComponentActivity() {
         }
 
         // Collegamento Motore LibVLC
-        DisposableEffect(useExoPlayer, vlcVideoLayout) {
-            if (useExoPlayer != false) return@DisposableEffect onDispose {}
+        DisposableEffect(useExoPlayer, vlcVideoLayout, playbackUrl) {
+            if (useExoPlayer != false || playbackUrl.isBlank()) return@DisposableEffect onDispose {}
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             try {
                 val mp = vlcManager.attachAndPrepare(
                     layout = layout,
-                    streamUrl = streamUrl,
+                    streamUrl = playbackUrl,
                     userAgent = userAgent,
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
@@ -295,7 +348,11 @@ class PlayerActivity : ComponentActivity() {
                     },
                     onError = {
                         lifecycleScope.launch {
-                            errorMessage = StreamNetworkHelper.checkHttpError(streamUrl, userAgent)
+                            errorMessage = if (isTorrent) {
+                                "Errore riproduzione file Torrent"
+                            } else {
+                                StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
+                            }
                         }
                     }
                 )
@@ -542,10 +599,27 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
-                    CircularProgressIndicator(
+                    Column(
                         modifier = Modifier.align(Alignment.Center),
-                        color = Color.White
-                    )
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                        val st = torrentState?.value
+                        if (st is TorrentStreamState.Buffering) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = st.statusText,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Peer: ${st.peers} • ${st.downloadSpeedKbps} KB/s",
+                                color = Color.LightGray,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                 }
 
                 // CARD ERRORE DI RIPRODUZIONE
@@ -578,7 +652,9 @@ class PlayerActivity : ComponentActivity() {
                                     Button(onClick = {
                                         errorMessage = null
                                         isBuffering = true
-                                        if (useExoPlayer == true) {
+                                        if (isTorrent && playbackUrl.isBlank()) {
+                                            torrentEngine?.startStream(streamUrl)
+                                        } else if (useExoPlayer == true) {
                                             exoManager.retry()
                                         } else {
                                             lifecycleScope.launch {
