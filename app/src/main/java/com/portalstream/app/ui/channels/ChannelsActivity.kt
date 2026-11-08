@@ -538,7 +538,7 @@ class ChannelsActivity : ComponentActivity() {
 								) {
 									Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
 									Spacer(modifier = Modifier.width(8.dp))
-									Text("Aggiorna EPG [ $selectedCountry ]", fontWeight = FontWeight.Bold)
+									Text("Aggiorna EPG  [ $selectedCountry ]", fontWeight = FontWeight.Bold)
 								}
 
 								Divider()
@@ -1532,7 +1532,7 @@ class ChannelsActivity : ComponentActivity() {
                             searchQuery = it 
                             isDropdownExpanded = it.isNotBlank()
                         },
-                        placeholder = { Text("Es. Sky Sport, Rai 1, Movistar...") },
+                        placeholder = { Text("Es. Sky Sport, Rai 1") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
