@@ -59,6 +59,7 @@ class TorrentStreamEngine(private val context: Context) {
     private val baseStreamDir: File by lazy {
         File(context.cacheDir, "torrent_stream").apply { if (!exists()) mkdirs() }
     }
+
     private var currentSaveDir: File = baseStreamDir
 
     fun logToFile(message: String) {
@@ -66,7 +67,6 @@ class TorrentStreamEngine(private val context: Context) {
             val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.ITALIAN).format(Date())
             val line = "[$timestamp] $message\n"
 
-            // Scrive sia in files/ (accanto a portals.json) sia in cache/ (accanto a torrent_stream)
             val externalFiles = context.getExternalFilesDir(null) ?: context.filesDir
             File(externalFiles, "torrent_debug.log").appendText(line)
 
@@ -107,10 +107,9 @@ class TorrentStreamEngine(private val context: Context) {
                 }
 
                 removeAllActiveTorrents(session)
-                delay(250) // Attende che il thread C++ chiuda eventuali handle precedenti
+                delay(250)
                 cleanOldDirsExcept(null)
 
-                // Cartella dedicata per questa sessione di streaming
                 currentSaveDir = File(baseStreamDir, "session_${System.currentTimeMillis()}").apply {
                     mkdirs()
                 }
@@ -165,9 +164,6 @@ class TorrentStreamEngine(private val context: Context) {
                     val peers = status.numPeers()
 
                     if (!status.hasMetadata()) {
-                        if (ticks % 4 == 0) {
-                            logToFile("tick=$ticks head=$downloadedHeadPieces/$requiredHeadPieces dl=${downloadedBytes / 1024}KB fileLen=${videoFile.length()} peers=$peers speed=${speedKbps}KB/s")
-                        }
                         _state.value = TorrentStreamState.Buffering(
                             statusText = "Recupero metadati dal Magnet...",
                             progressPercent = 0,
@@ -200,7 +196,6 @@ class TorrentStreamEngine(private val context: Context) {
     private fun findActiveTorrentHandle(session: SessionManager): TorrentHandle? {
         val rawSession = session.swig() ?: return null
         val vector: torrent_handle_vector = rawSession.get_torrents()
-        // Ancoriamo il vector per evitare finalizzazione prematura
         pinnedSwigObjects.add(vector)
         val size = vector.size
         for (i in 0 until size) {
@@ -212,16 +207,10 @@ class TorrentStreamEngine(private val context: Context) {
         return null
     }
 
-    /**
-     * Eseguito UNA SOLA VOLTA appena arrivano i metadati.
-     * Ancora TorrentInfo e FileStorage in pinnedSwigObjects per impedire al Garbage Collector
-     * di Android di chiamare delete_torrent_info sul puntatore C++ nativo!
-     */
     private fun configureVideoSelectionOnce(handle: TorrentHandle) {
         if (isConfigured || !handle.isValid) return
 
         val ti = handle.torrentFile() ?: return
-        // CRITICO: Ancora ti e ti.swig() in memoria per evitare il crash nativo da GC!
         pinnedSwigObjects.add(ti)
         pinnedSwigObjects.add(ti.swig())
 
@@ -269,7 +258,6 @@ class TorrentStreamEngine(private val context: Context) {
         lastPieceIndex = ((fileOffset + max(0L, selectedVideoSize - 1L)) / pieceLength).toInt()
             .coerceIn(firstPieceIndex, totalPieces - 1)
 
-        // Se ci sono file multipli, ignora quelli secondari (.txt, .nfo, sample)
         if (numFiles > 1) {
             val filePriorities = Array(numFiles) { idx ->
                 if (idx == selectedFileIndex) Priority.DEFAULT else Priority.IGNORE
@@ -277,7 +265,6 @@ class TorrentStreamEngine(private val context: Context) {
             handle.prioritizeFiles(filePriorities)
         }
 
-        // Assicura che il download proceda rigorosamente in sequenza dall'inizio del video
         handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
         handle.resume()
 
@@ -293,7 +280,6 @@ class TorrentStreamEngine(private val context: Context) {
         val videoFile = selectedVideoFile ?: return
         val fileSize = selectedVideoSize.coerceAtLeast(1L)
 
-        // Controlla i primi 5 pezzi consecutivi dell'inizio del file video
         val requiredHeadPieces = min(5, (lastPieceIndex - firstPieceIndex + 1).coerceAtLeast(1))
         var downloadedHeadPieces = 0
         for (i in 0 until requiredHeadPieces) {
@@ -302,7 +288,6 @@ class TorrentStreamEngine(private val context: Context) {
             }
         }
 
-        // Soglia minima buffer (8 MB oppure 4% del file, max 15 MB) per garantire header completo a LibVLC
         val minBufferBytes = min(15L * 1024 * 1024, max(8L * 1024 * 1024, (fileSize * 0.04).toLong()))
         val downloadedBytes = status.totalWantedDone()
 
@@ -392,7 +377,6 @@ class TorrentStreamEngine(private val context: Context) {
             .replace("\n", "")
             .replace("\r", "")
 
-        // 1. Se è un percorso file locale (.torrent) o file://
         val localFile = when {
             trimmed.startsWith("file://") -> Uri.parse(trimmed).path?.let { File(it) }
             trimmed.startsWith("/") -> File(trimmed)
@@ -408,12 +392,10 @@ class TorrentStreamEngine(private val context: Context) {
             }
         }
 
-        // 2. Se è già un link magnet:?
         if (trimmed.startsWith("magnet:?", ignoreCase = true)) {
             return ResolvedInput.Magnet(appendDefaultTrackers(trimmed))
         }
 
-        // 3. Se è un InfoHash puro (40 hex o 32 base32) o urn:btih:
         val cleanHash = trimmed.removePrefix("urn:btih:").trim()
         if (cleanHash.matches(INFOHASH_HEX_REGEX) || cleanHash.matches(INFOHASH_BASE32_REGEX)) {
             val magnet = "magnet:?xt=urn:btih:$cleanHash"
@@ -434,8 +416,6 @@ class TorrentStreamEngine(private val context: Context) {
         private val INFOHASH_BASE32_REGEX = Regex("^[a-zA-Z2-7]{32}$")
         private val MAGNET_IN_TEXT_REGEX = Regex("(magnet:\\?[^\\s\"'<>]+)", RegexOption.IGNORE_CASE)
 
-        // Mantiene ancorati gli oggetti SWIG durante lo streaming attivo per impedire a FinalizerDaemon
-        // di chiamare delete_torrent_info sul puntatore C++ interno di libtorrent
         private val pinnedSwigObjects: MutableList<Any> = Collections.synchronizedList(mutableListOf())
 
         @Volatile
