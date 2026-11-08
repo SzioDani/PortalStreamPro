@@ -57,6 +57,7 @@ class PortalsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.portalstream.app.utils.ExitReasonLogger.logLastExits(applicationContext)
         store = PortalStore(this)
         epgMappingStore = EpgMappingStore(this)
         setContentView(ComposeView(this).apply {
