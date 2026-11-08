@@ -1,17 +1,17 @@
 package com.portalstream.app.ui.home
 
-import android.widget.Toast
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -19,30 +19,26 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.border
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Surface
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.Dialog
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
@@ -76,10 +72,10 @@ fun AddPortalTypeDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(300.dp) // Qui puoi stringere o allargare a piacimento (es. 280.dp o 320.dp)
+                .width(300.dp)
                 .border(
                     width = 1.5.dp,
-                    color = Color(0xFF00E5FF), // Il tuo ciano neon
+                    color = Color(0xFF00E5FF),
                     shape = RoundedCornerShape(28.dp)
                 ),
             shape = RoundedCornerShape(28.dp),
@@ -99,7 +95,7 @@ fun AddPortalTypeDialog(
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 Spacer(Modifier.height(20.dp))
 
                 TextButton(
@@ -107,43 +103,57 @@ fun AddPortalTypeDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "FILE O LINK PLAYLIST", 
-                        color = MaterialTheme.colorScheme.onSurface, 
+                        "FILE O LINK PLAYLIST",
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
                 }
-                
+
                 Spacer(Modifier.height(8.dp))
-                
+
                 TextButton(
                     onClick = { onSelect(PortalType.MAG) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "MAG PORTALE", 
-                        color = MaterialTheme.colorScheme.onSurface, 
+                        "MAG PORTALE",
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
                 }
-                
+
                 Spacer(Modifier.height(8.dp))
-                
+
                 TextButton(
                     onClick = { onSelect(PortalType.XSTREAM) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        "XTREAM CODES PORTAL", 
-                        color = MaterialTheme.colorScheme.onSurface, 
+                        "XTREAM CODES PORTAL",
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
                 }
-                
+
+                Spacer(Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = { onSelect(PortalType.TORRENT) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "TORRENT STREAM",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
                 Spacer(Modifier.height(16.dp))
-                
+
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
@@ -165,7 +175,10 @@ fun PortalFormDialog(
     type: PortalType,
     onDismiss: () -> Unit,
     onSave: (Portal) -> Unit,
-    onPickFile: () -> Unit
+    onPickFile: () -> Unit,
+    pickedFileUrl: String? = null,
+    pickedFileName: String? = null,
+    onPickedFileConsumed: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var url by remember { mutableStateOf(existing?.url ?: "") }
@@ -183,20 +196,32 @@ fun PortalFormDialog(
     var uaMenu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
+    // Quando viene scelto un file tramite "Sfoglia file", aggiorna il campo link/magnet
+    LaunchedEffect(pickedFileUrl) {
+        if (!pickedFileUrl.isNullOrBlank()) {
+            url = pickedFileUrl
+            if (name.isBlank() && !pickedFileName.isNullOrBlank()) {
+                name = pickedFileName
+            }
+            onPickedFileConsumed()
+        }
+    }
+
     val title = when (type) {
         PortalType.M3U -> "File o Link Playlist"
         PortalType.MAG -> "MAG Portale"
         PortalType.XSTREAM -> "Xtream Codes Portal"
+        PortalType.TORRENT -> "Torrent Stream"
         else -> "Portale"
     }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(320.dp) // Larghezza stretta e coerente con l'altro dialogo
+                .width(320.dp)
                 .border(
                     width = 1.5.dp,
-                    color = Color(0xFF00E5FF), // Cornice ciano neon coordinata
+                    color = Color(0xFF00E5FF),
                     shape = RoundedCornerShape(28.dp)
                 ),
             shape = RoundedCornerShape(28.dp),
@@ -218,7 +243,7 @@ fun PortalFormDialog(
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
-                
+
                 Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(
@@ -236,6 +261,31 @@ fun PortalFormDialog(
                             value = url,
                             onValueChange = { url = it },
                             label = { Text("Link della playlist") },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(fontSize = 13.sp),
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            OutlinedButton(onClick = {
+                                clipboard.getText()?.text?.let { url = it }
+                            }) {
+                                Text("Incolla")
+                            }
+                            OutlinedButton(onClick = onPickFile) {
+                                Text("Sfoglia file")
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    PortalType.TORRENT -> {
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text("InfoHash o Magnet") },
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(fontSize = 13.sp),
                             maxLines = 2
@@ -345,43 +395,46 @@ fun PortalFormDialog(
                     else -> {}
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
-                    Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                }
-                OutlinedTextField(
-                    value = profile,
-                    onValueChange = { profile = it },
-                    label = { Text("Profilo") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = useCustomUa, onCheckedChange = { useCustomUa = it })
-                    Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                }
-                if (useCustomUa) {
-                    OutlinedTextField(
-                        value = userAgent,
-                        onValueChange = { userAgent = it },
-                        label = { Text("Inserisci o seleziona User-Agent") },
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontSize = 12.sp),
-                        maxLines = 2
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedButton(onClick = { uaMenu = true }) {
-                        Text("Seleziona preset")
+                // Per TORRENT non servono Usa VPN, Profilo e Usa User Agent
+                if (type != PortalType.TORRENT) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
+                        Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    DropdownMenu(expanded = uaMenu, onDismissRequest = { uaMenu = false }) {
-                        UA_PRESETS.forEach { preset ->
-                            DropdownMenuItem(
-                                text = { Text(preset.label) },
-                                onClick = {
-                                    userAgent = preset.value
-                                    uaMenu = false
-                                }
-                            )
+                    OutlinedTextField(
+                        value = profile,
+                        onValueChange = { profile = it },
+                        label = { Text("Profilo") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = useCustomUa, onCheckedChange = { useCustomUa = it })
+                        Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    if (useCustomUa) {
+                        OutlinedTextField(
+                            value = userAgent,
+                            onValueChange = { userAgent = it },
+                            label = { Text("Inserisci o seleziona User-Agent") },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(fontSize = 12.sp),
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(onClick = { uaMenu = true }) {
+                            Text("Seleziona preset")
+                        }
+                        DropdownMenu(expanded = uaMenu, onDismissRequest = { uaMenu = false }) {
+                            UA_PRESETS.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset.label) },
+                                    onClick = {
+                                        userAgent = preset.value
+                                        uaMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -394,8 +447,8 @@ fun PortalFormDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) { 
-                        Text("Annulla", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold) 
+                    TextButton(onClick = onDismiss) {
+                        Text("Annulla", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                     }
                     TextButton(onClick = {
                         val base = existing ?: Portal(id = 0)
@@ -410,15 +463,15 @@ fun PortalFormDialog(
                                 password = password,
                                 streamFormat = streamFormat,
                                 forceStreamLink = forceLink,
-                                useVpn = useVpn,
-                                profile = profile.trim(),
-                                useCustomUserAgent = useCustomUa,
-                                userAgent = userAgent.trim()
+                                useVpn = if (type == PortalType.TORRENT) false else useVpn,
+                                profile = if (type == PortalType.TORRENT) "" else profile.trim(),
+                                useCustomUserAgent = if (type == PortalType.TORRENT) false else useCustomUa,
+                                userAgent = if (type == PortalType.TORRENT) "" else userAgent.trim()
                             )
                         )
                     }) {
                         Text(
-                            text = if (existing == null) "Salva" else "OK", 
+                            text = if (existing == null) "Salva" else "OK",
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
