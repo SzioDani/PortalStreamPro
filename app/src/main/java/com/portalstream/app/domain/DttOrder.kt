@@ -52,7 +52,7 @@ object DttOrder {
         listOf("sky tg24", "sky tg 24"),
         listOf("tgcom24", "tgcom 24"),
         listOf("dmax", "d max", "DMAX", "DMax", "Dmax"),
-        listOf("Hgtv-Home & Garden", "HGTV-Home & Garden"),
+        listOf("Hgtv-Home & Garden", "HGTV-Home & Garden", "HGTV – Home & Garden Tv"),
         listOf("Motor Trend", "MOTOR TREND", "motor trend", "Turbo", "turbo", "TURBO")
         
         // 👆 Aggiungi/sposta qui i canali per raggiungere l'ordine che vuoi
