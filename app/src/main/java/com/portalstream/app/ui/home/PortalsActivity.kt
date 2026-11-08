@@ -2,27 +2,31 @@ package com.portalstream.app.ui.home
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.border
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.portalstream.app.R
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalStore
 import com.portalstream.app.data.PortalType
@@ -30,19 +34,27 @@ import com.portalstream.app.data.epg.EpgMappingStore
 import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.streaming.M3UParser
+import com.portalstream.app.streaming.TorrentStreamEngine
 import com.portalstream.app.ui.channels.ChannelsActivity
+import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.portalstream.app.R
 
 class PortalsActivity : ComponentActivity() {
     private lateinit var store: PortalStore
     private lateinit var epgMappingStore: EpgMappingStore
+
+    // Stato condiviso per passare il file selezionato tramite "Sfoglia file" al dialogo
+    private var activeDialogType: PortalType? = null
+    private var pickedFileUrlState by mutableStateOf<String?>(null)
+    private var pickedFileNameState by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = PortalStore(this)
@@ -57,19 +69,19 @@ class PortalsActivity : ComponentActivity() {
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
                     background = colorResource(id = R.color.surface_dark),      // #0F172A
-                    surface = colorResource(id = R.color.surface_dark_variant),    // #1E293B
-                    onBackground = colorResource(id = R.color.text_primary),       // Bianco
+                    surface = colorResource(id = R.color.surface_dark_variant), // #1E293B
+                    onBackground = colorResource(id = R.color.text_primary),    // Bianco
                     onSurface = colorResource(id = R.color.text_primary)
                 )
-                // TEMA CHIARO (Un grigio chiaro e riposante, ma ben luminoso)
+                // TEMA CHIARO
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF9aa1ac),   // Un grigio-azzurro chiaro molto morbido
-                    surface = Color(0xFFdfe1e2),       // Un bianco sporco/grigio chiarissimo per le card
-                    onBackground = Color(0xFF0F172A),  // Testo scuro ben marcato sul fondo chiaro
-                    onSurface = Color(0xFF0F172A),     // Testo scuro per le card
-                    surfaceVariant = Color(0xFFCBD5E1) // Colore per i bottoni secondari o sfondi interni
+                    background = Color(0xFF9aa1ac),
+                    surface = Color(0xFFdfe1e2),
+                    onBackground = Color(0xFF0F172A),
+                    onSurface = Color(0xFF0F172A),
+                    surfaceVariant = Color(0xFFCBD5E1)
                 )
                 MaterialTheme(
                     colorScheme = if (isDarkMode) customDarkScheme else customLightScheme
@@ -84,6 +96,7 @@ class PortalsActivity : ComponentActivity() {
             }
         })
     }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
@@ -91,8 +104,12 @@ class PortalsActivity : ComponentActivity() {
         var showTypeChooser by remember { mutableStateOf(false) }
         var formType by remember { mutableStateOf<PortalType?>(null) }
         var editing by remember { mutableStateOf<Portal?>(null) }
-        var showSettings by remember { mutableStateOf(false) } 
+        var showSettings by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
+
+        LaunchedEffect(formType, editing) {
+            activeDialogType = formType ?: editing?.type
+        }
 
         Scaffold(
             topBar = {
@@ -136,9 +153,8 @@ class PortalsActivity : ComponentActivity() {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                
+
                 if (portals.isEmpty()) {
-                    // 1. SE NON CI SONO PORTALI: solo testo pulito, zero card o cornici
                     Spacer(Modifier.height(8.dp))
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -146,20 +162,19 @@ class PortalsActivity : ComponentActivity() {
                             style = MaterialTheme.typography.bodyMedium,
                             color = colorResource(id = R.color.text_neonciano)
                         )
-                        Text(  
+                        Text(
                             text = "Premi AGGIUNGI PLAYLIST per iniziare.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colorResource(id = R.color.text_neonciano)
                         )
                     }
-                 } else {
-                    // 2. SE CI SONO PORTALI: solo la LazyColumn pulita con i singoli portali incorniciati
+                } else {
                     Spacer(Modifier.height(8.dp))
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 600.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp) // Spazio pulito tra un portale e l'altro
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(portals, key = { it.id }) { portal ->
                             Card(
@@ -258,7 +273,7 @@ class PortalsActivity : ComponentActivity() {
                                             colors = ButtonDefaults.textButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.onSurface
                                             )
-                                         ) {
+                                        ) {
                                             Text("Modifica")
                                         }
                                         Spacer(Modifier.width(4.dp))
@@ -285,7 +300,7 @@ class PortalsActivity : ComponentActivity() {
                     }
                 }
             }
-        }   
+        }
         if (showTypeChooser) {
             AddPortalTypeDialog(
                 onSelect = { type ->
@@ -302,7 +317,8 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { formType = null },
                 onSave = { draft ->
                     val detected = PortalType.detect(draft.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else type
+                    val finalType = if (type == PortalType.TORRENT) PortalType.TORRENT
+                    else if (detected != PortalType.UNKNOWN) detected else type
                     val portalToSave = draft.copy(type = finalType)
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -323,7 +339,7 @@ class PortalsActivity : ComponentActivity() {
                             }
                         } catch (e: Exception) {
                             Timber.e(e, "Errore salvataggio info account")
-                            store.add(portalToSave.copy(expireDate = "Non disponibile"))
+                            store.add(portalToSave.copy(expireDate = if (finalType == PortalType.TORRENT) "" else "Non disponibile"))
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
                                 formType = null
@@ -331,7 +347,13 @@ class PortalsActivity : ComponentActivity() {
                         }
                     }
                 },
-                onPickFile = { pickLocalFile() }
+                onPickFile = { pickLocalFile() },
+                pickedFileUrl = pickedFileUrlState,
+                pickedFileName = pickedFileNameState,
+                onPickedFileConsumed = {
+                    pickedFileUrlState = null
+                    pickedFileNameState = null
+                }
             )
         }
         editing?.let { portal ->
@@ -341,7 +363,8 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { editing = null },
                 onSave = { updated ->
                     val detected = PortalType.detect(updated.url)
-                    val finalType = if (detected != PortalType.UNKNOWN) detected else updated.type
+                    val finalType = if (updated.type == PortalType.TORRENT) PortalType.TORRENT
+                    else if (detected != PortalType.UNKNOWN) detected else updated.type
                     val portalToUpdate = updated.copy(type = finalType)
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -356,11 +379,11 @@ class PortalsActivity : ComponentActivity() {
                                 )
                             }
                             val credentialsChanged = portal.macAddress.trim() != finalPortal.macAddress.trim() ||
-                                    portal.url.trim() != finalPortal.url.trim() ||
-                                    portal.server.trim() != finalPortal.server.trim() ||
-                                    portal.username.trim() != finalPortal.username.trim() ||
-                                    portal.password != finalPortal.password
-                            
+                                portal.url.trim() != finalPortal.url.trim() ||
+                                portal.server.trim() != finalPortal.server.trim() ||
+                                portal.username.trim() != finalPortal.username.trim() ||
+                                portal.password != finalPortal.password
+
                             if (credentialsChanged) {
                                 epgMappingStore.deletePortalMappings(finalPortal.id)
                                 val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
@@ -382,7 +405,13 @@ class PortalsActivity : ComponentActivity() {
                         }
                     }
                 },
-                onPickFile = { pickLocalFile() }
+                onPickFile = { pickLocalFile() },
+                pickedFileUrl = pickedFileUrlState,
+                pickedFileName = pickedFileNameState,
+                onPickedFileConsumed = {
+                    pickedFileUrlState = null
+                    pickedFileNameState = null
+                }
             )
         }
         if (showSettings) {
@@ -393,7 +422,22 @@ class PortalsActivity : ComponentActivity() {
             )
         }
     }
+
     private fun openChannels(portal: Portal) {
+        // Se è un TORRENT (o contiene un link magnet/infohash/.torrent), avvia subito la riproduzione!
+        if (portal.type == PortalType.TORRENT || TorrentStreamEngine.isTorrentSource(portal.url)) {
+            startActivity(
+                Intent(this, PlayerActivity::class.java).apply {
+                    putExtra(PlayerActivity.EXTRA_STREAM_URL, portal.url)
+                    putExtra(
+                        PlayerActivity.EXTRA_CHANNEL_NAME,
+                        portal.name.ifBlank { "Torrent ${portal.id}" }
+                    )
+                }
+            )
+            return
+        }
+
         val ua = if (portal.useCustomUserAgent) portal.userAgent else null
         startActivity(
             Intent(this, ChannelsActivity::class.java).apply {
@@ -411,6 +455,7 @@ class PortalsActivity : ComponentActivity() {
             }
         )
     }
+
     private fun pickLocalFile() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -418,12 +463,47 @@ class PortalsActivity : ComponentActivity() {
         }
         startActivityForResult(intent, REQ_PICK_FILE)
     }
+
     @Deprecated("Usato per il picker file senza activity-compose")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_PICK_FILE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 try {
+                    val fileName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "file"
+
+                    // Gestione selezione file per TORRENT (file .torrent con dentro magnet o binario)
+                    if (activeDialogType == PortalType.TORRENT || fileName.endsWith(".torrent", ignoreCase = true)) {
+                        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        if (bytes == null || bytes.isEmpty()) {
+                            Toast.makeText(this, "File .torrent vuoto o illeggibile", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+
+                        val cleanDisplayName = fileName.removeSuffix(".torrent").removeSuffix(".TORRENT")
+                        val extractedMagnet = TorrentStreamEngine.extractMagnetOrHashFromBytes(bytes)
+
+                        if (extractedMagnet != null) {
+                            // Il file .torrent conteneva un magnet o un infohash testuale: lo inseriamo nel campo!
+                            pickedFileNameState = cleanDisplayName
+                            pickedFileUrlState = extractedMagnet
+                        } else {
+                            // È un file .torrent binario standard: lo salviamo nella cartella interna dell'app
+                            val torrentsDir = File(getExternalFilesDir(null) ?: filesDir, "torrents").apply {
+                                if (!exists()) mkdirs()
+                            }
+                            val safeName = fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                                .let { if (it.endsWith(".torrent", true)) it else "$it.torrent" }
+                            val destFile = File(torrentsDir, "${System.currentTimeMillis()}_$safeName")
+                            destFile.writeBytes(bytes)
+
+                            pickedFileNameState = cleanDisplayName
+                            pickedFileUrlState = destFile.absolutePath
+                        }
+                        return
+                    }
+
+                    // Gestione originale per file M3U locali
                     contentResolver.openInputStream(uri)?.let { inputStream ->
                         val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
                         M3UParser.parseStreaming(inputStream) { channels.add(it) }
@@ -441,14 +521,30 @@ class PortalsActivity : ComponentActivity() {
                     }
                 } catch (e: Exception) {
                     Timber.e(e, "Lettura file locale fallita")
+                    Toast.makeText(this, "Errore lettura file: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) cursor.getString(idx) else null
+                } else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     companion object {
         private const val REQ_PICK_FILE = 1001
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsBottomSheet(
@@ -457,7 +553,7 @@ fun SettingsBottomSheet(
     onThemeChanged: (Boolean) -> Unit
 ) {
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) } 
+    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
     var playerMode by remember { mutableStateOf(prefs.getString("player_mode", "miniplayer") ?: "miniplayer") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -559,6 +655,7 @@ fun SettingsBottomSheet(
         }
     }
 }
+
 object ChannelCache {
     private var channels: List<com.portalstream.app.domain.model.Channel> = emptyList()
     fun hold(list: List<com.portalstream.app.domain.model.Channel>) {
@@ -570,6 +667,7 @@ object ChannelCache {
         return result
     }
 }
+
 private fun formatDateToItalian(dateStr: String): String {
     if (dateStr.isBlank()) return ""
     if (dateStr.contains("Illimitato", ignoreCase = true) || dateStr.contains("Unlimited", ignoreCase = true)) {
