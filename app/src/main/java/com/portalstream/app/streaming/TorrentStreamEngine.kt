@@ -58,9 +58,7 @@ class TorrentStreamEngine(private val context: Context) {
 
     private val baseStreamDir: File by lazy {
         File(context.cacheDir, "torrent_stream").apply { if (!exists()) mkdirs() }
-        }
     }
-
     private var currentSaveDir: File = baseStreamDir
 
     fun logToFile(message: String) {
