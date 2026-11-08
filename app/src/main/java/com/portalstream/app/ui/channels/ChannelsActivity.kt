@@ -464,27 +464,37 @@ class ChannelsActivity : ComponentActivity() {
 								) {
 									listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
 										val isSelected = selectedCountry.equals(country, ignoreCase = true)
-										FilterChip(
-											selected = isSelected,
-											onClick = {
-												selectedCountry = country
-												appPrefs.edit().putString("epg_country_filter", country).apply()
-											},
-											label = {
+										Surface(
+											modifier = Modifier
+											    .weight(1f)
+												.height(36.dp)
+												.clip(RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedCountry = country
+                                                    appPrefs.edit().putString("epg_country_filter", country).apply()
+                                                },
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = if (isSelected) Color(0xFF00E5FF) else MaterialTheme.colorScheme.outline
+                                            )
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
                                                 Text(
                                                     text = country,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    maxLines = 1  
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) Color(0xFF000000) else MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1
                                                 )
-                                            },
-                                            border = FilterChipDefaults.filterChipBorder(
-                                                enabled = true,
-                                                selected = isSelected
-                                            ),
-											modifier = Modifier.weight(1f)
-										)
-									}
-								}
+                                            }
+                                        }
+                                    }
+                                }
 
 								Spacer(modifier = Modifier.height(4.dp))
 
