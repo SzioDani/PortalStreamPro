@@ -18,3 +18,6 @@
 
 # Keep BuildConfig
 -keep class com.portalstream.app.BuildConfig { *; }
+
+-keep class org.libtorrent4j.** { *; }
+-dontwarn org.libtorrent4j.**
