@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.portalstream.app.data.epg.EpgChannelMapper
 import com.portalstream.app.data.epg.EpgDownloader
+import com.portalstream.app.data.epg.EpgMappingStore
 import com.portalstream.app.data.epg.EpgParser
 import com.portalstream.app.data.epg.EpgProgram
 import com.portalstream.app.domain.model.Channel
@@ -27,9 +28,9 @@ class EpgRepository(private val context: Context) {
     private val downloader = EpgDownloader(context)
     private val parser = EpgParser()
     private val mapper = EpgChannelMapper()
+    private val mappingStore = EpgMappingStore(context)
 
     private var cachedPrograms: List<EpgProgram> = emptyList()
-    // 🚀 Indice ultra-veloce O(1) per non filtrare mai più l'intera lista per ogni singolo canale
     private var programsByChannelMap: Map<String, List<EpgProgram>> = emptyMap()
     private var loadedCountry: String = ""
 
@@ -56,19 +57,23 @@ class EpgRepository(private val context: Context) {
         }
     }
 
-    /**
-     * Usa direttamente l'ID salvato nel canale (dal nostro JSON).
-     * Cerca con findBestMatch SOLO se il canale è sprovvisto di ID.
-     */
-    private fun resolveTargetEpgId(channel: Channel, countryCode: String, allowAutoSearch: Boolean = false): String? {
+    private fun resolveTargetEpgId(
+        channel: Channel,
+        countryCode: String,
+        allowAutoSearch: Boolean = true,
+        isMegaPortal: Boolean = false
+    ): String? {
         val savedId = channel.tvgId.ifBlank { channel.customSid }
         if (savedId.isNotBlank()) {
-            return savedId
+            val cleanSaved = normalizeEpgId(savedId)
+            if (programsByChannelMap.containsKey(cleanSaved)) {
+                return savedId
+            }
         }
         if (allowAutoSearch) {
-            return mapper.findBestMatch(channel, countryCode)?.siteId
+            return mapper.findBestMatch(channel, countryCode, isMegaPortal)?.siteId
         }
-        return null
+        return savedId.takeIf { it.isNotBlank() }
     }
 
     fun getFullScheduleForChannel(
@@ -76,7 +81,7 @@ class EpgRepository(private val context: Context) {
         countryCode: String = "IT",
         timeZone: ZoneId = ZoneId.of("Europe/Rome")
     ): List<EpgProgram> {
-        val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false) ?: return emptyList()
+        val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = true) ?: return emptyList()
         val cleanTargetId = normalizeEpgId(targetId)
         return programsByChannelMap[cleanTargetId] ?: emptyList()
     }
@@ -104,67 +109,64 @@ class EpgRepository(private val context: Context) {
     }
 
     suspend fun getAllCurrentEpg(
-    channels: List<Channel>,
-    countryCode: String = "it",
-    timeZone: ZoneId = ZoneId.of("Europe/Rome")
-): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
-    val resultMap = mutableMapOf<String, EpgInfo>()
-    try {
-        ensureEpgLoaded(countryCode, timeZone)
-        if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
+        channels: List<Channel>,
+        countryCode: String = "it",
+        timeZone: ZoneId = ZoneId.of("Europe/Rome")
+    ): Map<String, EpgInfo> = withContext(Dispatchers.Default) {
+        val resultMap = mutableMapOf<String, EpgInfo>()
+        try {
+            ensureEpgLoaded(countryCode, timeZone)
+            if (programsByChannelMap.isEmpty()) return@withContext emptyMap()
 
-        val now = LocalDateTime.now(timeZone)
-        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+            val now = LocalDateTime.now(timeZone)
+            val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+            val isMegaPortal = channels.size > 500
 
-        channels.forEach { channel ->
-            // ⚡ Usa l'ID già salvato senza rifare la ricerca lenta!
-            val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = false)
+            channels.forEach { channel ->
+                val targetId = resolveTargetEpgId(channel, countryCode, allowAutoSearch = true, isMegaPortal = isMegaPortal)
 
-            if (!targetId.isNullOrBlank()) {
-                val cleanTargetId = normalizeEpgId(targetId)
-                val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
+                if (!targetId.isNullOrBlank()) {
+                    val cleanTargetId = normalizeEpgId(targetId)
+                    val channelProgs = programsByChannelMap[cleanTargetId] ?: emptyList()
 
-                if (channelProgs.isNotEmpty()) {
-                    val currentIndex = channelProgs.indexOfFirst {
-                        now.isAfter(it.startTime) && now.isBefore(it.endTime)
-                    }
-
-                    if (currentIndex != -1) {
-                        val prog = channelProgs[currentIndex]
-                        var current = prog.title
-                        if (!prog.episodeNum.isNullOrBlank()) {
-                            current += " (${prog.episodeNum})"
+                    if (channelProgs.isNotEmpty()) {
+                        val currentIndex = channelProgs.indexOfFirst {
+                            now.isAfter(it.startTime) && now.isBefore(it.endTime)
                         }
 
-                        // 👇 Prende SOLO il titolo del programma successivo (SENZA numero episodio)
-                        val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
-                        val next = nextProg?.title ?: ""
+                        if (currentIndex != -1) {
+                            val prog = channelProgs[currentIndex]
+                            var current = prog.title
+                            if (!prog.episodeNum.isNullOrBlank()) {
+                                current += " (${prog.episodeNum})"
+                            }
 
-                        // 👇 Calcola l'orario di inizio e fine per il programma successivo
-                        val nextTimeRange = if (nextProg != null) {
-                            "${nextProg.startTime.format(timeFormatter)} - ${nextProg.endTime.format(timeFormatter)}"
+                            val nextProg = if (currentIndex + 1 < channelProgs.size) channelProgs[currentIndex + 1] else null
+                            val next = nextProg?.title ?: ""
+
+                            val nextTimeRange = if (nextProg != null) {
+                                "${nextProg.startTime.format(timeFormatter)} - ${nextProg.endTime.format(timeFormatter)}"
+                            } else {
+                                ""
+                            }
+
+                            val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
+                            val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
+                            val nowEpoch = now.atZone(timeZone).toEpochSecond()
+
+                            val totalDuration = (endEpoch - startEpoch).toFloat()
+                            val elapsed = (nowEpoch - startEpoch).toFloat()
+                            val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+
+                            resultMap[channel.id] = EpgInfo(
+                                currentProgram = current,
+                                nextProgram = next,
+                                progress = progress,
+                                timeRange = timeRange,
+                                nextTimeRange = nextTimeRange
+                            )
                         } else {
-                            ""
-                        }
-
-                        val startEpoch = prog.startTime.atZone(timeZone).toEpochSecond()
-                        val endEpoch = prog.endTime.atZone(timeZone).toEpochSecond()
-                        val nowEpoch = now.atZone(timeZone).toEpochSecond()
-
-                        val totalDuration = (endEpoch - startEpoch).toFloat()
-                        val elapsed = (nowEpoch - startEpoch).toFloat()
-                        val progress = if (totalDuration > 0) (elapsed / totalDuration).coerceIn(0f, 1f) else 0f
-                        val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
-
-                        // 👇 Passiamo tutti e 5 i valori, incluso nextTimeRange!
-                        resultMap[channel.id] = EpgInfo(
-                            currentProgram = current,
-                            nextProgram = next,
-                            progress = progress,
-                            timeRange = timeRange,
-                            nextTimeRange = nextTimeRange
-                        )
-                    } else {
                             val upcoming = channelProgs.firstOrNull { it.startTime.isAfter(now) }
                             val firstOrUpcoming = upcoming ?: channelProgs.firstOrNull()
                             var current = firstOrUpcoming?.title ?: ""
@@ -185,7 +187,8 @@ class EpgRepository(private val context: Context) {
     }
 
     /**
-     * Esegue l'auto-associazione EPG SOLO per i canali del portale corrente (e non per tutti i portali del DB!).
+     * Esegue l'auto-associazione EPG in 4 Passi a Tempo 0:
+     * 1) ID valido già presente -> 2) Memoria storica rawName nel JSON -> 3) Filtro Gruppi + Dizionario -> 4) XML
      */
     suspend fun autoAssociatePortalChannels(
         portalChannels: List<Channel>,
@@ -196,23 +199,40 @@ class EpgRepository(private val context: Context) {
             ensureEpgLoaded(countryCode, ZoneId.of("Europe/Rome"))
             if (portalChannels.isEmpty() || cachedPrograms.isEmpty()) return@withContext portalChannels
 
+            val isMegaPortal = portalChannels.size > 500
+            val knownRawNames = mappingStore.getKnownRawNameMappings()
             var matchedCount = 0
+
             val updatedList = portalChannels.map { channel ->
-                // Se ha già un ID (es. salvato manualmente) e non stiamo forzando, lo preserviamo!
-                if (!forceOverwrite && channel.tvgId.isNotBlank()) {
+                val existingId = channel.tvgId.ifBlank { channel.customSid }
+                val hasValidXmlId = existingId.isNotBlank() &&
+                    programsByChannelMap.containsKey(normalizeEpgId(existingId))
+
+                // PASSO 1: Ha già un ID valido nel nostro XML
+                if (!forceOverwrite && hasValidXmlId) {
                     matchedCount++
-                    channel
+                    return@map channel
+                }
+
+                // PASSO 2: Memoria storica rawName nel JSON (es. stesso Server con nuovo MAC)
+                val rememberedId = knownRawNames[channel.name.trim()]
+                if (!forceOverwrite && !rememberedId.isNullOrBlank() &&
+                    programsByChannelMap.containsKey(normalizeEpgId(rememberedId))
+                ) {
+                    matchedCount++
+                    return@map channel.copy(tvgId = rememberedId)
+                }
+
+                // PASSO 3 & 4: Filtro Gruppi Italiani + ItalianEpgDictionary + Mappa XML (Tutto in O(1)!)
+                val mapping = mapper.findBestMatch(channel, countryCode, isMegaPortal)
+                if (mapping != null) {
+                    matchedCount++
+                    channel.copy(tvgId = mapping.siteId)
                 } else {
-                    val mapping = mapper.findBestMatch(channel, countryCode)
-                    if (mapping != null) {
-                        matchedCount++
-                        channel.copy(tvgId = mapping.siteId)
-                    } else {
-                        channel
-                    }
+                    channel
                 }
             }
-            Log.d(TAG, "✅ [AutoAssocia Portale] Trovati $matchedCount ID EPG su ${portalChannels.size} canali.")
+            Log.d(TAG, "✅ [AutoAssocia Portale] Trovati $matchedCount ID EPG su ${portalChannels.size} canali (MegaPortal=$isMegaPortal).")
             updatedList
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore durante autoAssociatePortalChannels", e)
