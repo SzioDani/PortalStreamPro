@@ -240,63 +240,78 @@ class VlcPlayerManager(private val context: Context) {
             }
         }
 
-        if (aspectRatio == "16:9" || aspectRatio == "4:3" || (aspectRatio != null && !aspectRatio.startsWith("ZOOM") && aspectRatio != "FILL" && scale == 0f)) {
+        val isZoomOrFill = scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL"
+
+        // 1. Formati standard e cinematografici (Originale, 16:9, 4:3, 21:9, 1.85:1, 2.35:1, 2.39:1)
+        if (!isZoomOrFill) {
             vlcLayout?.scaleX = 1f
             vlcLayout?.scaleY = 1f
             mp.scale = 0f
-            mp.aspectRatio = aspectRatio
+            mp.videoScale = MediaPlayer.ScaleType.SURFACE_BEST_FIT
+
+            // LibVLC in C accetta solo frazioni di numeri interi (NUM:DEN) e ignora i punti decimali!
+            val vlcNativeRatio = when (aspectRatio) {
+                "1.85:1" -> "185:100"
+                "2.35:1" -> "235:100"
+                "2.39:1" -> "239:100"
+                else -> aspectRatio // "16:9", "4:3", "21:9" o null (Originale)
+            }
+
+            mp.aspectRatio = vlcNativeRatio
+            vlcLayout?.post {
+                vlcLayout.requestLayout()
+                vlcLayout.invalidate()
+            }
             return
         }
 
-        if (scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL") {
-            mp.scale = 0f
-            mp.aspectRatio = null
-
-            val zoomLati = when (aspectRatio) {
-                "ZOOM110" -> 1.06f
-                "ZOOM120" -> 1.12f
-                "ZOOM125" -> 1.16f
-                "ZOOM130" -> 1.20f
-                "ZOOM135" -> 1.24f
-                "FILL"    -> 1.28f
-                else -> when (scale) {
-                    1.10f -> 1.06f
-                    1.20f -> 1.12f
-                    1.25f -> 1.16f
-                    1.30f -> 1.20f
-                    1.35f -> 1.24f
-                    1.45f -> 1.28f
-                    else  -> 1.0f
-                }
-            }
-
-            val zoomAltoBasso = when (aspectRatio) {
-                "ZOOM110" -> 0.90f
-                "ZOOM120" -> 0.94f
-                "ZOOM125" -> 0.98f
-                "ZOOM130" -> 1.00f
-                "ZOOM135" -> 1.02f
-                "FILL"    -> 1.04f
-                else -> when (scale) {
-                    1.10f -> 0.90f
-                    1.20f -> 0.94f
-                    1.25f -> 0.98f
-                    1.30f -> 1.00f
-                    1.35f -> 1.02f
-                    1.45f -> 1.04f
-                    else  -> 0.85f
-                }
-            }
-
-            vlcLayout?.scaleX = zoomLati
-            vlcLayout?.scaleY = zoomAltoBasso
-            return
-        }
-
-        vlcLayout?.scaleX = 1f
-        vlcLayout?.scaleY = 1f
+        // 2. Zoom personalizzati (ZOOM110..ZOOM135 e FILL)
         mp.scale = 0f
-        mp.aspectRatio = aspectRatio
+        mp.videoScale = MediaPlayer.ScaleType.SURFACE_BEST_FIT
+        mp.aspectRatio = null // Lasciamo gestire al layout via scaleX/scaleY
+
+        val zoomLati = when (aspectRatio) {
+            "ZOOM110" -> 1.06f
+            "ZOOM120" -> 1.12f
+            "ZOOM125" -> 1.16f
+            "ZOOM130" -> 1.20f
+            "ZOOM135" -> 1.24f
+            "FILL"    -> 1.28f
+            else -> when (scale) {
+                1.10f -> 1.06f
+                1.20f -> 1.12f
+                1.25f -> 1.16f
+                1.30f -> 1.20f
+                1.35f -> 1.24f
+                1.45f -> 1.28f
+                else  -> 1.0f
+            }
+        }
+
+        val zoomAltoBasso = when (aspectRatio) {
+            "ZOOM110" -> 0.90f
+            "ZOOM120" -> 0.94f
+            "ZOOM125" -> 0.98f
+            "ZOOM130" -> 1.00f
+            "ZOOM135" -> 1.02f
+            "FILL"    -> 1.04f
+            else -> when (scale) {
+                1.10f -> 0.90f
+                1.20f -> 0.94f
+                1.25f -> 0.98f
+                1.30f -> 1.00f
+                1.35f -> 1.02f
+                1.45f -> 1.04f
+                else  -> 0.85f
+            }
+        }
+
+        vlcLayout?.scaleX = zoomLati
+        vlcLayout?.scaleY = zoomAltoBasso
+        vlcLayout?.post {
+            vlcLayout.requestLayout()
+            vlcLayout.invalidate()
+        }
     }
 
     private fun formatAudioTrackInfo(
