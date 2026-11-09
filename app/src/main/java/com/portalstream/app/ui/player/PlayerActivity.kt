@@ -40,6 +40,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.portalstream.app.network.ExoPlayerManager
 import com.portalstream.app.network.StreamNetworkHelper
+import com.portalstream.app.network.StreamErrorResult
+import com.portalstream.app.network.StreamErrorType
 import com.portalstream.app.network.UiAudioTrack
 import com.portalstream.app.network.VlcPlayerManager
 import com.portalstream.app.streaming.TorrentStreamEngine
@@ -190,7 +192,6 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(initialChannelName: String, onExitAndClearCache: () -> Unit) {
-        // Intercetta anche il tasto Indietro fisico/gesture di Android per svuotare subito la cache Torrent!
         BackHandler {
             onExitAndClearCache()
         }
@@ -210,7 +211,10 @@ class PlayerActivity : ComponentActivity() {
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
         var isBuffering by remember { mutableStateOf(true) }
-        var errorMessage by remember { mutableStateOf<String?>(null) }
+        
+        // Sostituito errorMessage con StreamErrorResult strutturato
+        var errorResult by remember { mutableStateOf<StreamErrorResult?>(null) }
+        
         var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
         var isMinimized by remember { mutableStateOf(false) }
@@ -219,7 +223,6 @@ class PlayerActivity : ComponentActivity() {
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
-        // Stati Sottotitoli Esterni (OpenSubtitles + Compose Live Renderer)
         var openSubtitleItems by remember { mutableStateOf<List<OpenSubtitleItem>>(emptyList()) }
         var selectedOpenSubId by remember { mutableStateOf("") }
         var activeSubtitleCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
@@ -251,7 +254,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Osserva lo stato del motore Torrent e aggiorna il titolo nella barra superiore
+        // Osserva lo stato del motore Torrent
         LaunchedEffect(torrentState?.value) {
             when (val st = torrentState?.value) {
                 is TorrentStreamState.Buffering -> {
@@ -261,7 +264,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
                 is TorrentStreamState.Ready -> {
-                    errorMessage = null
+                    errorResult = null
                     if (st.torrentTitle.isNotBlank()) {
                         displayTitle = st.torrentTitle
                     }
@@ -269,20 +272,21 @@ class PlayerActivity : ComponentActivity() {
                 }
                 is TorrentStreamState.Error -> {
                     isBuffering = false
-                    errorMessage = st.message
+                    errorResult = StreamErrorResult(
+                        message = st.message,
+                        type = StreamErrorType.UNKNOWN
+                    )
                 }
                 else -> {}
             }
         }
 
-        // Ricerca automatica su OpenSubtitles non appena il titolo del Torrent è disponibile
         LaunchedEffect(displayTitle, preferredSubLanguage) {
             if (isTorrent && displayTitle.isNotBlank() && !displayTitle.startsWith("Caricamento")) {
                 triggerOpenSubtitlesSearch(displayTitle, preferredSubLanguage)
             }
         }
 
-        // Sincronizzazione in tempo reale dei sottotitoli esterni col tempo del video
         LaunchedEffect(activeSubtitleCues, isPlaying, useExoPlayer) {
             if (activeSubtitleCues.isEmpty()) {
                 currentSubtitleText = null
@@ -359,7 +363,7 @@ class PlayerActivity : ComponentActivity() {
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
                         isPlaying = playing
-                        if (playing) errorMessage = null
+                        if (playing) errorResult = null
                         pipManager.updatePipParams(playing)
                     },
                     onAudioTracksUpdated = { tracks, selectedId, info ->
@@ -375,7 +379,7 @@ class PlayerActivity : ComponentActivity() {
                             useExoPlayer = false
                         } else {
                             lifecycleScope.launch {
-                                errorMessage = StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
+                                errorResult = StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
                             }
                         }
                     }
@@ -386,7 +390,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e("PlayerDebug", "Errore setup ExoPlayer", e)
-                errorMessage = "Errore ExoPlayer: ${e.message}"
+                errorResult = StreamErrorResult(
+                    message = "Errore ExoPlayer: ${e.message}",
+                    type = StreamErrorType.UNKNOWN
+                )
                 onDispose {}
             }
         }
@@ -404,7 +411,7 @@ class PlayerActivity : ComponentActivity() {
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
                         isPlaying = playing
-                        if (playing) errorMessage = null
+                        if (playing) errorResult = null
                         pipManager.updatePipParams(playing)
                     },
                     onAudioTracksUpdated = { tracks, selectedId, info ->
@@ -417,8 +424,11 @@ class PlayerActivity : ComponentActivity() {
                     },
                     onError = {
                         lifecycleScope.launch {
-                            errorMessage = if (isTorrent) {
-                                "Errore riproduzione file Torrent"
+                            errorResult = if (isTorrent) {
+                                StreamErrorResult(
+                                    message = "Errore riproduzione file Torrent",
+                                    type = StreamErrorType.UNKNOWN
+                                )
                             } else {
                                 StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
                             }
@@ -436,7 +446,10 @@ class PlayerActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e("PlayerDebug", "Errore nel setup di LibVLC", e)
-                errorMessage = "Errore: ${e.message}"
+                errorResult = StreamErrorResult(
+                    message = "Errore LibVLC: ${e.message}",
+                    type = StreamErrorType.UNKNOWN
+                )
                 onDispose {}
             }
         }
@@ -493,9 +506,6 @@ class PlayerActivity : ComponentActivity() {
                     null -> {}
                 }
 
-                // =================================================================
-                // RENDERER SOTTOTITOLI LIVE (OPENSUBTITLES) CON STILE E GRANDEZZA IN TEMPO REALE
-                // =================================================================
                 SubtitleOverlay(
                     text = currentSubtitleText,
                     sizeScale = subtitleSizeScale,
@@ -505,9 +515,6 @@ class PlayerActivity : ComponentActivity() {
                         .navigationBarsPadding()
                 )
 
-                // =================================================================
-                // GESTURE VOLUME (DESTRA) E LUMINOSITÀ (SINISTRA) + TAP
-                // =================================================================
                 PlayerGestureOverlay(
                     activity = this@PlayerActivity,
                     enabled = !isInPipMode && !isMinimized && !showSettingsSheet,
@@ -518,7 +525,6 @@ class PlayerActivity : ComponentActivity() {
                     }
                 )
 
-                // CONTROLLI PLAYER
                 AnimatedVisibility(
                     visible = showControls && !isInPipMode && !isMinimized,
                     enter = fadeIn(),
@@ -530,7 +536,6 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
-                        // BARRA SUPERIORE (UNICO POSTO DOVE COMPARE IL TITOLO)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -564,7 +569,7 @@ class PlayerActivity : ComponentActivity() {
                             Surface(
                                 onClick = {
                                     isBuffering = true
-                                    errorMessage = null
+                                    errorResult = null
                                     useExoPlayer = !(useExoPlayer ?: false)
                                 },
                                 color = Color.White.copy(alpha = 0.2f),
@@ -601,7 +606,6 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // PULSANTI CENTRALI
                         Row(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -639,7 +643,6 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Pulsante STOP: ferma il player e svuota subito la cache del Torrent
                             IconButton(
                                 onClick = {
                                     exoManager.stopAndDetach(exoPlayerView)
@@ -675,7 +678,6 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // BARRA INFERIORE CON PULSANTE OPZIONI
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -697,8 +699,8 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // INDICATORE DI BUFFERING CENTRALE (SENZA SECONDO TITOLO DUPLICATO)
-                if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
+                // CONTROLLO BUFFERING AGGIORNATO CON errorResult == null
+                if (isBuffering && errorResult == null && !isInPipMode && !isMinimized) {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -722,9 +724,20 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // CARD ERRORE DI RIPRODUZIONE
-                errorMessage?.let { msg ->
+                // CARD ERRORE DI RIPRODUZIONE CON ICONE VETTORIALI DINAMICHE
+                errorResult?.let { result ->
                     if (!isInPipMode && !isMinimized) {
+                        val errorIcon = when (result.type) {
+                            StreamErrorType.UNAUTHORIZED -> Icons.Default.Lock
+                            StreamErrorType.NOT_FOUND -> Icons.Default.SearchOff
+                            StreamErrorType.GEO_BLOCKED -> Icons.Default.PublicOff
+                            StreamErrorType.CONNECTION_LIMIT -> Icons.Default.Group
+                            StreamErrorType.SERVER_ERROR -> Icons.Default.CloudOff
+                            StreamErrorType.NETWORK_FAILURE -> Icons.Default.WifiOff
+                            StreamErrorType.DECODE_ERROR -> Icons.Default.MovieCreation
+                            else -> Icons.Default.ErrorOutline
+                        }
+
                         Surface(
                             color = Color.Black.copy(alpha = 0.90f),
                             shape = RoundedCornerShape(18.dp),
@@ -741,20 +754,27 @@ class PlayerActivity : ComponentActivity() {
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.ErrorOutline,
+                                        imageVector = errorIcon,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(28.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Errore di Riproduzione",
+                                        text = when (result.type) {
+                                            StreamErrorType.UNAUTHORIZED -> "Accesso Non Autorizzato"
+                                            StreamErrorType.GEO_BLOCKED -> "Blocco Geografico / VPN"
+                                            StreamErrorType.NOT_FOUND -> "Contenuto Non Trovato"
+                                            StreamErrorType.SERVER_ERROR -> "Errore del Server"
+                                            else -> "Errore di Riproduzione"
+                                        },
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                                 Text(
-                                    text = msg,
+                                    text = result.message,
                                     color = Color.White,
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center
@@ -762,7 +782,7 @@ class PlayerActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(20.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Button(onClick = {
-                                        errorMessage = null
+                                        errorResult = null
                                         isBuffering = true
                                         if (isTorrent && playbackUrl.isBlank()) {
                                             torrentEngine?.startStream(streamUrl)
@@ -779,7 +799,7 @@ class PlayerActivity : ComponentActivity() {
                                     }
 
                                     OutlinedButton(onClick = {
-                                        errorMessage = null
+                                        errorResult = null
                                         isBuffering = true
                                         useExoPlayer = !(useExoPlayer ?: false)
                                     }) {
@@ -792,9 +812,6 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // =================================================================
-                // MENU OPZIONI E SOTTOTITOLI OPENSUBTITLES STILE WEBVIDEOCASTER
-                // =================================================================
                 PlayerOptionsMenu(
                     visible = showSettingsSheet && !isInPipMode && !isMinimized,
                     onDismiss = { showSettingsSheet = false },
