@@ -35,6 +35,7 @@ import com.portalstream.app.data.local.AppDatabase
 import com.portalstream.app.network.StalkerClient
 import com.portalstream.app.streaming.M3UParser
 import com.portalstream.app.streaming.TorrentStreamEngine
+import com.portalstream.app.streaming.WebStreamExtractor
 import com.portalstream.app.ui.channels.ChannelsActivity
 import com.portalstream.app.ui.player.PlayerActivity
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,6 @@ class PortalsActivity : ComponentActivity() {
     private lateinit var store: PortalStore
     private lateinit var epgMappingStore: EpgMappingStore
 
-    // Stato condiviso per passare il file selezionato tramite "Sfoglia file" al dialogo
     private var activeDialogType: PortalType? = null
     private var pickedFileUrlState by mutableStateOf<String?>(null)
     private var pickedFileNameState by mutableStateOf<String?>(null)
@@ -65,16 +65,14 @@ class PortalsActivity : ComponentActivity() {
                 val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
                 var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
 
-                // 1. TEMA SCURO (Default)
                 val customDarkScheme = darkColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = colorResource(id = R.color.surface_dark),      // #0F172A
-                    surface = colorResource(id = R.color.surface_dark_variant), // #1E293B
-                    onBackground = colorResource(id = R.color.text_primary),    // Bianco
+                    background = colorResource(id = R.color.surface_dark),
+                    surface = colorResource(id = R.color.surface_dark_variant),
+                    onBackground = colorResource(id = R.color.text_primary),
                     onSurface = colorResource(id = R.color.text_primary)
                 )
-                // TEMA CHIARO
                 val customLightScheme = lightColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
@@ -318,8 +316,12 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { formType = null },
                 onSave = { draft ->
                     val detected = PortalType.detect(draft.url)
-                    val finalType = if (type == PortalType.TORRENT) PortalType.TORRENT
-                    else if (detected != PortalType.UNKNOWN) detected else type
+                    val finalType = when {
+                        type == PortalType.TORRENT -> PortalType.TORRENT
+                        type == PortalType.WEB_STREAM -> PortalType.WEB_STREAM
+                        detected != PortalType.UNKNOWN -> detected
+                        else -> type
+                    }
                     val portalToSave = draft.copy(type = finalType)
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -340,7 +342,8 @@ class PortalsActivity : ComponentActivity() {
                             }
                         } catch (e: Exception) {
                             Timber.e(e, "Errore salvataggio info account")
-                            store.add(portalToSave.copy(expireDate = if (finalType == PortalType.TORRENT) "" else "Non disponibile"))
+                            val noExpire = (finalType == PortalType.TORRENT || finalType == PortalType.WEB_STREAM)
+                            store.add(portalToSave.copy(expireDate = if (noExpire) "" else "Non disponibile"))
                             withContext(Dispatchers.Main) {
                                 portals = store.load()
                                 formType = null
@@ -364,8 +367,12 @@ class PortalsActivity : ComponentActivity() {
                 onDismiss = { editing = null },
                 onSave = { updated ->
                     val detected = PortalType.detect(updated.url)
-                    val finalType = if (updated.type == PortalType.TORRENT) PortalType.TORRENT
-                    else if (detected != PortalType.UNKNOWN) detected else updated.type
+                    val finalType = when {
+                        updated.type == PortalType.TORRENT -> PortalType.TORRENT
+                        updated.type == PortalType.WEB_STREAM -> PortalType.WEB_STREAM
+                        detected != PortalType.UNKNOWN -> detected
+                        else -> updated.type
+                    }
                     val portalToUpdate = updated.copy(type = finalType)
                     scope.launch(Dispatchers.IO) {
                         try {
@@ -425,7 +432,7 @@ class PortalsActivity : ComponentActivity() {
     }
 
     private fun openChannels(portal: Portal) {
-        // Se è un TORRENT (o contiene un link magnet/infohash/.torrent), avvia subito la riproduzione!
+        // 1. Se è un TORRENT, avvia subito PlayerActivity
         if (portal.type == PortalType.TORRENT || TorrentStreamEngine.isTorrentSource(portal.url)) {
             startActivity(
                 Intent(this, PlayerActivity::class.java).apply {
@@ -434,6 +441,21 @@ class PortalsActivity : ComponentActivity() {
                         PlayerActivity.EXTRA_CHANNEL_NAME,
                         portal.name.ifBlank { "Torrent ${portal.id}" }
                     )
+                }
+            )
+            return
+        }
+
+        // 2. Se è un WEB / YOUTUBE STREAM, avvia subito PlayerActivity con l'estrattore ExoPlayer senza pubblicità!
+        if (portal.type == PortalType.WEB_STREAM || WebStreamExtractor.isYoutubeUrl(portal.url)) {
+            startActivity(
+                Intent(this, PlayerActivity::class.java).apply {
+                    putExtra(PlayerActivity.EXTRA_STREAM_URL, portal.url)
+                    putExtra(
+                        PlayerActivity.EXTRA_CHANNEL_NAME,
+                        portal.name.ifBlank { "Web Stream ${portal.id}" }
+                    )
+                    putExtra(PlayerActivity.EXTRA_IS_WEB_STREAM, true)
                 }
             )
             return
@@ -473,7 +495,6 @@ class PortalsActivity : ComponentActivity() {
                 try {
                     val fileName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "file"
 
-                    // Gestione selezione file per TORRENT (file .torrent con dentro magnet o binario)
                     if (activeDialogType == PortalType.TORRENT || fileName.endsWith(".torrent", ignoreCase = true)) {
                         val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         if (bytes == null || bytes.isEmpty()) {
@@ -485,11 +506,9 @@ class PortalsActivity : ComponentActivity() {
                         val extractedMagnet = TorrentStreamEngine.extractMagnetOrHashFromBytes(bytes)
 
                         if (extractedMagnet != null) {
-                            // Il file .torrent conteneva un magnet o un infohash testuale: lo inseriamo nel campo!
                             pickedFileNameState = cleanDisplayName
                             pickedFileUrlState = extractedMagnet
                         } else {
-                            // È un file .torrent binario standard: lo salviamo nella cartella interna dell'app
                             val torrentsDir = File(getExternalFilesDir(null) ?: filesDir, "torrents").apply {
                                 if (!exists()) mkdirs()
                             }
@@ -504,7 +523,6 @@ class PortalsActivity : ComponentActivity() {
                         return
                     }
 
-                    // Gestione originale per file M3U locali
                     contentResolver.openInputStream(uri)?.let { inputStream ->
                         val channels = mutableListOf<com.portalstream.app.domain.model.Channel>()
                         M3UParser.parseStreaming(inputStream) { channels.add(it) }
