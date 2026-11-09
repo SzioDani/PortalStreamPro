@@ -3,9 +3,11 @@ package com.portalstream.app.network
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.webkit.CookieManager
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -18,6 +20,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.portalstream.app.streaming.WebStreamExtractor
 
 @OptIn(UnstableApi::class)
 class ExoPlayerManager(private val context: Context) {
@@ -34,17 +37,19 @@ class ExoPlayerManager(private val context: Context) {
     fun ensureInitialized(
         userAgent: String?,
         referer: String? = null,
-        origin: String? = null
+        origin: String? = null,
+        cookies: String? = null
     ): ExoPlayer {
         val resolvedUa = if (!userAgent.isNullOrBlank()) {
             userAgent
         } else {
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         }
 
         val headers = mutableMapOf<String, String>()
         if (!referer.isNullOrBlank()) headers["Referer"] = referer
         if (!origin.isNullOrBlank()) headers["Origin"] = origin
+        if (!cookies.isNullOrBlank()) headers["Cookie"] = cookies
 
         exoPlayer?.let { existingPlayer ->
             httpDataSourceFactory?.setUserAgent(resolvedUa)
@@ -54,8 +59,8 @@ class ExoPlayerManager(private val context: Context) {
 
         val factory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10000)
-            .setReadTimeoutMs(12000)
+            .setConnectTimeoutMs(12000)
+            .setReadTimeoutMs(15000)
             .setUserAgent(resolvedUa)
             .setDefaultRequestProperties(headers)
 
@@ -96,10 +101,23 @@ class ExoPlayerManager(private val context: Context) {
         if (aspectRatio != null) currentAspectRatio = aspectRatio
         currentScale = scale
 
-        val player = ensureInitialized(userAgent, referer, origin)
+        // Recupera eventuali header/cookie salvati da WebStreamExtractor o dal CookieManager della WebView
+        val lastWeb = WebStreamExtractor.lastExtractedStream?.takeIf { it.streamUrl == streamUrl }
+        val effectiveReferer = referer?.takeIf { it.isNotBlank() } ?: lastWeb?.referer
+        val effectiveOrigin = origin?.takeIf { it.isNotBlank() } ?: lastWeb?.origin
+        val effectiveCookies = lastWeb?.cookies ?: try {
+            CookieManager.getInstance().getCookie(streamUrl)
+                ?: effectiveReferer?.let { CookieManager.getInstance().getCookie(it) }
+        } catch (_: Throwable) {
+            null
+        }
+
+        val player = ensureInitialized(userAgent, effectiveReferer, effectiveOrigin, effectiveCookies)
         playerView.player = player
 
         activeListener?.let { player.removeListener(it) }
+
+        var retriedAsHls = false
 
         fun refreshExoAudioTracks(tracks: Tracks) {
             val list = mutableListOf<UiAudioTrack>()
@@ -180,6 +198,24 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // Se l'URL non finiva in .m3u8 ma in realtà il server ha risposto con una playlist HLS (#EXTM3U),
+                // ExoPlayer solleva ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED: riproviamo forzando APPLICATION_M3U8!
+                if (!retriedAsHls &&
+                    (error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+                        error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED)
+                ) {
+                    retriedAsHls = true
+                    Log.w("PlayerDebug", "Riprovo apertura stream forzando formato HLS (M3U8): $streamUrl")
+                    val hlsItem = MediaItem.Builder()
+                        .setUri(Uri.parse(streamUrl))
+                        .setMimeType(MimeTypes.APPLICATION_M3U8)
+                        .build()
+                    player.setMediaItem(hlsItem)
+                    player.prepare()
+                    player.playWhenReady = true
+                    return
+                }
+
                 Log.e("PlayerDebug", "Errore ExoPlayer: ${error.message}", error)
                 onBuffering(false)
                 onPlayingState(false)
@@ -190,8 +226,22 @@ class ExoPlayerManager(private val context: Context) {
         activeListener = listener
         player.addListener(listener)
 
-        val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
-        player.setMediaItem(mediaItem)
+        val lowerUrl = streamUrl.lowercase()
+        val isHlsHint = lastWeb?.isHls == true ||
+            lowerUrl.contains(".m3u8") ||
+            lowerUrl.contains("/playlist/") ||
+            lowerUrl.contains("master.txt") ||
+            lowerUrl.contains("index.txt")
+
+        val mediaItemBuilder = MediaItem.Builder().setUri(Uri.parse(streamUrl))
+        if (isHlsHint) {
+            retriedAsHls = true
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        } else if (lowerUrl.contains(".mpd")) {
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
+        }
+
+        player.setMediaItem(mediaItemBuilder.build())
         player.prepare()
         player.playWhenReady = true
 
