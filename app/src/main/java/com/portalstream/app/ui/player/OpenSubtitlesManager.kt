@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalstream.app.streaming.WebStreamExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
@@ -66,23 +67,54 @@ object OpenSubtitlesManager {
     )
 
     /**
-     * Pulisce il titolo grezzo del Torrent (es. "Nome.Film.2023.854x480.AVC.AAC" o "Serie.S01E02.720p")
-     * per ottenere una ricerca precisa su OpenSubtitles.
+     * Risolve il miglior titolo possibile sia per i Torrent sia per i flussi Web estratti.
+     */
+    private fun resolveEffectiveTitle(rawInputTitle: String): String {
+        val trimmed = rawInputTitle.trim()
+        val isGenericOrEmpty = trimmed.isBlank() ||
+            trimmed.startsWith("Caricamento", ignoreCase = true) ||
+            trimmed.equals("Stream", ignoreCase = true) ||
+            trimmed.equals("Web Stream", ignoreCase = true) ||
+            trimmed.equals("Canale", ignoreCase = true)
+
+        // 1. Se il titolo nel player è vuoto/generico o è un URL, usa il titolo estratto da WebStreamExtractor!
+        if (isGenericOrEmpty || trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
+            val extractedTitle = WebStreamExtractor.lastExtractedStream?.title?.trim().orEmpty()
+            if (extractedTitle.isNotBlank()) {
+                return extractedTitle
+            }
+            if (trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)) {
+                return WebStreamExtractor.extractTitleFromUrlSlug(trimmed)
+            }
+            return ""
+        }
+
+        return WebStreamExtractor.cleanWebTitle(trimmed)
+    }
+
+    /**
+     * Pulisce sia il titolo grezzo dei Torrent (es. "Nome.Film.2023.1080p")
+     * sia il titolo delle pagine web di streaming (es. "Guarda Gladiator II (2024) Streaming ITA").
      */
     private fun parseMediaQuery(rawTitle: String): ParsedMediaQuery {
-        val normalized = rawTitle
+        val webCleaned = WebStreamExtractor.cleanWebTitle(rawTitle)
+        val normalized = webCleaned
             .replace('.', ' ')
             .replace('_', ' ')
             .replace('-', ' ')
+            .replace('(', ' ')
+            .replace(')', ' ')
+            .replace('[', ' ')
+            .replace(']', ' ')
 
-        // Rileva eventuale Serie TV (es. S01E02 o 1x02)
-        val seRegex = Regex("(?i)\\bS(\\d{1,2})E(\\d{1,2})\\b|\\b(\\d{1,2})x(\\d{1,2})\\b")
+        // Rileva eventuale Serie TV (es. S01E02, 1x02, o Stagione 1 Episodio 2)
+        val seRegex = Regex("(?i)\\bS(\\d{1,2})E(\\d{1,2})\\b|\\b(\\d{1,2})x(\\d{1,2})\\b|\\bSeason\\s*(\\d{1,2})\\s*Episode\\s*(\\d{1,2})\\b")
         val seMatch = seRegex.find(normalized)
         val season = seMatch?.let {
-            (it.groupValues[1].ifBlank { it.groupValues[3] }).toIntOrNull()
+            (it.groupValues[1].ifBlank { it.groupValues[3] }.ifBlank { it.groupValues[5] }).toIntOrNull()
         }
         val episode = seMatch?.let {
-            (it.groupValues[2].ifBlank { it.groupValues[4] }).toIntOrNull()
+            (it.groupValues[2].ifBlank { it.groupValues[4] }.ifBlank { it.groupValues[6] }).toIntOrNull()
         }
 
         // Rileva eventuale Anno (es. 1999, 2024)
@@ -90,10 +122,11 @@ object OpenSubtitlesManager {
         val yearMatch = yearRegex.find(normalized)
         val year = yearMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
 
-        // Taglia tutto ciò che viene dopo SxxExx, l'anno o i tag tecnici video/audio
+        // Taglia tutto ciò che viene dopo SxxExx, l'anno o i tag tecnici/streaming
         val cutRegex = Regex(
             "(?i)\\b(S\\d{1,2}E\\d{1,2}|\\d{1,2}x\\d{1,2}|19\\d{2}|20\\d{2}|1080p|720p|480p|2160p|4k|854x480|" +
-                "x264|x265|h264|h265|hevc|avc|aac|ac3|eac3|dts|bluray|bdrip|webrip|web dl|dvdrip|hdrip|ita|eng|multi|sub)\\b.*"
+                "x264|x265|h264|h265|hevc|avc|aac|ac3|eac3|dts|bluray|bdrip|webrip|web dl|dvdrip|hdrip|" +
+                "ita|eng|multi|sub|streaming|guarda|altadefinizione|cb01|eurostreaming|streamingcommunity)\\b.*"
         )
         val cleaned = normalized.replace(cutRegex, "").replace(Regex("\\s+"), " ").trim()
         val finalTitle = cleaned.ifBlank {
@@ -119,18 +152,23 @@ object OpenSubtitlesManager {
 
     /**
      * Cerca i sottotitoli su OpenSubtitles (supporta sia API v1 ufficiale opensubtitles.com
-     * sia i nodi OpenSubtitles v3 / REST pubblici con compressione Gzip).
+     * sia i nodi OpenSubtitles v3 / REST pubblici con compressione Gzip, per Torrent e Web Stream).
      */
     suspend fun searchSubtitles(
         rawTorrentTitle: String,
         languageCode2: String,
         openSubtitlesComApiKey: String = ""
     ): List<OpenSubtitleItem> = withContext(Dispatchers.IO) {
-        if (rawTorrentTitle.isBlank() || rawTorrentTitle.startsWith("Caricamento")) {
+        val effectiveTitle = resolveEffectiveTitle(rawTorrentTitle)
+        if (effectiveTitle.isBlank()) {
             return@withContext emptyList()
         }
 
-        val parsed = parseMediaQuery(rawTorrentTitle)
+        val parsed = parseMediaQuery(effectiveTitle)
+        if (parsed.cleanTitle.isBlank()) {
+            return@withContext emptyList()
+        }
+
         val lang3 = toIso639_2(languageCode2)
         val results = mutableListOf<OpenSubtitleItem>()
 
@@ -334,10 +372,6 @@ object OpenSubtitlesManager {
         return list
     }
 
-    /**
-     * Scarica e decomprime via Gzip il file .srt selezionato da OpenSubtitles,
-     * restituendo la lista di SubtitleCue ordinata per millisecondi.
-     */
     suspend fun downloadAndParseSubtitle(
         item: OpenSubtitleItem,
         openSubtitlesComApiKey: String = ""
@@ -396,7 +430,6 @@ object OpenSubtitlesManager {
             bytes
         }
 
-        // Rimuove eventuale BOM UTF-8 e gestisce fallback ISO-8859-1 per gli accenti italiani
         val utf8 = String(decompressed, Charsets.UTF_8).removePrefix("\uFEFF")
         return if (utf8.contains('\uFFFD')) {
             String(decompressed, Charset.forName("ISO-8859-1"))
@@ -460,7 +493,6 @@ object OpenSubtitlesManager {
 
     fun findActiveText(cues: List<SubtitleCue>, positionMs: Long): String? {
         if (cues.isEmpty() || positionMs <= 0L) return null
-        // Ricerca binaria veloce
         var low = 0
         var high = cues.size - 1
         while (low <= high) {
@@ -476,11 +508,6 @@ object OpenSubtitlesManager {
     }
 }
 
-/**
- * Overlay Sottotitoli in Jetpack Compose:
- * Applica istantaneamente e in tempo reale le modifiche di Dimensione (subtitleSizeScale)
- * e di Colore/Stile (subtitleStyle) senza appesantire LibVLC.
- */
 @Composable
 fun SubtitleOverlay(
     text: String?,
@@ -532,4 +559,3 @@ fun SubtitleOverlay(
         }
     }
 }
-                
