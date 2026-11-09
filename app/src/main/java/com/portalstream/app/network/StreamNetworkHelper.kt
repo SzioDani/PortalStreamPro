@@ -14,6 +14,26 @@ data class UiAudioTrack(
     val exoTrackIndex: Int = -1
 )
 
+/**
+ * Tipi di errore mappati per associare facilmente le icone vettoriali nella UI (Jetpack Compose).
+ */
+enum class StreamErrorType {
+    DECODE_ERROR,
+    UNAUTHORIZED,      // 401, 403 (Es. MAC errato, abbonamento scaduto)
+    NOT_FOUND,         // 404 (Canale inesistente)
+    GEO_BLOCKED,       // 456 (Blocco geolocalizzazione / VPN)
+    CONNECTION_LIMIT,  // 429, 458, 459, 462 (Troppi utenti o limite richieste)
+    SERVER_ERROR,      // 500-504 (Problemi sul server)
+    NETWORK_FAILURE,   // Errore di connessione / assenza internet
+    UNKNOWN
+}
+
+data class StreamErrorResult(
+    val message: String,
+    val type: StreamErrorType,
+    val httpCode: Int? = null
+)
+
 object StreamNetworkHelper {
 
     /**
@@ -84,10 +104,9 @@ object StreamNetworkHelper {
     }
 
     /**
-     * Verifica il codice di errore HTTP quando uno stream fallisce.
+     * Verifica il codice di errore HTTP restituendo un oggetto strutturato (Messaggio + Tipo).
      */
-    suspend fun checkHttpError(urlStr: String, userAgentStr: String?): String = withContext(Dispatchers.IO) {
-        var message = "❌ Errore durante la riproduzione del flusso multimediale."
+    suspend fun checkHttpError(urlStr: String, userAgentStr: String?): StreamErrorResult = withContext(Dispatchers.IO) {
         try {
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
@@ -97,21 +116,24 @@ object StreamNetworkHelper {
             userAgentStr?.let { conn.setRequestProperty("User-Agent", it) }
 
             val responseCode = conn.responseCode
-            message = when (responseCode) {
-                200 -> "❌ Impossibile decodificare il flusso video."
-                401, 403 -> "🔐 Accesso rifiutato (HTTP $responseCode). Verifica User-Agent / MAC."
-                404 -> "🔍 Canale non trovato (HTTP 404)."
-                456 -> "🚫 IP rifiutato (HTTP 456) Errore geolocalizzazione (VPN)."
-                459 -> "📊 Troppi utenti collegati (HTTP $responseCode)."
-                429, 458, 462 -> "⏱️ Limite raggiunto (HTTP $responseCode)."
-                in 500..504 -> "🔧 Server non disponibile (HTTP $responseCode)."
-                else -> "❌ Errore HTTP $responseCode."
+            val (message, type) = when (responseCode) {
+                200 -> Pair("Impossibile decodificare il flusso video.", StreamErrorType.DECODE_ERROR)
+                401, 403 -> Pair("Accesso rifiutato (HTTP $responseCode). Verifica User-Agent, indirizzo MAC o VPN", StreamErrorType.UNAUTHORIZED)
+                404 -> Pair("Canale non trovato (HTTP 404).", StreamErrorType.NOT_FOUND)
+                456 -> Pair("IP rifiutato (HTTP 456). Possibile errore di geolocalizzazione o VPN attiva.", StreamErrorType.GEO_BLOCKED)
+                459 -> Pair("Limite connessioni raggiunto: troppi utenti collegati (HTTP $responseCode).", StreamErrorType.CONNECTION_LIMIT)
+                429, 458, 462 -> Pair("Limite di richieste raggiunto (HTTP $responseCode).", StreamErrorType.CONNECTION_LIMIT)
+                in 500..504 -> Pair("Server non disponibile o temporaneamente offline (HTTP $responseCode).", StreamErrorType.SERVER_ERROR)
+                else -> Pair("Errore HTTP inatteso ($responseCode).", StreamErrorType.UNKNOWN)
             }
             conn.disconnect()
+            return@withContext StreamErrorResult(message, type, responseCode)
         } catch (e: Exception) {
-            message = "🌐 Impossibile connettersi al server."
             Log.e("PlayerDebug", "Errore HTTP check", e)
+            return@withContext StreamErrorResult(
+                message = "Impossibile stabilire una connessione con il server.",
+                type = StreamErrorType.NETWORK_FAILURE
+            )
         }
-        return@withContext message
     }
 }
