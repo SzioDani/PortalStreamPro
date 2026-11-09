@@ -468,6 +468,9 @@ class PlayerActivity : ComponentActivity() {
                                     exoPlayerView = this
                                 }
                             },
+                            update = { pv ->
+                                exoManager.applyAspectRatioAndScale(pv, currentAspectRatio, currentScale)
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -480,6 +483,9 @@ class PlayerActivity : ComponentActivity() {
                                     layout.clipChildren = false
                                     layout.clipToPadding = false
                                 }
+                            },
+                            update = { layout ->
+                                vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
                             },
                             modifier = Modifier.fillMaxSize()
                         )
