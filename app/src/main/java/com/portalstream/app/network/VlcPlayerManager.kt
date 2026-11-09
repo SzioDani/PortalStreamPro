@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import android.view.ViewGroup
-import com.portalstream.app.ui.player.UiSubtitleTrack
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -20,9 +19,6 @@ class VlcPlayerManager(private val context: Context) {
         private set
 
     private var currentTorrentMode: Boolean? = null
-    private var preferredSubLang: String = "it,ita,italiano"
-    private var subTextScalePercent: Int = 100
-    private var subColorInt: Int = 0xFFFFFF
 
     private val initialBufferThreshold = 85f
 
@@ -38,16 +34,14 @@ class VlcPlayerManager(private val context: Context) {
         val options = ArrayList<String>().apply {
             if (isTorrent) {
                 // =========================================================
-                // PROFILO ESCLUSIVO PER TORRENT (MKV, MP4, AVI, AC3, DTS)
+                // PROFILO LEGGERO E VELOCE PER TORRENT (Sottotitoli delegati a OpenSubtitles)
                 // =========================================================
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
                 add("--file-caching=2500")
                 add("--disc-caching=2500")
+                add("--no-spu") // Disabilita il motore sottotitoli interno di LibVLC per risparmiare RAM e CPU!
                 add("--audio-language=it,ita,italiano,en,eng,und")
-                add("--sub-language=$preferredSubLang")
-                add("--sub-text-scale=$subTextScalePercent")
-                add("--freetype-color=$subColorInt")
                 add("--avcodec-fast")
             } else {
                 // =========================================================
@@ -61,14 +55,10 @@ class VlcPlayerManager(private val context: Context) {
                 add("--live-caching=8000")
                 add("--disc-caching=8000")
                 add("--file-caching=8000")
-                // Essenziali per flussi .ts instabili dei portali MAC
                 add("--clock-jitter=-1")
                 add("--clock-synchro=0")
                 add("--udp-timeout=40000")
-                // Dice a LibVLC di scegliere subito la traccia principale Italiana sui canali Rai!
                 add("--audio-language=it,ita,italiano")
-                add("--sub-language=$preferredSubLang")
-                add("--sub-text-scale=$subTextScalePercent")
             }
         }
 
@@ -86,7 +76,6 @@ class VlcPlayerManager(private val context: Context) {
         onBuffering: (Boolean) -> Unit,
         onPlayingState: (Boolean) -> Unit,
         onAudioTracksUpdated: (List<UiAudioTrack>, Int, String) -> Unit,
-        onSubtitleTracksUpdated: (List<UiSubtitleTrack>, Int) -> Unit = { _, _ -> },
         onFormatRefreshNeeded: () -> Unit,
         onError: () -> Unit
     ): MediaPlayer {
@@ -100,8 +89,8 @@ class VlcPlayerManager(private val context: Context) {
         val mp = ensureInitialized(isTorrent = isTorrentFile)
         val vlc = libVLC!!
 
-        // IVLCVout attach con sottotitoli abilitati
-        mp.attachViews(layout, null, true, false)
+        // Sottotitoli nativi VLC disabilitati (terzo parametro = false) perché usiamo OpenSubtitles + Compose Overlay
+        mp.attachViews(layout, null, false, true)
 
         val isRawMacStream = !isTorrentFile && (
             lowerUrl.contains("live.php") ||
@@ -119,17 +108,14 @@ class VlcPlayerManager(private val context: Context) {
             if (isTorrentFile) {
                 setHWDecoderEnabled(true, false)
                 addOption(":file-caching=2500")
+                addOption(":no-spu")
                 addOption(":audio-language=it,ita,italiano,en,eng,und")
-                addOption(":sub-language=$preferredSubLang")
-                addOption(":sub-text-scale=$subTextScalePercent")
-                addOption(":freetype-color=$subColorInt")
             } else {
                 setHWDecoderEnabled(true, true)
                 addOption(":http-reconnect")
                 addOption(":network-caching=8000")
                 addOption(":live-caching=8000")
                 addOption(":audio-language=it,ita,italiano")
-                addOption(":sub-language=$preferredSubLang")
 
                 if (isRawMacStream) {
                     addOption(":http-continuous")
@@ -147,7 +133,7 @@ class VlcPlayerManager(private val context: Context) {
 
         var hasAutoSelectedBestTrack = false
 
-        fun refreshAudioAndSubtitles(allowAutoSelect: Boolean) {
+        fun refreshAudio(allowAutoSelect: Boolean) {
             val tracks = mp.audioTracks?.toList() ?: emptyList()
             val validTracks = tracks.filter { it.id != -1 }
             var currentId = mp.audioTrack
@@ -190,13 +176,6 @@ class VlcPlayerManager(private val context: Context) {
 
             val info = formatAudioTrackInfo(mp, tracks, currentId)
             onAudioTracksUpdated(mapped, currentId, info)
-
-            // Lettura tracce sottotitoli disponibili
-            val spuList = mp.spuTracks?.toList() ?: emptyList()
-            val validSpu = spuList.filter { it.id != -1 }.map { s ->
-                UiSubtitleTrack(id = s.id, name = s.name)
-            }
-            onSubtitleTracksUpdated(validSpu, mp.spuTrack)
         }
 
         mp.setEventListener { event ->
@@ -212,13 +191,13 @@ class VlcPlayerManager(private val context: Context) {
                     onBuffering(false)
                     onPlayingState(true)
                     layout.post { onFormatRefreshNeeded() }
-                    refreshAudioAndSubtitles(allowAutoSelect = true)
+                    refreshAudio(allowAutoSelect = true)
                 }
                 MediaPlayer.Event.Vout -> {
                     if (event.voutCount > 0) {
                         if (isTorrentFile) onBuffering(false)
                         layout.post { onFormatRefreshNeeded() }
-                        refreshAudioAndSubtitles(allowAutoSelect = true)
+                        refreshAudio(allowAutoSelect = true)
                     }
                 }
                 MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> {
@@ -226,12 +205,12 @@ class VlcPlayerManager(private val context: Context) {
                 }
                 MediaPlayer.Event.ESAdded -> {
                     if (isTorrentFile && mp.isPlaying) {
-                        refreshAudioAndSubtitles(allowAutoSelect = !hasAutoSelectedBestTrack)
+                        refreshAudio(allowAutoSelect = !hasAutoSelectedBestTrack)
                     }
                 }
                 MediaPlayer.Event.ESSelected -> {
                     if (mp.isPlaying) {
-                        refreshAudioAndSubtitles(allowAutoSelect = false)
+                        refreshAudio(allowAutoSelect = false)
                     }
                 }
                 MediaPlayer.Event.EncounteredError -> {
@@ -376,38 +355,6 @@ class VlcPlayerManager(private val context: Context) {
 
     fun selectAudioTrack(trackId: Int) {
         mediaPlayer?.audioTrack = trackId
-    }
-
-    fun selectSubtitleTrack(trackId: Int) {
-        mediaPlayer?.spuTrack = trackId
-    }
-
-    fun selectSubtitleByLanguageCode(langCode: String): Int {
-        preferredSubLang = when (langCode.lowercase()) {
-            "it" -> "it,ita,italiano"
-            "en" -> "en,eng,english"
-            "es" -> "es,spa,spanish,espanol"
-            "fr" -> "fr,fra,fre,french"
-            "de" -> "de,deu,ger,german"
-            else -> langCode
-        }
-        val mp = mediaPlayer ?: return -1
-        val spuTracks = mp.spuTracks?.filter { it.id != -1 } ?: return -1
-        val keywords = preferredSubLang.split(",")
-        val match = spuTracks.firstOrNull { track ->
-            val lower = track.name.lowercase()
-            keywords.any { lower.contains(it) }
-        }
-        if (match != null) {
-            mp.spuTrack = match.id
-            return match.id
-        }
-        return mp.spuTrack
-    }
-
-    fun updateSubtitleAppearance(scaleFactor: Float, vlcColor: Int) {
-        subTextScalePercent = (scaleFactor * 100f).toInt().coerceIn(50, 200)
-        subColorInt = vlcColor
     }
 
     fun togglePlayPause() {
