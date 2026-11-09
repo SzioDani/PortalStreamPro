@@ -44,6 +44,7 @@ import com.portalstream.app.network.UiAudioTrack
 import com.portalstream.app.network.VlcPlayerManager
 import com.portalstream.app.streaming.TorrentStreamEngine
 import com.portalstream.app.streaming.TorrentStreamState
+import com.portalstream.app.streaming.WebStreamExtractor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.util.VLCVideoLayout
@@ -59,6 +60,7 @@ class PlayerActivity : ComponentActivity() {
     private var streamUrl: String = ""
     private var channelName: String = ""
     private var userAgent: String? = null
+    private var isWebStreamExplicit: Boolean = false
 
     private var isInPipMode by mutableStateOf(false)
 
@@ -102,19 +104,30 @@ class PlayerActivity : ComponentActivity() {
             ?: intent.dataString
             ?: ""
 
+        isWebStreamExplicit = intent.getBooleanExtra(EXTRA_IS_WEB_STREAM, false) ||
+            WebStreamExtractor.isYoutubeUrl(streamUrl)
+
         val isTorrentInput = TorrentStreamEngine.isTorrentSource(streamUrl)
         val rawExtraName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME")
 
-        channelName = if (isTorrentInput) {
-            val magnetDn = TorrentStreamEngine.extractDisplayNameFromMagnet(streamUrl)
-            when {
-                magnetDn.isNotBlank() -> magnetDn
-                !rawExtraName.isNullOrBlank() && !rawExtraName.startsWith("Torrent ") -> rawExtraName
-                else -> "Caricamento titolo Torrent..."
+        channelName = when {
+            isTorrentInput -> {
+                val magnetDn = TorrentStreamEngine.extractDisplayNameFromMagnet(streamUrl)
+                when {
+                    magnetDn.isNotBlank() -> magnetDn
+                    !rawExtraName.isNullOrBlank() && !rawExtraName.startsWith("Torrent ") -> rawExtraName
+                    else -> "Caricamento titolo Torrent..."
+                }
             }
-        } else {
-            rawExtraName ?: "Canale Live"
+            isWebStreamExplicit -> {
+                if (!rawExtraName.isNullOrBlank() && !rawExtraName.startsWith("Web Stream ")) {
+                    rawExtraName
+                } else {
+                    "Estrazione titolo in corso..."
+                }
+            }
+            else -> rawExtraName ?: "Canale Live"
         }
 
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
@@ -141,9 +154,6 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Ferma la riproduzione, svuota immediatamente la cache del file Torrent e chiude il player.
-     */
     private fun stopStreamAndExit() {
         exoManager.release()
         vlcManager.release()
@@ -190,7 +200,6 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     fun PlayerScreen(initialChannelName: String, onExitAndClearCache: () -> Unit) {
-        // Intercetta anche il tasto Indietro fisico/gesture di Android per svuotare subito la cache Torrent!
         BackHandler {
             onExitAndClearCache()
         }
@@ -202,10 +211,19 @@ class PlayerActivity : ComponentActivity() {
         val savedSubStyleId = remember { prefs.getString("sub_style", SubtitleStylePreset.WHITE_OUTLINE.id) }
 
         val isTorrent = remember(streamUrl) { TorrentStreamEngine.isTorrentSource(streamUrl) }
+        val isWebOrYoutube = remember(streamUrl, isWebStreamExplicit) {
+            !isTorrent && (isWebStreamExplicit || WebStreamExtractor.isYoutubeUrl(streamUrl))
+        }
         val torrentState = torrentEngine?.state?.collectAsState()
 
         var displayTitle by remember { mutableStateOf(initialChannelName) }
-        var playbackUrl by remember { mutableStateOf(if (isTorrent) "" else streamUrl) }
+        var playbackUrl by remember {
+            mutableStateOf(if (isTorrent || isWebOrYoutube) "" else streamUrl)
+        }
+        var effectiveUserAgent by remember { mutableStateOf(userAgent) }
+        var extractedReferer by remember { mutableStateOf<String?>(null) }
+        var extractedOrigin by remember { mutableStateOf<String?>(null) }
+        var isExtractingWebStream by remember { mutableStateOf(false) }
 
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
@@ -219,7 +237,6 @@ class PlayerActivity : ComponentActivity() {
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
-        // Stati Sottotitoli Esterni (OpenSubtitles + Compose Live Renderer)
         var openSubtitleItems by remember { mutableStateOf<List<OpenSubtitleItem>>(emptyList()) }
         var selectedOpenSubId by remember { mutableStateOf("") }
         var activeSubtitleCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
@@ -239,7 +256,7 @@ class PlayerActivity : ComponentActivity() {
         val coroutineScope = rememberCoroutineScope()
 
         fun triggerOpenSubtitlesSearch(titleToSearch: String, langCode: String) {
-            if (titleToSearch.isBlank() || titleToSearch.startsWith("Caricamento")) return
+            if (titleToSearch.isBlank() || titleToSearch.startsWith("Caricamento") || titleToSearch.startsWith("Estrazione")) return
             coroutineScope.launch {
                 isLoadingSubtitles = true
                 val found = OpenSubtitlesManager.searchSubtitles(
@@ -251,7 +268,38 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Osserva lo stato del motore Torrent e aggiorna il titolo nella barra superiore
+        // Estrazione automatica senza pubblicità per YouTube e Siti Streaming Web
+        LaunchedEffect(isWebOrYoutube, streamUrl) {
+            if (isWebOrYoutube) {
+                isExtractingWebStream = true
+                isBuffering = true
+                errorMessage = null
+
+                val result = WebStreamExtractor.extractStream(
+                    context = applicationContext,
+                    rawUrl = streamUrl,
+                    customUserAgent = userAgent
+                )
+
+                isExtractingWebStream = false
+                result.onSuccess { extracted ->
+                    if (extracted.title.isNotBlank() &&
+                        (displayTitle.startsWith("Estrazione") || displayTitle.startsWith("Web Stream"))
+                    ) {
+                        displayTitle = extracted.title
+                    }
+                    effectiveUserAgent = extracted.userAgent
+                    extractedReferer = extracted.referer
+                    extractedOrigin = extracted.origin
+                    playbackUrl = extracted.streamUrl
+                }.onFailure { err ->
+                    isBuffering = false
+                    errorMessage = err.localizedMessage ?: "Impossibile estrarre lo stream dalla pagina web"
+                }
+            }
+        }
+
+        // Osserva lo stato del motore Torrent
         LaunchedEffect(torrentState?.value) {
             when (val st = torrentState?.value) {
                 is TorrentStreamState.Buffering -> {
@@ -275,14 +323,17 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Ricerca automatica su OpenSubtitles non appena il titolo del Torrent è disponibile
+        // Ricerca automatica su OpenSubtitles per Torrent e Web Stream
         LaunchedEffect(displayTitle, preferredSubLanguage) {
-            if (isTorrent && displayTitle.isNotBlank() && !displayTitle.startsWith("Caricamento")) {
+            if ((isTorrent || isWebOrYoutube) &&
+                displayTitle.isNotBlank() &&
+                !displayTitle.startsWith("Caricamento") &&
+                !displayTitle.startsWith("Estrazione")
+            ) {
                 triggerOpenSubtitlesSearch(displayTitle, preferredSubLanguage)
             }
         }
 
-        // Sincronizzazione in tempo reale dei sottotitoli esterni col tempo del video
         LaunchedEffect(activeSubtitleCues, isPlaying, useExoPlayer) {
             if (activeSubtitleCues.isEmpty()) {
                 currentSubtitleText = null
@@ -302,10 +353,12 @@ class PlayerActivity : ComponentActivity() {
         LaunchedEffect(playbackUrl) {
             if (playbackUrl.isNotBlank()) {
                 isBuffering = true
-                useExoPlayer = if (isTorrent) {
-                    false
-                } else {
-                    StreamNetworkHelper.shouldUseExoPlayer(playbackUrl, userAgent)
+                // Per Web / YouTube usiamo SEMPRE ExoPlayer come richiesto per massima fluidità HLS/MP4 e zero pubblicità!
+                // Per i Torrent usiamo LibVLC di default.
+                useExoPlayer = when {
+                    isWebOrYoutube -> true
+                    isTorrent -> false
+                    else -> StreamNetworkHelper.shouldUseExoPlayer(playbackUrl, effectiveUserAgent)
                 }
             }
         }
@@ -344,7 +397,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Collegamento Motore ExoPlayer
+        // Collegamento Motore ExoPlayer (Passa anche Referer e Origin per i flussi Web/YouTube estratti)
         DisposableEffect(useExoPlayer, exoPlayerView, playbackUrl) {
             if (useExoPlayer != true || playbackUrl.isBlank()) return@DisposableEffect onDispose {}
             val pv = exoPlayerView ?: return@DisposableEffect onDispose {}
@@ -353,7 +406,9 @@ class PlayerActivity : ComponentActivity() {
                 exoManager.attachAndStart(
                     playerView = pv,
                     streamUrl = playbackUrl,
-                    userAgent = userAgent,
+                    userAgent = effectiveUserAgent,
+                    referer = extractedReferer,
+                    origin = extractedOrigin,
                     aspectRatio = currentAspectRatio,
                     scale = currentScale,
                     onBuffering = { isBuffering = it },
@@ -375,7 +430,7 @@ class PlayerActivity : ComponentActivity() {
                             useExoPlayer = false
                         } else {
                             lifecycleScope.launch {
-                                errorMessage = StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
+                                errorMessage = StreamNetworkHelper.checkHttpError(playbackUrl, effectiveUserAgent)
                             }
                         }
                     }
@@ -400,7 +455,7 @@ class PlayerActivity : ComponentActivity() {
                 val mp = vlcManager.attachAndPrepare(
                     layout = layout,
                     streamUrl = playbackUrl,
-                    userAgent = userAgent,
+                    userAgent = effectiveUserAgent,
                     onBuffering = { isBuffering = it },
                     onPlayingState = { playing ->
                         isPlaying = playing
@@ -420,7 +475,7 @@ class PlayerActivity : ComponentActivity() {
                             errorMessage = if (isTorrent) {
                                 "Errore riproduzione file Torrent"
                             } else {
-                                StreamNetworkHelper.checkHttpError(playbackUrl, userAgent)
+                                StreamNetworkHelper.checkHttpError(playbackUrl, effectiveUserAgent)
                             }
                         }
                     }
@@ -493,9 +548,6 @@ class PlayerActivity : ComponentActivity() {
                     null -> {}
                 }
 
-                // =================================================================
-                // RENDERER SOTTOTITOLI LIVE (OPENSUBTITLES) CON STILE E GRANDEZZA IN TEMPO REALE
-                // =================================================================
                 SubtitleOverlay(
                     text = currentSubtitleText,
                     sizeScale = subtitleSizeScale,
@@ -505,9 +557,6 @@ class PlayerActivity : ComponentActivity() {
                         .navigationBarsPadding()
                 )
 
-                // =================================================================
-                // GESTURE VOLUME (DESTRA) E LUMINOSITÀ (SINISTRA) + TAP
-                // =================================================================
                 PlayerGestureOverlay(
                     activity = this@PlayerActivity,
                     enabled = !isInPipMode && !isMinimized && !showSettingsSheet,
@@ -518,7 +567,6 @@ class PlayerActivity : ComponentActivity() {
                     }
                 )
 
-                // CONTROLLI PLAYER
                 AnimatedVisibility(
                     visible = showControls && !isInPipMode && !isMinimized,
                     enter = fadeIn(),
@@ -530,7 +578,7 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
-                        // BARRA SUPERIORE (UNICO POSTO DOVE COMPARE IL TITOLO)
+                        // BARRA SUPERIORE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -639,7 +687,6 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Pulsante STOP: ferma il player e svuota subito la cache del Torrent
                             IconButton(
                                 onClick = {
                                     exoManager.stopAndDetach(exoPlayerView)
@@ -675,7 +722,7 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // BARRA INFERIORE CON PULSANTE OPZIONI
+                        // BARRA INFERIORE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -697,7 +744,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // INDICATORE DI BUFFERING CENTRALE (SENZA SECONDO TITOLO DUPLICATO)
+                // INDICATORE DI BUFFERING / ESTRAZIONE STREAM SENZA PUBBLICITÀ
                 if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
@@ -717,6 +764,14 @@ class PlayerActivity : ComponentActivity() {
                                 text = "Peer: ${st.peers} • ${st.downloadSpeedKbps} KB/s",
                                 color = Color.LightGray,
                                 style = MaterialTheme.typography.labelSmall
+                            )
+                        } else if (isExtractingWebStream) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Estrazione stream diretto senza pubblicità...",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
@@ -766,6 +821,21 @@ class PlayerActivity : ComponentActivity() {
                                         isBuffering = true
                                         if (isTorrent && playbackUrl.isBlank()) {
                                             torrentEngine?.startStream(streamUrl)
+                                        } else if (isWebOrYoutube && playbackUrl.isBlank()) {
+                                            coroutineScope.launch {
+                                                isExtractingWebStream = true
+                                                val res = WebStreamExtractor.extractStream(applicationContext, streamUrl, userAgent)
+                                                isExtractingWebStream = false
+                                                res.onSuccess { ext ->
+                                                    effectiveUserAgent = ext.userAgent
+                                                    extractedReferer = ext.referer
+                                                    extractedOrigin = ext.origin
+                                                    playbackUrl = ext.streamUrl
+                                                }.onFailure { err ->
+                                                    isBuffering = false
+                                                    errorMessage = err.localizedMessage
+                                                }
+                                            }
                                         } else if (useExoPlayer == true) {
                                             exoManager.retry()
                                         } else {
@@ -792,9 +862,6 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // =================================================================
-                // MENU OPZIONI E SOTTOTITOLI OPENSUBTITLES STILE WEBVIDEOCASTER
-                // =================================================================
                 PlayerOptionsMenu(
                     visible = showSettingsSheet && !isInPipMode && !isMinimized,
                     onDismiss = { showSettingsSheet = false },
@@ -891,5 +958,6 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_CHANNEL_NAME = "extra_channel_name"
         const val EXTRA_USER_AGENT = "extra_user_agent"
+        const val EXTRA_IS_WEB_STREAM = "extra_is_web_stream"
     }
 }
