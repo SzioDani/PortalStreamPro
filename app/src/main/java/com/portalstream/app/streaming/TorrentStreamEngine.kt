@@ -67,7 +67,6 @@ class TorrentStreamEngine(private val context: Context) {
     private var firstPieceIndex: Int = 0
     private var lastPieceIndex: Int = 0
 
-    // Numero di pezzi contigui richiesti all'inizio e alla fine (calcolati dinamicamente in base ai MB e al box moov)
     private var requiredHeadPieceCount: Int = 6
     private var requiredTailPieceCount: Int = 4
     private var mp4HeaderInspected: Boolean = false
@@ -96,9 +95,6 @@ class TorrentStreamEngine(private val context: Context) {
 
             val externalFiles = context.getExternalFilesDir(null) ?: context.filesDir
             File(externalFiles, "torrent_debug.log").appendText(line)
-
-            val externalCache = context.externalCacheDir ?: context.cacheDir
-            File(externalCache, "torrent_debug.log").appendText(line)
         } catch (_: Throwable) {}
     }
 
@@ -107,9 +103,6 @@ class TorrentStreamEngine(private val context: Context) {
             val header = "=== AVVIO NUOVA SESSIONE TORRENT (${LibTorrent.libtorrent4jVersion()}) ===\n"
             val externalFiles = context.getExternalFilesDir(null) ?: context.filesDir
             File(externalFiles, "torrent_debug.log").writeText(header)
-
-            val externalCache = context.externalCacheDir ?: context.cacheDir
-            File(externalCache, "torrent_debug.log").writeText(header)
         } catch (_: Throwable) {}
     }
 
@@ -135,19 +128,19 @@ class TorrentStreamEngine(private val context: Context) {
         monitorJob = scope.launch {
             try {
                 val session = getOrStartSession()
-                logToFile("SessionManager attivo (DHT running=${session.isDhtRunning})")
                 if (!session.isDhtRunning) {
                     session.startDht()
                 }
 
-                removeAllActiveTorrents(session)
+                // Rimuove tutti i torrent precedenti ed elimina i relativi file su disco
+                removeAllActiveTorrents(session, deleteFiles = true)
                 delay(200)
-                cleanOldDirsExcept(null)
+                wipeAllTorrentCacheDirs()
 
                 currentSaveDir = File(baseStreamDir, "session_${System.currentTimeMillis()}").apply {
                     mkdirs()
                 }
-                logToFile("Cartella download creata: ${currentSaveDir.absolutePath}")
+                logToFile("Cartella download pulita creata: ${currentSaveDir.absolutePath}")
 
                 when (val resolved = resolveTorrentInput(rawInput)) {
                     is ResolvedInput.Magnet -> {
@@ -155,7 +148,6 @@ class TorrentStreamEngine(private val context: Context) {
                         if (magnetTitle.isNotBlank()) {
                             currentTorrentTitle = magnetTitle
                         }
-                        logToFile("Avvio download Magnet: ${resolved.magnetUri.take(100)}...")
                         _state.value = TorrentStreamState.Buffering(
                             statusText = "Ricerca peer e recupero metadati...",
                             torrentTitle = currentTorrentTitle
@@ -167,7 +159,6 @@ class TorrentStreamEngine(private val context: Context) {
                         )
                     }
                     is ResolvedInput.TorrentFile -> {
-                        logToFile("Avvio download File .torrent: ${resolved.file.absolutePath}")
                         val ti = TorrentInfo(resolved.file)
                         pinnedSwigObjects.add(ti)
                         if (ti.isValid && !ti.name().isNullOrBlank()) {
@@ -199,7 +190,6 @@ class TorrentStreamEngine(private val context: Context) {
                         activeHandle = findActiveTorrentHandle(session)
                         if (activeHandle != null && activeHandle.isValid) {
                             pinnedSwigObjects.add(activeHandle)
-                            logToFile("TorrentHandle agganciato correttamente")
                         }
                     }
 
@@ -224,11 +214,9 @@ class TorrentStreamEngine(private val context: Context) {
                         )
                     } else {
                         if (!isConfigured) {
-                            logToFile("Metadati ricevuti! Configurazione file video e priorità Head/Tail...")
                             configureVideoSelectionOnce(handle)
                         }
                         if (isConfigured) {
-                            // Appena il primo pezzo è su disco, analizza l'header binario MP4 (moov/mdat)
                             if (!mp4HeaderInspected && handle.havePiece(firstPieceIndex)) {
                                 inspectMp4StructureAndBoostMoov(handle)
                             }
@@ -240,7 +228,6 @@ class TorrentStreamEngine(private val context: Context) {
                     }
                 }
             } catch (e: CancellationException) {
-                logToFile("Monitoraggio cancellato normalmente")
                 throw e
             } catch (e: Throwable) {
                 logToFile("ERRORE in startStream: ${e.message}\n${stackTraceToString(e)}")
@@ -329,11 +316,9 @@ class TorrentStreamEngine(private val context: Context) {
 
         val totalVideoPieces = (lastPieceIndex - firstPieceIndex + 1).coerceAtLeast(1)
 
-        // Calcola i pezzi contigui iniziali per garantire almeno 4.5 MB senza buchi (fondamentale per AVC + AAC)
         val piecesFor45Mb = ceil((4.5 * 1024 * 1024) / currentPieceLength.toDouble()).toInt()
         requiredHeadPieceCount = piecesFor45Mb.coerceIn(4, min(24, totalVideoPieces))
 
-        // Per i file .mp4/.mov/.m4v l'atomo moov in fondo al file può pesare fino a 3.5 MB (es. episodio 46 min 381MB)
         val fileNameLower = selectedVideoFile?.name?.lowercase() ?: ""
         val isMp4Family = fileNameLower.endsWith(".mp4") || fileNameLower.endsWith(".m4v") || fileNameLower.endsWith(".mov")
         val tailBytesTarget = if (isMp4Family) (3.5 * 1024 * 1024) else (1.0 * 1024 * 1024)
@@ -347,49 +332,30 @@ class TorrentStreamEngine(private val context: Context) {
             handle.prioritizeFiles(filePriorities)
         }
 
-        // Priorità immediata su Head e Tail prima ancora che il flusso sequenziale saturi la coda
         try {
             handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
 
-            // 1. Primissimo pezzo (contiene header ftyp/moov/EBML) con deadline 0ms
             handle.piecePriority(firstPieceIndex, Priority.TOP_PRIORITY)
             handle.setPieceDeadline(firstPieceIndex, 50)
 
-            // 2. Pezzi finali (contengono l'atomo moov nei file MP4 non-faststart o Cues negli MKV)
             val tailStart = max(firstPieceIndex, lastPieceIndex - requiredTailPieceCount + 1)
             for (p in tailStart..lastPieceIndex) {
                 handle.piecePriority(p, Priority.TOP_PRIORITY)
                 handle.setPieceDeadline(p, 120 + (p - tailStart) * 60)
             }
 
-            // 3. Pezzi iniziali contigui
             val headEnd = min(lastPieceIndex, firstPieceIndex + requiredHeadPieceCount - 1)
             for (p in (firstPieceIndex + 1)..headEnd) {
                 handle.piecePriority(p, Priority.TOP_PRIORITY)
                 handle.setPieceDeadline(p, 250 + (p - firstPieceIndex) * 100)
             }
-        } catch (e: Throwable) {
-            logToFile("Avviso impostazione deadline pezzi: ${e.message}")
-        }
+        } catch (_: Throwable) {}
 
         handle.resume()
         isConfigured = true
         readyWaitTicks = 0
-
-        logToFile(
-            "File video selezionato [idx=$selectedFileIndex/$numFiles]: ${selectedVideoFile?.absolutePath} " +
-                "| Titolo='$currentTorrentTitle' (size=${selectedVideoSize / (1024 * 1024)}MB, " +
-                "pieceLen=${currentPieceLength / 1024}KB, pieces=$firstPieceIndex..$lastPieceIndex, " +
-                "headReq=$requiredHeadPieceCount, tailReq=$requiredTailPieceCount)"
-        )
     }
 
-    /**
-     * Analizza i box binari ISO/MP4 ('ftyp', 'moov', 'mdat') non appena il primo pezzo è su disco.
-     * - Se 'moov' è all'inizio (FastStart), riduce l'attesa della coda e garantisce tutto il 'moov' + 3MB.
-     * - Se 'mdat' è prima di 'moov' (Non-FastStart, tipico degli MP4 381MB AVC+AAC), legge la dimensione
-     *   esatta di 'mdat' e calcola al byte esatto quali pezzi finali contengono l'intero atomo 'moov'!
-     */
     private fun inspectMp4StructureAndBoostMoov(handle: TorrentHandle) {
         val file = selectedVideoFile ?: return
         if (!file.exists() || file.length() < 64) return
@@ -428,17 +394,13 @@ class TorrentStreamEngine(private val context: Context) {
                     if (boxSize < 8L) break
 
                     if (boxType == "moov") {
-                        // FastStart MP4: l'atomo moov è all'inizio del file!
-                        val moovEndByte = pos + boxSize + (3L * 1024 * 1024) // moov + 3MB di video
+                        val moovEndByte = pos + boxSize + (3L * 1024 * 1024)
                         val neededHeadPieces = ceil(moovEndByte.toDouble() / currentPieceLength.toDouble()).toInt()
                         val totalVideoPieces = (lastPieceIndex - firstPieceIndex + 1).coerceAtLeast(1)
                         requiredHeadPieceCount = max(requiredHeadPieceCount, neededHeadPieces.coerceIn(4, min(30, totalVideoPieces)))
-                        requiredTailPieceCount = 1 // Non serve attendere molti pezzi in coda perché moov è in testa!
-                        logToFile("MP4 FastStart rilevato: box 'moov' in testa (size=${boxSize / 1024}KB) -> headPieces=$requiredHeadPieceCount")
+                        requiredTailPieceCount = 1
                         return
                     } else if (boxType == "mdat") {
-                        // Non-FastStart MP4: 'mdat' viene prima di 'moov'!
-                        // L'atomo 'moov' inizia esattamente a fine 'mdat' (pos + boxSize)!
                         val moovStartOffsetInFile = pos + boxSize
                         if (moovStartOffsetInFile in 1 until selectedVideoSize) {
                             val moovTailBytes = selectedVideoSize - moovStartOffsetInFile
@@ -453,10 +415,6 @@ class TorrentStreamEngine(private val context: Context) {
                                     handle.setPieceDeadline(p, 80 + (p - tailStart) * 50)
                                 }
                             }
-                            logToFile(
-                                "MP4 Non-FastStart rilevato: 'moov' in fondo a offset=${moovStartOffsetInFile / 1024}KB " +
-                                    "(grandezza moov=${moovTailBytes / 1024}KB) -> richiesti ultimi $requiredTailPieceCount pezzi ($tailStart..$lastPieceIndex)"
-                            )
                         }
                         return
                     }
@@ -464,22 +422,15 @@ class TorrentStreamEngine(private val context: Context) {
                     pos += boxSize
                 }
             }
-        } catch (e: Throwable) {
-            logToFile("Ispezione MP4 completata con avviso: ${e.message}")
-        }
+        } catch (_: Throwable) {}
     }
 
-    /**
-     * Mantiene le deadline sui pezzi del blocco Tail (moov/Cues) e sui primi pezzi contigui mancanti,
-     * impedendo buchi di byte zero durante la lettura di LibVLC.
-     */
     private fun maintainSlidingWindowPriorities(handle: TorrentHandle) {
         if (!handle.isValid) return
         try {
             var boosted = 0
             val tailStart = max(firstPieceIndex, lastPieceIndex - requiredTailPieceCount + 1)
 
-            // 1. Assicura prima di tutto che i pezzi finali (moov / Cues) siano scaricati
             for (p in tailStart..lastPieceIndex) {
                 if (!handle.havePiece(p)) {
                     handle.piecePriority(p, Priority.TOP_PRIORITY)
@@ -488,7 +439,6 @@ class TorrentStreamEngine(private val context: Context) {
                 }
             }
 
-            // 2. Finestra scorrevole rigorosamente contigua dalla testa in avanti
             var headBoosted = 0
             for (p in firstPieceIndex..lastPieceIndex) {
                 if (!handle.havePiece(p)) {
@@ -507,7 +457,6 @@ class TorrentStreamEngine(private val context: Context) {
         val fileSize = selectedVideoSize.coerceAtLeast(1L)
         readyWaitTicks++
 
-        // Verifica i pezzi iniziali CONTIGUI (senza buchi!)
         val headEnd = min(lastPieceIndex, firstPieceIndex + requiredHeadPieceCount - 1)
         var downloadedHeadPieces = 0
         var contiguousHeadPieces = 0
@@ -524,7 +473,6 @@ class TorrentStreamEngine(private val context: Context) {
             }
         }
 
-        // Verifica i pezzi finali dove risiede l'atomo moov (MP4) o Cues (MKV)
         val tailStart = max(firstPieceIndex, lastPieceIndex - requiredTailPieceCount + 1)
         var downloadedTailPieces = 0
         for (p in tailStart..lastPieceIndex) {
@@ -536,8 +484,6 @@ class TorrentStreamEngine(private val context: Context) {
         val fileNameLower = videoFile.name.lowercase()
         val isMp4Family = fileNameLower.endsWith(".mp4") || fileNameLower.endsWith(".m4v") || fileNameLower.endsWith(".mov")
 
-        // Per gli MP4 con moov in coda aspettiamo tutti i pezzi del moov (fino a ~22 secondi max),
-        // per gli MKV/TS bastano gli ultimi pezzi o un timeout breve di 10 secondi.
         val maxTailWaitTicks = if (isMp4Family) 48 else 22
         val tailSatisfied = (downloadedTailPieces >= requiredTailPieceCount) ||
             (readyWaitTicks >= maxTailWaitTicks && handle.havePiece(lastPieceIndex))
@@ -556,16 +502,6 @@ class TorrentStreamEngine(private val context: Context) {
         val speedKbps = status.downloadPayloadRate() / 1024
         val peers = status.numPeers()
 
-        if (ticks % 4 == 0) {
-            logToFile(
-                "Pre-buffering: $bufferPercent% | contiguousHead=$contiguousHeadPieces/$requiredHeadPieceCount " +
-                    "| tailMoov=$downloadedTailPieces/$requiredTailPieceCount | " +
-                    "dl=${downloadedBytes / 1024}KB / target=${minBufferBytes / 1024}KB | " +
-                    "peers=$peers | speed=${speedKbps}KB/s"
-            )
-        }
-
-        // Il file è pronto SOLO se i pezzi iniziali sono CONTIGUI (zero buchi) e il blocco Tail/moov è presente
         val isFileReady = videoFile.exists() && videoFile.length() > 0 && (
             status.isFinished ||
                 status.isSeeding ||
@@ -576,7 +512,6 @@ class TorrentStreamEngine(private val context: Context) {
             isReadyEmitted = true
             val finalTitle = currentTorrentTitle.ifBlank { cleanTorrentTitle(videoFile.nameWithoutExtension) }
             currentTorrentTitle = finalTitle
-            logToFile("BUFFER PRONTO SENZA BUCHI! Avvio riproduzione: ${videoFile.absolutePath} (Titolo='$finalTitle')")
             _state.value = TorrentStreamState.Ready(
                 videoFile = videoFile,
                 torrentTitle = finalTitle
@@ -592,7 +527,7 @@ class TorrentStreamEngine(private val context: Context) {
         }
     }
 
-    private fun removeAllActiveTorrents(session: SessionManager) {
+    private fun removeAllActiveTorrents(session: SessionManager, deleteFiles: Boolean = true) {
         try {
             val rawSession = session.swig() ?: return
             val vector: torrent_handle_vector = rawSession.get_torrents()
@@ -600,36 +535,62 @@ class TorrentStreamEngine(private val context: Context) {
             for (i in 0 until size) {
                 val th = vector.get(i)
                 if (th != null && th.is_valid()) {
-                    session.remove(TorrentHandle(th))
+                    if (deleteFiles) {
+                        session.remove(TorrentHandle(th), SessionHandle.DELETE_FILES)
+                    } else {
+                        session.remove(TorrentHandle(th))
+                    }
                 }
             }
             pinnedSwigObjects.clear()
         } catch (e: Throwable) {
-            logToFile("Errore removeAllActiveTorrents: ${e.message}")
             Timber.e(e, "Errore pulizia torrent attivi")
         }
     }
 
-    private fun cleanOldDirsExcept(keepDir: File?) {
+    /**
+     * Svuota completamente la cartella cache dei file video torrent per evitare l'accumulo di Gigabyte.
+     */
+    private fun wipeAllTorrentCacheDirs() {
         try {
-            baseStreamDir.listFiles()?.forEach { child ->
-                if (keepDir == null || child.absolutePath != keepDir.absolutePath) {
+            if (currentSaveDir.exists()) {
+                currentSaveDir.deleteRecursively()
+            }
+            if (baseStreamDir.exists()) {
+                baseStreamDir.listFiles()?.forEach { child ->
                     child.deleteRecursively()
                 }
+            }
+            context.externalCacheDir?.let { extCache ->
+                File(extCache, "torrent_debug.log").delete()
             }
         } catch (_: Throwable) {}
     }
 
-    fun stop() {
-        logToFile("stop() chiamato su TorrentStreamEngine")
+    /**
+     * Ferma lo stream e cancella istantaneamente tutti i Gigabyte allocati nella cache del telefono.
+     */
+    fun stopAndClearCache() {
+        logToFile("stopAndClearCache() chiamato: rimozione torrent ed eliminazione cache su disco")
         monitorJob?.cancel()
         monitorJob = null
+        selectedVideoFile = null
         scope.launch {
-            val session = sharedSession
-            if (session != null && session.isRunning) {
-                removeAllActiveTorrents(session)
+            try {
+                val session = sharedSession
+                if (session != null && session.isRunning) {
+                    removeAllActiveTorrents(session, deleteFiles = true)
+                    delay(250)
+                }
+            } catch (_: Throwable) {
+            } finally {
+                wipeAllTorrentCacheDirs()
             }
         }
+    }
+
+    fun stop() {
+        stopAndClearCache()
     }
 
     private sealed class ResolvedInput {
@@ -644,7 +605,6 @@ class TorrentStreamEngine(private val context: Context) {
             .replace("\r", "")
 
         if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
-            logToFile("Scaricamento metadati via OkHttp + Gzip da: $trimmed")
             val bytes = downloadWithOkHttpGzip(trimmed)
             val extractedMagnet = extractMagnetOrHashFromBytes(bytes)
             return if (extractedMagnet != null) {
@@ -842,3 +802,4 @@ class TorrentStreamEngine(private val context: Context) {
         }
     }
 }
+        
