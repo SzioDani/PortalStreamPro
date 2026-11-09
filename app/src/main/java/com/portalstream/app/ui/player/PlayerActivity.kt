@@ -15,22 +15,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -111,8 +100,23 @@ class PlayerActivity : ComponentActivity() {
             ?: intent.getStringExtra("STREAM_URL")
             ?: intent.dataString
             ?: ""
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
-            ?: intent.getStringExtra("CHANNEL_NAME") ?: "Canale Live"
+
+        val isTorrentInput = TorrentStreamEngine.isTorrentSource(streamUrl)
+        val rawExtraName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
+            ?: intent.getStringExtra("CHANNEL_NAME")
+
+        // Se è un Torrent non mostriamo mai "Canale Live", ma estraiamo il nome dal Magnet o attendiamo i metadati
+        channelName = if (isTorrentInput) {
+            val magnetDn = TorrentStreamEngine.extractDisplayNameFromMagnet(streamUrl)
+            when {
+                magnetDn.isNotBlank() -> magnetDn
+                !rawExtraName.isNullOrBlank() && !rawExtraName.startsWith("Torrent ") -> rawExtraName
+                else -> "Caricamento titolo Torrent..."
+            }
+        } else {
+            rawExtraName ?: "Canale Live"
+        }
+
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
 
         if (streamUrl.isBlank()) {
@@ -121,7 +125,7 @@ class PlayerActivity : ComponentActivity() {
             return
         }
 
-        if (TorrentStreamEngine.isTorrentSource(streamUrl)) {
+        if (isTorrentInput) {
             torrentEngine = TorrentStreamEngine(applicationContext).also {
                 it.startStream(streamUrl)
             }
@@ -130,7 +134,7 @@ class PlayerActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 PlayerScreen(
-                    channelName = channelName,
+                    initialChannelName = channelName,
                     onBackPressed = { finish() }
                 )
             }
@@ -174,16 +178,18 @@ class PlayerActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PlayerScreen(channelName: String, onBackPressed: () -> Unit) {
+    fun PlayerScreen(initialChannelName: String, onBackPressed: () -> Unit) {
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
+        val savedSubLang = remember { prefs.getString("sub_lang", "it") ?: "it" }
+        val savedSubScale = remember { prefs.getFloat("sub_scale", 1.0f) }
+        val savedSubStyleId = remember { prefs.getString("sub_style", SubtitleStylePreset.WHITE_OUTLINE.id) }
 
         val isTorrent = remember(streamUrl) { TorrentStreamEngine.isTorrentSource(streamUrl) }
         val torrentState = torrentEngine?.state?.collectAsState()
 
-        var playbackUrl by remember {
-            mutableStateOf(if (isTorrent) "" else streamUrl)
-        }
+        var displayTitle by remember { mutableStateOf(initialChannelName) }
+        var playbackUrl by remember { mutableStateOf(if (isTorrent) "" else streamUrl) }
 
         var useExoPlayer by remember { mutableStateOf<Boolean?>(null) }
         var isPlaying by remember { mutableStateOf(false) }
@@ -191,29 +197,40 @@ class PlayerActivity : ComponentActivity() {
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var showControls by remember { mutableStateOf(true) }
         var showSettingsSheet by remember { mutableStateOf(false) }
-        var activeTab by remember { mutableIntStateOf(0) }
         var isMinimized by remember { mutableStateOf(false) }
 
         var uiAudioTracks by remember { mutableStateOf<List<UiAudioTrack>>(emptyList()) }
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
+        var uiSubtitleTracks by remember { mutableStateOf<List<UiSubtitleTrack>>(emptyList()) }
+        var currentSubtitleTrackId by remember { mutableIntStateOf(-1) }
+        var preferredSubLanguage by remember { mutableStateOf(savedSubLang) }
+        var subtitleSizeScale by remember { mutableFloatStateOf(savedSubScale) }
+        var subtitleStyle by remember { mutableStateOf(SubtitleStylePreset.fromId(savedSubStyleId)) }
+
         var currentAspectRatio by remember { mutableStateOf(savedAspectRatio) }
-        var currentScale by remember { mutableStateOf(savedScale) }
+        var currentScale by remember { mutableFloatStateOf(savedScale) }
 
         var vlcVideoLayout by remember { mutableStateOf<VLCVideoLayout?>(null) }
         var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
 
         val configuration = LocalConfiguration.current
 
-        // Osserva lo stato del motore Torrent interno
+        // Osserva lo stato del motore Torrent e aggiorna anche il titolo reale dai metadati!
         LaunchedEffect(torrentState?.value) {
             when (val st = torrentState?.value) {
                 is TorrentStreamState.Buffering -> {
                     isBuffering = true
+                    if (st.torrentTitle.isNotBlank()) {
+                        displayTitle = st.torrentTitle
+                    }
                 }
                 is TorrentStreamState.Ready -> {
                     errorMessage = null
+                    if (st.torrentTitle.isNotBlank()) {
+                        displayTitle = st.torrentTitle
+                    }
                     playbackUrl = Uri.fromFile(st.videoFile).toString()
                 }
                 is TorrentStreamState.Error -> {
@@ -227,11 +244,10 @@ class PlayerActivity : ComponentActivity() {
         LaunchedEffect(playbackUrl) {
             if (playbackUrl.isNotBlank()) {
                 isBuffering = true
+                // Per i Torrent usiamo sempre LibVLC di default così legge qualsiasi traccia audio (AC3, EAC3, DTS)
+                // e gestisce i file ancora in download sequenziale senza blocchi.
                 useExoPlayer = if (isTorrent) {
-                    // Per i file torrent in download progressivo (.mkv/.avi/.mp4), VLC gestisce benissimo i file parziali,
-                    // mentre i .mp4/.ts funzionano su entrambi (l'utente può anche cambiare al volo col tasto ⚡ Exo/VLC)
-                    val lower = playbackUrl.lowercase()
-                    lower.endsWith(".mp4") || lower.endsWith(".ts")
+                    false
                 } else {
                     StreamNetworkHelper.shouldUseExoPlayer(playbackUrl, userAgent)
                 }
@@ -245,14 +261,13 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        LaunchedEffect(showControls, isPlaying) {
-            if (showControls && isPlaying && !isInPipMode && !isMinimized) {
+        LaunchedEffect(showControls, isPlaying, showSettingsSheet) {
+            if (showControls && isPlaying && !isInPipMode && !isMinimized && !showSettingsSheet) {
                 delay(4000)
                 showControls = false
             }
         }
 
-        // Persistenza formato e rotazione per LibVLC
         LaunchedEffect(currentAspectRatio, currentScale, vlcVideoLayout, useExoPlayer, configuration.orientation) {
             val layout = vlcVideoLayout
             if (layout != null && useExoPlayer == false) {
@@ -264,7 +279,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Persistenza formato e rotazione per ExoPlayer
         LaunchedEffect(currentAspectRatio, currentScale, exoPlayerView, useExoPlayer, configuration.orientation) {
             val pv = exoPlayerView
             if (pv != null && useExoPlayer == true) {
@@ -302,7 +316,6 @@ class PlayerActivity : ComponentActivity() {
                     },
                     onError = {
                         if (isTorrent) {
-                            // Passa automaticamente a LibVLC se il contenitore del torrent richiede VLC
                             useExoPlayer = false
                         } else {
                             lifecycleScope.launch {
@@ -328,6 +341,7 @@ class PlayerActivity : ComponentActivity() {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             try {
+                vlcManager.updateSubtitleAppearance(subtitleSizeScale, subtitleStyle.vlcColorInt)
                 val mp = vlcManager.attachAndPrepare(
                     layout = layout,
                     streamUrl = playbackUrl,
@@ -342,6 +356,10 @@ class PlayerActivity : ComponentActivity() {
                         uiAudioTracks = tracks
                         currentAudioTrackId = selectedId
                         currentAudioInfo = info
+                    },
+                    onSubtitleTracksUpdated = { subTracks, activeSubId ->
+                        uiSubtitleTracks = subTracks
+                        currentSubtitleTrackId = activeSubId
                     },
                     onFormatRefreshNeeded = {
                         vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
@@ -358,7 +376,7 @@ class PlayerActivity : ComponentActivity() {
                 )
 
                 lifecycleScope.launch {
-                    delay(500)
+                    delay(400)
                     mp.play()
                 }
 
@@ -372,9 +390,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // =========================================================================
-        // INTERFACCIA GRAFICA (PULSANTI, CARD, MINIPLAYER, OPZIONI)
-        // =========================================================================
         DraggableMiniPlayerContainer(
             isMinimized = isMinimized,
             onExpand = { isMinimized = false },
@@ -388,14 +403,6 @@ class PlayerActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        if (!isInPipMode && !isMinimized) {
-                            showControls = !showControls
-                        }
-                    }
             ) {
                 when (useExoPlayer) {
                     true -> {
@@ -429,6 +436,20 @@ class PlayerActivity : ComponentActivity() {
                     null -> {}
                 }
 
+                // =================================================================
+                // FILE 1: GESTURE VOLUME (DESTRA) E LUMINOSITÀ (SINISTRA) + TAP
+                // =================================================================
+                PlayerGestureOverlay(
+                    activity = this@PlayerActivity,
+                    enabled = !isInPipMode && !isMinimized && !showSettingsSheet,
+                    onSingleTap = {
+                        if (!isInPipMode && !isMinimized) {
+                            showControls = !showControls
+                        }
+                    }
+                )
+
+                // CONTROLLI PLAYER
                 AnimatedVisibility(
                     visible = showControls && !isInPipMode && !isMinimized,
                     enter = fadeIn(),
@@ -440,7 +461,7 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
-                        // BARRA SUPERIORE
+                        // BARRA SUPERIORE CON TITOLO TORRENT DAI METADATI E ICONE VETTORIALI
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -455,7 +476,7 @@ class PlayerActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = channelName,
+                                    text = displayTitle,
                                     color = Color.White,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
@@ -465,11 +486,13 @@ class PlayerActivity : ComponentActivity() {
                                 Text(
                                     text = "Audio: $currentAudioInfo",
                                     color = Color.LightGray,
-                                    style = MaterialTheme.typography.labelSmall
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
-                            // Pulsante rapido cambio motore (ExoPlayer <-> LibVLC)
+                            // Pulsante rapido cambio motore con icona vettoriale (niente emoji)
                             Surface(
                                 onClick = {
                                     isBuffering = true
@@ -479,13 +502,24 @@ class PlayerActivity : ComponentActivity() {
                                 color = Color.White.copy(alpha = 0.2f),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
-                                Text(
-                                    text = if (useExoPlayer == true) "⚡ Exo" else "⚡ VLC",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SwapHoriz,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00E5FF),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (useExoPlayer == true) "Exo" else "VLC",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.width(8.dp))
@@ -499,7 +533,7 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // PULSANTI CENTRALI (Indietro 10s, Play/Pausa, Stop, Avanti 10s)
+                        // PULSANTI CENTRALI CON ICONE VETTORIALI
                         Row(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -513,11 +547,11 @@ class PlayerActivity : ComponentActivity() {
                                     .size(48.dp)
                                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                             ) {
-                                Text(
-                                    text = "« 10s",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
+                                Icon(
+                                    imageVector = Icons.Default.Replay10,
+                                    contentDescription = "Indietro 10 secondi",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
 
@@ -529,22 +563,12 @@ class PlayerActivity : ComponentActivity() {
                                     .size(56.dp)
                                     .background(Color.Black.copy(alpha = 0.65f), CircleShape)
                             ) {
-                                if (isPlaying) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
-                                        Box(modifier = Modifier.width(5.dp).height(20.dp).background(Color.White, RoundedCornerShape(2.dp)))
-                                    }
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pausa" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
                             }
 
                             IconButton(
@@ -557,10 +581,11 @@ class PlayerActivity : ComponentActivity() {
                                     .size(48.dp)
                                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .background(Color.White, RoundedCornerShape(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = "Stop",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
 
@@ -572,16 +597,16 @@ class PlayerActivity : ComponentActivity() {
                                     .size(48.dp)
                                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                             ) {
-                                Text(
-                                    text = "10s »",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
+                                Icon(
+                                    imageVector = Icons.Default.Forward10,
+                                    contentDescription = "Avanti 10 secondi",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }
 
-                        // BARRA INFERIORE
+                        // BARRA INFERIORE CON PULSANTE OPZIONI
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -591,22 +616,40 @@ class PlayerActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = { showSettingsSheet = true }) {
+                            IconButton(
+                                onClick = {
+                                    showControls = false
+                                    showSettingsSheet = true
+                                }
+                            ) {
                                 Icon(Icons.Default.Settings, contentDescription = "Impostazioni", tint = Color.White)
                             }
                         }
                     }
                 }
 
+                // INDICATORE DI BUFFERING
                 if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        CircularProgressIndicator(color = Color.White)
+                        CircularProgressIndicator(color = Color(0xFF00E5FF))
                         val st = torrentState?.value
                         if (st is TorrentStreamState.Buffering) {
                             Spacer(modifier = Modifier.height(12.dp))
+                            if (st.torrentTitle.isNotBlank()) {
+                                Text(
+                                    text = st.torrentTitle,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
                             Text(
                                 text = st.statusText,
                                 color = Color.White,
@@ -622,11 +665,12 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // CARD ERRORE DI RIPRODUZIONE
+                // CARD ERRORE DI RIPRODUZIONE CON ICONA VETTORIALE
                 errorMessage?.let { msg ->
                     if (!isInPipMode && !isMinimized) {
                         Surface(
                             color = Color.Black.copy(alpha = 0.90f),
+                            shape = RoundedCornerShape(18.dp),
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .padding(24.dp)
@@ -635,12 +679,23 @@ class PlayerActivity : ComponentActivity() {
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(24.dp)
                             ) {
-                                Text(
-                                    text = "⚠️ Errore di Riproduzione",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.error,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(bottom = 8.dp)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Errore di Riproduzione",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                                 Text(
                                     text = msg,
                                     color = Color.White,
@@ -680,213 +735,82 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // PANNELLO IMPOSTAZIONI (AUDIO E FORMATO)
-                if (showSettingsSheet && !isInPipMode && !isMinimized) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.95f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "📺 Opzioni Riproduzione",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                IconButton(onClick = { showSettingsSheet = false }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Chiudi", tint = Color.White)
-                                }
-                            }
-
-                            TabRow(
-                                selectedTabIndex = activeTab,
-                                containerColor = Color.Transparent,
-                                contentColor = Color.White
-                            ) {
-                                Tab(
-                                    selected = activeTab == 0,
-                                    onClick = { activeTab = 0 },
-                                    text = { Text("🔊 Audio") }
-                                )
-                                Tab(
-                                    selected = activeTab == 1,
-                                    onClick = { activeTab = 1 },
-                                    text = { Text("🎬 Formato") }
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            when (activeTab) {
-                                0 -> AudioTabContent(
-                                    audioTracks = uiAudioTracks,
-                                    currentTrackId = currentAudioTrackId,
-                                    onTrackSelected = { track ->
-                                        if (useExoPlayer == true) {
-                                            exoManager.selectAudioTrack(track)
-                                        } else {
-                                            vlcManager.selectAudioTrack(track.id)
-                                        }
-                                        currentAudioTrackId = track.id
-                                        currentAudioInfo = track.formattedInfo
-                                    }
-                                )
-
-                                1 -> AspectRatioTabContent(
-                                    currentAspectRatio = currentAspectRatio,
-                                    currentScale = currentScale,
-                                    onAspectRatioChange = { newRatio ->
-                                        currentAspectRatio = newRatio
-
-                                        prefs.edit().apply {
-                                            if (newRatio != null) {
-                                                putString("aspect_ratio", newRatio)
-                                            } else {
-                                                remove("aspect_ratio")
-                                            }
-                                            apply()
-                                        }
-
-                                        val newScale = when (newRatio) {
-                                            "FILL"    -> 1.45f
-                                            "ZOOM110" -> 1.10f
-                                            "ZOOM120" -> 1.20f
-                                            "ZOOM125" -> 1.25f
-                                            "ZOOM130" -> 1.30f
-                                            "ZOOM135" -> 1.35f
-                                            else      -> 0f
-                                        }
-                                        currentScale = newScale
-                                        prefs.edit().putFloat("scale", newScale).apply()
-
-                                        if (useExoPlayer == false) {
-                                            vlcManager.applyAspectRatioAndScale(vlcVideoLayout, newRatio, newScale)
-                                        } else if (useExoPlayer == true) {
-                                            exoManager.applyAspectRatioAndScale(exoPlayerView, newRatio, newScale)
-                                        }
-
-                                        showSettingsSheet = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun AudioTabContent(
-        audioTracks: List<UiAudioTrack>,
-        currentTrackId: Int,
-        onTrackSelected: (UiAudioTrack) -> Unit
-    ) {
-        if (audioTracks.isEmpty()) {
-            Text(
-                text = "🔇 Nessuna traccia audio disponibile",
-                color = Color.Gray,
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        } else {
-            LazyColumn(modifier = Modifier.heightIn(max = 220.dp).fillMaxWidth()) {
-                items(audioTracks) { track ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onTrackSelected(track) }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = (track.id == currentTrackId),
-                            onClick = { onTrackSelected(track) }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = track.formattedInfo,
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    @Composable
-    private fun AspectRatioTabContent(
-        currentAspectRatio: String?,
-        currentScale: Float,
-        onAspectRatioChange: (String?) -> Unit
-    ) {
-        val ratios = listOf(
-            "📺 16:9 (Standard HD)" to "16:9",
-            "📺 4:3 (TV Classica)" to "4:3",
-            "🔍 Zoom 110%" to "ZOOM110",
-            "🔍 Zoom 120%" to "ZOOM120",
-            "🔍 Zoom 125%" to "ZOOM125",
-            "🔍 Zoom 130%" to "ZOOM130",
-            "🔍 Zoom 135%" to "ZOOM135",
-            "🎬 21:9 (Cinematic)" to "21:9",
-            "🎬 1.85:1 (Movie)" to "1.85:1",
-            "🎬 2.35:1 (CinemaScope)" to "2.35:1",
-            "🎬 2.39:1 (UltraWide)" to "2.39:1",
-            "🔲 Riempi Schermo" to "FILL"
-        )
-
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 130.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 280.dp)
-        ) {
-            items(ratios) { (label, ratio) ->
-                val isSelected = when (ratio) {
-                    "FILL"    -> currentScale == 1.45f
-                    "ZOOM110" -> currentScale == 1.10f
-                    "ZOOM120" -> currentScale == 1.20f
-                    "ZOOM125" -> currentScale == 1.25f
-                    "ZOOM130" -> currentScale == 1.30f
-                    "ZOOM135" -> currentScale == 1.35f
-                    else      -> currentAspectRatio == ratio && currentScale == 0f
-                }
-
-                Button(
-                    onClick = { onAspectRatioChange(ratio) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSelected) {
-                            Color.White.copy(alpha = 0.25f)
+                // =================================================================
+                // FILE 2: MENU OPZIONI E SOTTOTITOLI STILE WEBVIDEOCASTER
+                // =================================================================
+                PlayerOptionsMenu(
+                    visible = showSettingsSheet && !isInPipMode && !isMinimized,
+                    onDismiss = { showSettingsSheet = false },
+                    audioTracks = uiAudioTracks,
+                    currentAudioTrackId = currentAudioTrackId,
+                    currentAudioInfo = currentAudioInfo,
+                    onAudioTrackSelected = { track ->
+                        if (useExoPlayer == true) {
+                            exoManager.selectAudioTrack(track)
                         } else {
-                            Color.White.copy(alpha = 0.08f)
+                            vlcManager.selectAudioTrack(track.id)
                         }
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = if (isSelected) "✓ $label" else label,
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                        currentAudioTrackId = track.id
+                        currentAudioInfo = track.formattedInfo
+                    },
+                    currentAspectRatio = currentAspectRatio,
+                    currentScale = currentScale,
+                    onAspectRatioSelected = { newRatio ->
+                        currentAspectRatio = newRatio
+                        prefs.edit().apply {
+                            if (newRatio != null) putString("aspect_ratio", newRatio)
+                            else remove("aspect_ratio")
+                            apply()
+                        }
+
+                        val newScale = when (newRatio) {
+                            "FILL"    -> 1.45f
+                            "ZOOM110" -> 1.10f
+                            "ZOOM120" -> 1.20f
+                            "ZOOM125" -> 1.25f
+                            "ZOOM130" -> 1.30f
+                            "ZOOM135" -> 1.35f
+                            else      -> 0f
+                        }
+                        currentScale = newScale
+                        prefs.edit().putFloat("scale", newScale).apply()
+
+                        if (useExoPlayer == false) {
+                            vlcManager.applyAspectRatioAndScale(vlcVideoLayout, newRatio, newScale)
+                        } else if (useExoPlayer == true) {
+                            exoManager.applyAspectRatioAndScale(exoPlayerView, newRatio, newScale)
+                        }
+                    },
+                    subtitleTracks = uiSubtitleTracks,
+                    currentSubtitleTrackId = currentSubtitleTrackId,
+                    preferredSubLanguage = preferredSubLanguage,
+                    onSubtitleTrackSelected = { subId ->
+                        currentSubtitleTrackId = subId
+                        if (useExoPlayer == false) {
+                            vlcManager.selectSubtitleTrack(subId)
+                        }
+                    },
+                    onPreferredSubLanguageChanged = { langCode ->
+                        preferredSubLanguage = langCode
+                        prefs.edit().putString("sub_lang", langCode).apply()
+                        if (useExoPlayer == false) {
+                            val selectedId = vlcManager.selectSubtitleByLanguageCode(langCode)
+                            currentSubtitleTrackId = selectedId
+                        }
+                    },
+                    subtitleSizeScale = subtitleSizeScale,
+                    subtitleStyle = subtitleStyle,
+                    onSubtitleSizeChanged = { newSize ->
+                        subtitleSizeScale = newSize
+                        prefs.edit().putFloat("sub_scale", newSize).apply()
+                        vlcManager.updateSubtitleAppearance(newSize, subtitleStyle.vlcColorInt)
+                    },
+                    onSubtitleStyleChanged = { newStyle ->
+                        subtitleStyle = newStyle
+                        prefs.edit().putString("sub_style", newStyle.id).apply()
+                        vlcManager.updateSubtitleAppearance(subtitleSizeScale, newStyle.vlcColorInt)
+                    }
+                )
             }
         }
     }
