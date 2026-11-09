@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -105,7 +106,6 @@ class PlayerActivity : ComponentActivity() {
         val rawExtraName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME")
 
-        // Se è un Torrent non mostriamo mai "Canale Live", ma estraiamo il nome dal Magnet o attendiamo i metadati
         channelName = if (isTorrentInput) {
             val magnetDn = TorrentStreamEngine.extractDisplayNameFromMagnet(streamUrl)
             when {
@@ -135,15 +135,26 @@ class PlayerActivity : ComponentActivity() {
             MaterialTheme {
                 PlayerScreen(
                     initialChannelName = channelName,
-                    onBackPressed = { finish() }
+                    onExitAndClearCache = { stopStreamAndExit() }
                 )
             }
         }
     }
 
+    /**
+     * Ferma la riproduzione, svuota immediatamente la cache del file Torrent e chiude il player.
+     */
+    private fun stopStreamAndExit() {
+        exoManager.release()
+        vlcManager.release()
+        torrentEngine?.stopAndClearCache()
+        torrentEngine = null
+        finish()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        torrentEngine?.stop()
+        torrentEngine?.stopAndClearCache()
         torrentEngine = null
         exoManager.release()
         vlcManager.release()
@@ -173,12 +184,17 @@ class PlayerActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
         if (!isInPictureInPictureMode && isFinishing) {
-            finish()
+            stopStreamAndExit()
         }
     }
 
     @Composable
-    fun PlayerScreen(initialChannelName: String, onBackPressed: () -> Unit) {
+    fun PlayerScreen(initialChannelName: String, onExitAndClearCache: () -> Unit) {
+        // Intercetta anche il tasto Indietro fisico/gesture di Android per svuotare subito la cache Torrent!
+        BackHandler {
+            onExitAndClearCache()
+        }
+
         val savedAspectRatio = remember { prefs.getString("aspect_ratio", null) }
         val savedScale = remember { prefs.getFloat("scale", 0f) }
         val savedSubLang = remember { prefs.getString("sub_lang", "it") ?: "it" }
@@ -203,8 +219,12 @@ class PlayerActivity : ComponentActivity() {
         var currentAudioTrackId by remember { mutableIntStateOf(-1) }
         var currentAudioInfo by remember { mutableStateOf("Rilevamento audio...") }
 
-        var uiSubtitleTracks by remember { mutableStateOf<List<UiSubtitleTrack>>(emptyList()) }
-        var currentSubtitleTrackId by remember { mutableIntStateOf(-1) }
+        // Stati Sottotitoli Esterni (OpenSubtitles + Compose Live Renderer)
+        var openSubtitleItems by remember { mutableStateOf<List<OpenSubtitleItem>>(emptyList()) }
+        var selectedOpenSubId by remember { mutableStateOf("") }
+        var activeSubtitleCues by remember { mutableStateOf<List<SubtitleCue>>(emptyList()) }
+        var currentSubtitleText by remember { mutableStateOf<String?>(null) }
+        var isLoadingSubtitles by remember { mutableStateOf(false) }
         var preferredSubLanguage by remember { mutableStateOf(savedSubLang) }
         var subtitleSizeScale by remember { mutableFloatStateOf(savedSubScale) }
         var subtitleStyle by remember { mutableStateOf(SubtitleStylePreset.fromId(savedSubStyleId)) }
@@ -216,13 +236,27 @@ class PlayerActivity : ComponentActivity() {
         var exoPlayerView by remember { mutableStateOf<PlayerView?>(null) }
 
         val configuration = LocalConfiguration.current
+        val coroutineScope = rememberCoroutineScope()
 
-        // Osserva lo stato del motore Torrent e aggiorna anche il titolo reale dai metadati!
+        fun triggerOpenSubtitlesSearch(titleToSearch: String, langCode: String) {
+            if (titleToSearch.isBlank() || titleToSearch.startsWith("Caricamento")) return
+            coroutineScope.launch {
+                isLoadingSubtitles = true
+                val found = OpenSubtitlesManager.searchSubtitles(
+                    rawTorrentTitle = titleToSearch,
+                    languageCode2 = langCode
+                )
+                openSubtitleItems = found
+                isLoadingSubtitles = false
+            }
+        }
+
+        // Osserva lo stato del motore Torrent e aggiorna il titolo nella barra superiore
         LaunchedEffect(torrentState?.value) {
             when (val st = torrentState?.value) {
                 is TorrentStreamState.Buffering -> {
                     isBuffering = true
-                    if (st.torrentTitle.isNotBlank()) {
+                    if (st.torrentTitle.isNotBlank() && st.torrentTitle != displayTitle) {
                         displayTitle = st.torrentTitle
                     }
                 }
@@ -241,11 +275,33 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
+        // Ricerca automatica su OpenSubtitles non appena il titolo del Torrent è disponibile
+        LaunchedEffect(displayTitle, preferredSubLanguage) {
+            if (isTorrent && displayTitle.isNotBlank() && !displayTitle.startsWith("Caricamento")) {
+                triggerOpenSubtitlesSearch(displayTitle, preferredSubLanguage)
+            }
+        }
+
+        // Sincronizzazione in tempo reale dei sottotitoli esterni col tempo del video
+        LaunchedEffect(activeSubtitleCues, isPlaying, useExoPlayer) {
+            if (activeSubtitleCues.isEmpty()) {
+                currentSubtitleText = null
+                return@LaunchedEffect
+            }
+            while (true) {
+                val posMs = if (useExoPlayer == true) {
+                    exoManager.exoPlayer?.currentPosition ?: 0L
+                } else {
+                    vlcManager.mediaPlayer?.time ?: 0L
+                }
+                currentSubtitleText = OpenSubtitlesManager.findActiveText(activeSubtitleCues, posMs)
+                delay(180)
+            }
+        }
+
         LaunchedEffect(playbackUrl) {
             if (playbackUrl.isNotBlank()) {
                 isBuffering = true
-                // Per i Torrent usiamo sempre LibVLC di default così legge qualsiasi traccia audio (AC3, EAC3, DTS)
-                // e gestisce i file ancora in download sequenziale senza blocchi.
                 useExoPlayer = if (isTorrent) {
                     false
                 } else {
@@ -341,7 +397,6 @@ class PlayerActivity : ComponentActivity() {
             val layout = vlcVideoLayout ?: return@DisposableEffect onDispose {}
 
             try {
-                vlcManager.updateSubtitleAppearance(subtitleSizeScale, subtitleStyle.vlcColorInt)
                 val mp = vlcManager.attachAndPrepare(
                     layout = layout,
                     streamUrl = playbackUrl,
@@ -356,10 +411,6 @@ class PlayerActivity : ComponentActivity() {
                         uiAudioTracks = tracks
                         currentAudioTrackId = selectedId
                         currentAudioInfo = info
-                    },
-                    onSubtitleTracksUpdated = { subTracks, activeSubId ->
-                        uiSubtitleTracks = subTracks
-                        currentSubtitleTrackId = activeSubId
                     },
                     onFormatRefreshNeeded = {
                         vlcManager.applyAspectRatioAndScale(layout, currentAspectRatio, currentScale)
@@ -393,7 +444,7 @@ class PlayerActivity : ComponentActivity() {
         DraggableMiniPlayerContainer(
             isMinimized = isMinimized,
             onExpand = { isMinimized = false },
-            onClose = onBackPressed,
+            onClose = onExitAndClearCache,
             isPlaying = isPlaying,
             onTogglePlayPause = {
                 if (useExoPlayer == true) exoManager.togglePlayPause() else vlcManager.togglePlayPause()
@@ -437,7 +488,19 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 // =================================================================
-                // FILE 1: GESTURE VOLUME (DESTRA) E LUMINOSITÀ (SINISTRA) + TAP
+                // RENDERER SOTTOTITOLI LIVE (OPENSUBTITLES) CON STILE E GRANDEZZA IN TEMPO REALE
+                // =================================================================
+                SubtitleOverlay(
+                    text = currentSubtitleText,
+                    sizeScale = subtitleSizeScale,
+                    stylePreset = subtitleStyle,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                )
+
+                // =================================================================
+                // GESTURE VOLUME (DESTRA) E LUMINOSITÀ (SINISTRA) + TAP
                 // =================================================================
                 PlayerGestureOverlay(
                     activity = this@PlayerActivity,
@@ -461,7 +524,7 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
-                        // BARRA SUPERIORE CON TITOLO TORRENT DAI METADATI E ICONE VETTORIALI
+                        // BARRA SUPERIORE (UNICO POSTO DOVE COMPARE IL TITOLO)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -470,7 +533,7 @@ class PlayerActivity : ComponentActivity() {
                                 .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = onBackPressed) {
+                            IconButton(onClick = onExitAndClearCache) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Indietro", tint = Color.White)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -492,7 +555,6 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Pulsante rapido cambio motore con icona vettoriale (niente emoji)
                             Surface(
                                 onClick = {
                                     isBuffering = true
@@ -533,7 +595,7 @@ class PlayerActivity : ComponentActivity() {
                             }
                         }
 
-                        // PULSANTI CENTRALI CON ICONE VETTORIALI
+                        // PULSANTI CENTRALI
                         Row(
                             modifier = Modifier.align(Alignment.Center),
                             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -571,11 +633,12 @@ class PlayerActivity : ComponentActivity() {
                                 )
                             }
 
+                            // Pulsante STOP: ferma il player e svuota subito la cache del Torrent
                             IconButton(
                                 onClick = {
                                     exoManager.stopAndDetach(exoPlayerView)
                                     vlcManager.stopAndDetach()
-                                    onBackPressed()
+                                    onExitAndClearCache()
                                 },
                                 modifier = Modifier
                                     .size(48.dp)
@@ -628,7 +691,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // INDICATORE DI BUFFERING
+                // INDICATORE DI BUFFERING CENTRALE (SENZA SECONDO TITOLO DUPLICATO)
                 if (isBuffering && errorMessage == null && !isInPipMode && !isMinimized) {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
@@ -638,18 +701,6 @@ class PlayerActivity : ComponentActivity() {
                         val st = torrentState?.value
                         if (st is TorrentStreamState.Buffering) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            if (st.torrentTitle.isNotBlank()) {
-                                Text(
-                                    text = st.torrentTitle,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 24.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
                             Text(
                                 text = st.statusText,
                                 color = Color.White,
@@ -665,7 +716,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // CARD ERRORE DI RIPRODUZIONE CON ICONA VETTORIALE
+                // CARD ERRORE DI RIPRODUZIONE
                 errorMessage?.let { msg ->
                     if (!isInPipMode && !isMinimized) {
                         Surface(
@@ -736,7 +787,7 @@ class PlayerActivity : ComponentActivity() {
                 }
 
                 // =================================================================
-                // FILE 2: MENU OPZIONI E SOTTOTITOLI STILE WEBVIDEOCASTER
+                // MENU OPZIONI E SOTTOTITOLI OPENSUBTITLES STILE WEBVIDEOCASTER
                 // =================================================================
                 PlayerOptionsMenu(
                     visible = showSettingsSheet && !isInPipMode && !isMinimized,
@@ -781,34 +832,49 @@ class PlayerActivity : ComponentActivity() {
                             exoManager.applyAspectRatioAndScale(exoPlayerView, newRatio, newScale)
                         }
                     },
-                    subtitleTracks = uiSubtitleTracks,
-                    currentSubtitleTrackId = currentSubtitleTrackId,
+                    openSubtitleItems = openSubtitleItems,
+                    selectedOpenSubId = selectedOpenSubId,
+                    isLoadingSubtitles = isLoadingSubtitles,
                     preferredSubLanguage = preferredSubLanguage,
-                    onSubtitleTrackSelected = { subId ->
-                        currentSubtitleTrackId = subId
-                        if (useExoPlayer == false) {
-                            vlcManager.selectSubtitleTrack(subId)
-                        }
-                    },
                     onPreferredSubLanguageChanged = { langCode ->
                         preferredSubLanguage = langCode
                         prefs.edit().putString("sub_lang", langCode).apply()
-                        if (useExoPlayer == false) {
-                            val selectedId = vlcManager.selectSubtitleByLanguageCode(langCode)
-                            currentSubtitleTrackId = selectedId
+                        triggerOpenSubtitlesSearch(displayTitle, langCode)
+                    },
+                    onOpenSubtitleSelected = { item ->
+                        if (item == null) {
+                            selectedOpenSubId = ""
+                            activeSubtitleCues = emptyList()
+                            currentSubtitleText = null
+                        } else {
+                            selectedOpenSubId = item.id
+                            coroutineScope.launch {
+                                isLoadingSubtitles = true
+                                val parsedCues = OpenSubtitlesManager.downloadAndParseSubtitle(item)
+                                activeSubtitleCues = parsedCues
+                                isLoadingSubtitles = false
+                                if (parsedCues.isEmpty()) {
+                                    Toast.makeText(
+                                        this@PlayerActivity,
+                                        "Impossibile scaricare questo sottotitolo, provane un altro dalla lista",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         }
+                    },
+                    onRefreshSubtitles = {
+                        triggerOpenSubtitlesSearch(displayTitle, preferredSubLanguage)
                     },
                     subtitleSizeScale = subtitleSizeScale,
                     subtitleStyle = subtitleStyle,
                     onSubtitleSizeChanged = { newSize ->
                         subtitleSizeScale = newSize
                         prefs.edit().putFloat("sub_scale", newSize).apply()
-                        vlcManager.updateSubtitleAppearance(newSize, subtitleStyle.vlcColorInt)
                     },
                     onSubtitleStyleChanged = { newStyle ->
                         subtitleStyle = newStyle
                         prefs.edit().putString("sub_style", newStyle.id).apply()
-                        vlcManager.updateSubtitleAppearance(subtitleSizeScale, newStyle.vlcColorInt)
                     }
                 )
             }
