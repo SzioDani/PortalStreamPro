@@ -28,6 +28,10 @@ import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 import kotlin.coroutines.resume
 
+// Spostata qui a livello di file per essere accessibile dalla data class
+const val DEFAULT_BROWSER_UA =
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+
 data class ExtractedWebStream(
     val streamUrl: String,
     val title: String = "",
@@ -37,9 +41,6 @@ data class ExtractedWebStream(
 )
 
 object WebStreamExtractor {
-
-    const val DEFAULT_BROWSER_UA =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
 
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -477,7 +478,6 @@ object WebStreamExtractor {
                         finishAndCleanUp(null)
                     }
                 }
-
                 webView?.settings?.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
