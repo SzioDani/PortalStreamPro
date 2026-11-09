@@ -25,33 +25,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalstream.app.network.UiAudioTrack
 
-data class UiSubtitleTrack(
-    val id: Int,
-    val name: String,
-    val language: String = ""
-)
-
 enum class SubtitleStylePreset(
     val id: String,
     val label: String,
     val textColor: Color,
     val bgColor: Color,
-    val borderColor: Color,
-    val vlcColorInt: Int
+    val borderColor: Color
 ) {
-    WHITE_OUTLINE("white", "Bianco Nitido", Color.White, Color.Transparent, Color.Black, 0xFFFFFF),
-    CINEMA_YELLOW("yellow", "Giallo Cinema", Color(0xFFFFEA00), Color.Transparent, Color.Black, 0xFFEA00),
-    CYAN_NEON("cyan", "Ciano", Color(0xFF00E5FF), Color.Transparent, Color.Black, 0x00E5FF),
-    DARK_BOX("box", "Sfondo Scuro", Color.White, Color(0xB3000000), Color.Transparent, 0xFFFFFF);
+    WHITE_OUTLINE("white", "Bianco Nitido", Color.White, Color.Transparent, Color.Black),
+    CINEMA_YELLOW("yellow", "Giallo Cinema", Color(0xFFFFEA00), Color.Transparent, Color.Black),
+    CYAN_NEON("cyan", "Ciano", Color(0xFF00E5FF), Color.Transparent, Color.Black),
+    GREEN_NEON("green", "Verde Fluido", Color(0xFF00E676), Color.Transparent, Color.Black),
+    DARK_BOX("box", "Sfondo Scuro", Color.White, Color(0xCC000000), Color.Transparent);
 
     companion object {
         fun fromId(id: String?): SubtitleStylePreset =
@@ -76,12 +73,14 @@ fun PlayerOptionsMenu(
     currentAspectRatio: String?,
     currentScale: Float,
     onAspectRatioSelected: (String?) -> Unit,
-    // Sottotitoli e Lingua
-    subtitleTracks: List<UiSubtitleTrack>,
-    currentSubtitleTrackId: Int,
+    // Sottotitoli OpenSubtitles
+    openSubtitleItems: List<OpenSubtitleItem>,
+    selectedOpenSubId: String,
+    isLoadingSubtitles: Boolean,
     preferredSubLanguage: String,
-    onSubtitleTrackSelected: (Int) -> Unit,
     onPreferredSubLanguageChanged: (String) -> Unit,
+    onOpenSubtitleSelected: (OpenSubtitleItem?) -> Unit,
+    onRefreshSubtitles: () -> Unit,
     // Stile e Dimensione Sottotitoli
     subtitleSizeScale: Float,
     subtitleStyle: SubtitleStylePreset,
@@ -108,12 +107,13 @@ fun PlayerOptionsMenu(
         }
     }
 
-    val activeSubLabel = remember(subtitleTracks, currentSubtitleTrackId, preferredSubLanguage) {
-        val active = subtitleTracks.firstOrNull { it.id == currentSubtitleTrackId }
+    val activeSubLabel = remember(openSubtitleItems, selectedOpenSubId, preferredSubLanguage, isLoadingSubtitles) {
+        val active = openSubtitleItems.firstOrNull { it.id == selectedOpenSubId }
         when {
-            currentSubtitleTrackId == -1 -> "Disattivati (Lingua pref: ${preferredSubLanguage.uppercase()})"
-            active != null -> active.name
-            else -> "Lingua: ${preferredSubLanguage.uppercase()}"
+            isLoadingSubtitles -> "Ricerca su OpenSubtitles (${preferredSubLanguage.uppercase()})..."
+            selectedOpenSubId.isBlank() -> "Disattivati • Lingua: ${preferredSubLanguage.uppercase()}"
+            active != null -> active.title
+            else -> "OpenSubtitles (${preferredSubLanguage.uppercase()})"
         }
     }
 
@@ -131,7 +131,6 @@ fun PlayerOptionsMenu(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                // Toccando fuori dalla finestra laterale in orizzontale si chiude il menu
                 onDismiss()
             }
     ) {
@@ -141,12 +140,12 @@ fun PlayerOptionsMenu(
             Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .width(340.dp)
+                .width(345.dp)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xC80F172A)) // Semitrasparente non invasivo
+                .background(Color(0xC80F172A))
                 .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.45f), RoundedCornerShape(22.dp))
         } else {
             Modifier
@@ -161,7 +160,7 @@ fun PlayerOptionsMenu(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
-                ) { /* Evita che il click interno chiuda il pannello */ }
+                ) { /* Mantiene il pannello aperto al tocco interno */ }
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             // Intestazione
@@ -328,11 +327,11 @@ fun PlayerOptionsMenu(
                 }
 
                 // =====================================================
-                // 3. BOTTONE SEZIONE SOTTOTITOLI E LINGUA
+                // 3. BOTTONE SEZIONE SOTTOTITOLI ESTERNI (OPENSUBTITLES)
                 // =====================================================
                 OptionSectionButton(
                     icon = Icons.Default.Subtitles,
-                    title = "Sottotitoli e Lingua",
+                    title = "Sottotitoli (OpenSubtitles)",
                     subtitle = activeSubLabel,
                     isExpanded = expandedSection == OptionSection.SUBTITLES,
                     onClick = {
@@ -349,38 +348,56 @@ fun PlayerOptionsMenu(
                     exit = shrinkVertically() + fadeOut()
                 ) {
                     val languages = listOf(
-                        "it" to "Italiano",
-                        "en" to "Inglese",
-                        "es" to "Spagnolo",
-                        "fr" to "Francese",
-                        "de" to "Tedesco"
+                        "it" to "IT",
+                        "en" to "EN",
+                        "es" to "ES",
+                        "fr" to "FR",
+                        "de" to "DE"
                     )
                     SectionCardContainer {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Translate,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Lingua Sottotitoli Preferita",
-                                    color = Color(0xFF00E5FF),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Language,
+                                        contentDescription = null,
+                                        tint = Color(0xFF00E5FF),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Lingua OpenSubtitles",
+                                        color = Color(0xFF00E5FF),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = onRefreshSubtitles,
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Ricarica Sottotitoli",
+                                        tint = Color(0xFF00E5FF),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                languages.forEach { (code, langName) ->
+                                languages.forEach { (code, label) ->
                                     val isLangSelected = preferredSubLanguage.equals(code, ignoreCase = true)
                                     CompactTogglePill(
-                                        text = code.uppercase(),
+                                        text = label,
                                         selected = isLangSelected,
                                         onClick = { onPreferredSubLanguageChanged(code) },
                                         modifier = Modifier.weight(1f)
@@ -390,43 +407,58 @@ fun PlayerOptionsMenu(
 
                             HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.ClosedCaption,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Tracce Sottotitoli nel Flusso",
-                                    color = Color(0xFF00E5FF),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
                             SelectableOptionRow(
                                 label = "Disattiva Sottotitoli",
-                                selected = currentSubtitleTrackId == -1,
+                                selected = selectedOpenSubId.isBlank(),
                                 icon = Icons.Default.SubtitlesOff,
-                                onClick = { onSubtitleTrackSelected(-1) }
+                                onClick = { onOpenSubtitleSelected(null) }
                             )
 
-                            if (subtitleTracks.isEmpty()) {
-                                Text(
-                                    text = "Nessuna traccia integrata rilevata nel video corrente",
-                                    color = Color.LightGray,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                                )
+                            if (isLoadingSubtitles) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Color(0xFF00E5FF),
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Ricerca sottotitoli su OpenSubtitles...",
+                                        color = Color.LightGray,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            } else if (openSubtitleItems.isEmpty()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = Color.LightGray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Nessun sottotitolo trovato per questa lingua. Tocca l'icona aggiorna o cambia lingua.",
+                                        color = Color.LightGray,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             } else {
-                                subtitleTracks.forEach { sub ->
+                                openSubtitleItems.forEach { subItem ->
                                     SelectableOptionRow(
-                                        label = sub.name,
-                                        selected = sub.id == currentSubtitleTrackId,
-                                        icon = Icons.Default.Subtitles,
-                                        onClick = { onSubtitleTrackSelected(sub.id) }
+                                        label = subItem.title,
+                                        selected = subItem.id == selectedOpenSubId,
+                                        icon = Icons.Default.ClosedCaption,
+                                        onClick = { onOpenSubtitleSelected(subItem) }
                                     )
                                 }
                             }
@@ -457,7 +489,7 @@ fun PlayerOptionsMenu(
                 ) {
                     SectionCardContainer {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Anteprima live dello stile e della grandezza
+                            // Anteprima Live fedele al 100% al rendering sul video
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -466,6 +498,7 @@ fun PlayerOptionsMenu(
                                     .padding(vertical = 12.dp, horizontal = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
+                                val hasDarkBox = subtitleStyle == SubtitleStylePreset.DARK_BOX
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
@@ -475,8 +508,17 @@ fun PlayerOptionsMenu(
                                     Text(
                                         text = "Anteprima Sottotitoli",
                                         color = subtitleStyle.textColor,
-                                        fontSize = (15f * subtitleSizeScale).sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontSize = (16f * subtitleSizeScale).sp,
+                                        fontWeight = FontWeight.Bold,
+                                        style = TextStyle(
+                                            shadow = if (!hasDarkBox) {
+                                                Shadow(
+                                                    color = Color.Black,
+                                                    offset = Offset(2f, 2f),
+                                                    blurRadius = 4f
+                                                )
+                                            } else null
+                                        )
                                     )
                                 }
                             }
@@ -514,7 +556,6 @@ fun PlayerOptionsMenu(
                                 value = subtitleSizeScale,
                                 onValueChange = onSubtitleSizeChanged,
                                 valueRange = 0.75f..1.75f,
-                                steps = 3,
                                 colors = SliderDefaults.colors(
                                     thumbColor = Color(0xFF00E5FF),
                                     activeTrackColor = Color(0xFF00E5FF),
@@ -527,10 +568,10 @@ fun PlayerOptionsMenu(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 val sizePresets = listOf(
-                                    "Piccolo" to 0.75f,
+                                    "Piccolo" to 0.80f,
                                     "Normale" to 1.0f,
                                     "Grande" to 1.25f,
-                                    "Max" to 1.5f
+                                    "Max" to 1.55f
                                 )
                                 sizePresets.forEach { (lbl, scaleVal) ->
                                     CompactTogglePill(
@@ -544,7 +585,7 @@ fun PlayerOptionsMenu(
 
                             HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
 
-                            // Regolazione Stile Caratteri
+                            // Regolazione Stile e Colore Caratteri
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.Palette,
@@ -778,3 +819,4 @@ private fun CompactTogglePill(
         )
     }
 }
+                    
