@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import android.view.ViewGroup
+import com.portalstream.app.ui.player.UiSubtitleTrack
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -18,22 +19,18 @@ class VlcPlayerManager(private val context: Context) {
     var mediaPlayer: MediaPlayer? = null
         private set
 
-    // Tiene traccia di quale profilo è attualmente caricato in LibVLC (false = IPTV/MAC, true = Torrent)
     private var currentTorrentMode: Boolean? = null
+    private var preferredSubLang: String = "it,ita,italiano"
+    private var subTextScalePercent: Int = 100
+    private var subColorInt: Int = 0xFFFFFF
 
     private val initialBufferThreshold = 85f
 
-    /**
-     * Inizializza LibVLC distinguendo il profilo:
-     * - isTorrent = false -> Mantiene 100% i parametri originali per flussi MAC .ts e IPTV
-     * - isTorrent = true  -> Esclude clock-jitter e clock-synchro che bloccano l'audio dei Torrent
-     */
     fun ensureInitialized(isTorrent: Boolean = false): MediaPlayer {
         if (libVLC != null && mediaPlayer != null && currentTorrentMode == isTorrent) {
             return mediaPlayer!!
         }
 
-        // Se stiamo passando da un canale MAC a un Torrent (o viceversa), ricrea l'istanza pulita
         if (currentTorrentMode != null && currentTorrentMode != isTorrent) {
             release()
         }
@@ -41,19 +38,20 @@ class VlcPlayerManager(private val context: Context) {
         val options = ArrayList<String>().apply {
             if (isTorrent) {
                 // =========================================================
-                // 🧲 PROFILO ESCLUSIVO PER TORRENT (MKV, MP4, AVI, AC3, DTS)
+                // PROFILO ESCLUSIVO PER TORRENT (MKV, MP4, AVI, AC3, DTS)
                 // =========================================================
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
                 add("--file-caching=2500")
                 add("--disc-caching=2500")
-                // NON inseriamo --clock-jitter=-1 e --clock-synchro=0 qui,
-                // così il demuxer aggancia subito qualsiasi traccia audio del torrent!
                 add("--audio-language=it,ita,italiano,en,eng,und")
+                add("--sub-language=$preferredSubLang")
+                add("--sub-text-scale=$subTextScalePercent")
+                add("--freetype-color=$subColorInt")
                 add("--avcodec-fast")
             } else {
                 // =========================================================
-                // 📺 PROFILO ORIGINALE INTATTO PER FLUSSI MAC .TS E IPTV
+                // PROFILO ORIGINALE INTATTO PER FLUSSI MAC .TS E IPTV
                 // =========================================================
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
@@ -67,8 +65,10 @@ class VlcPlayerManager(private val context: Context) {
                 add("--clock-jitter=-1")
                 add("--clock-synchro=0")
                 add("--udp-timeout=40000")
-                // 🇮🇹 Dice a LibVLC di scegliere subito la traccia principale Italiana sui canali Rai!
+                // Dice a LibVLC di scegliere subito la traccia principale Italiana sui canali Rai!
                 add("--audio-language=it,ita,italiano")
+                add("--sub-language=$preferredSubLang")
+                add("--sub-text-scale=$subTextScalePercent")
             }
         }
 
@@ -86,29 +86,29 @@ class VlcPlayerManager(private val context: Context) {
         onBuffering: (Boolean) -> Unit,
         onPlayingState: (Boolean) -> Unit,
         onAudioTracksUpdated: (List<UiAudioTrack>, Int, String) -> Unit,
+        onSubtitleTracksUpdated: (List<UiSubtitleTrack>, Int) -> Unit = { _, _ -> },
         onFormatRefreshNeeded: () -> Unit,
         onError: () -> Unit
     ): MediaPlayer {
         val trimmedUrl = streamUrl.trim()
         val lowerUrl = trimmedUrl.lowercase()
 
-        // Rileva automaticamente se stiamo riproducendo un file dal motore Torrent
         val isTorrentFile = trimmedUrl.startsWith("/") ||
-                trimmedUrl.startsWith("file://") ||
-                lowerUrl.contains("torrent_stream")
+            trimmedUrl.startsWith("file://") ||
+            lowerUrl.contains("torrent_stream")
 
         val mp = ensureInitialized(isTorrent = isTorrentFile)
         val vlc = libVLC!!
 
-        mp.attachViews(layout, null, false, true)
+        // IVLCVout attach con sottotitoli abilitati
+        mp.attachViews(layout, null, true, false)
 
         val isRawMacStream = !isTorrentFile && (
-                lowerUrl.contains("live.php") ||
+            lowerUrl.contains("live.php") ||
                 lowerUrl.contains("extension=ts") ||
                 lowerUrl.endsWith(".ts")
             )
 
-        // Costruisce l'URI corretto: Uri.fromFile per i file locali Torrent, Uri.parse per gli stream IPTV
         val mediaUri: Uri = if (isTorrentFile && trimmedUrl.startsWith("/")) {
             Uri.fromFile(File(trimmedUrl))
         } else {
@@ -117,22 +117,20 @@ class VlcPlayerManager(private val context: Context) {
 
         val media = Media(vlc, mediaUri).apply {
             if (isTorrentFile) {
-                // === OPZIONI MEDIA SOLO PER TORRENT ===
-                // Abilita decoder HW ma permette il fallback SW (secondo param = false)
-                // fondamentale per audio AC3/EAC3/DTS e video MKV/AVI non supportati dal chip HW
                 setHWDecoderEnabled(true, false)
                 addOption(":file-caching=2500")
                 addOption(":audio-language=it,ita,italiano,en,eng,und")
+                addOption(":sub-language=$preferredSubLang")
+                addOption(":sub-text-scale=$subTextScalePercent")
+                addOption(":freetype-color=$subColorInt")
             } else {
-                // === OPZIONI MEDIA ORIGINALI PER IPTV / MAC ===
                 setHWDecoderEnabled(true, true)
                 addOption(":http-reconnect")
                 addOption(":network-caching=8000")
                 addOption(":live-caching=8000")
                 addOption(":audio-language=it,ita,italiano")
+                addOption(":sub-language=$preferredSubLang")
 
-                // :http-continuous e :clock-jitter=0 SOLO sui flussi grezzi MAC (.ts),
-                // altrimenti i canali Rai multi-traccia (HLS/relinker) si bloccano in avvio!
                 if (isRawMacStream) {
                     addOption(":http-continuous")
                     addOption(":clock-jitter=0")
@@ -149,7 +147,7 @@ class VlcPlayerManager(private val context: Context) {
 
         var hasAutoSelectedBestTrack = false
 
-        fun refreshAudio(allowAutoSelect: Boolean) {
+        fun refreshAudioAndSubtitles(allowAutoSelect: Boolean) {
             val tracks = mp.audioTracks?.toList() ?: emptyList()
             val validTracks = tracks.filter { it.id != -1 }
             var currentId = mp.audioTrack
@@ -157,7 +155,6 @@ class VlcPlayerManager(private val context: Context) {
             if (allowAutoSelect && validTracks.isNotEmpty() && !hasAutoSelectedBestTrack) {
                 hasAutoSelectedBestTrack = true
 
-                // Cerca la traccia migliore (Italiano / Main, evitando "oth" o "audiodescrizione")
                 val bestTrack = validTracks.firstOrNull { t ->
                     val n = t.name.lowercase()
                     (n.contains("ita") || n.contains("it") || n.contains("main") || n.contains("traccia 1") || n.contains("track 1")) &&
@@ -171,8 +168,6 @@ class VlcPlayerManager(private val context: Context) {
                     mp.audioTrack = bestTrack.id
                     currentId = bestTrack.id
                 } else if (isTorrentFile) {
-                    // Nei file Torrent multi-lingua (es. traccia 1 Inglese, traccia 2 Italiano),
-                    // se esiste una traccia esplicitamente Italiana la selezioniamo subito
                     val explicitItalian = validTracks.firstOrNull { t ->
                         val n = t.name.lowercase()
                         (n.contains("ita") || n.contains("italiano")) && !n.contains("oth") && !n.contains("descri")
@@ -195,13 +190,19 @@ class VlcPlayerManager(private val context: Context) {
 
             val info = formatAudioTrackInfo(mp, tracks, currentId)
             onAudioTracksUpdated(mapped, currentId, info)
+
+            // Lettura tracce sottotitoli disponibili
+            val spuList = mp.spuTracks?.toList() ?: emptyList()
+            val validSpu = spuList.filter { it.id != -1 }.map { s ->
+                UiSubtitleTrack(id = s.id, name = s.name)
+            }
+            onSubtitleTracksUpdated(validSpu, mp.spuTrack)
         }
 
         mp.setEventListener { event ->
             when (event.type) {
                 MediaPlayer.Event.Buffering -> {
                     if (isTorrentFile) {
-                        // Sui file locali Torrent evita che la rotella di buffering rimanga bloccata a 85%
                         onBuffering(!mp.isPlaying && event.buffering < 50f)
                     } else {
                         onBuffering(event.buffering < initialBufferThreshold)
@@ -211,29 +212,26 @@ class VlcPlayerManager(private val context: Context) {
                     onBuffering(false)
                     onPlayingState(true)
                     layout.post { onFormatRefreshNeeded() }
-                    refreshAudio(allowAutoSelect = true)
+                    refreshAudioAndSubtitles(allowAutoSelect = true)
                 }
                 MediaPlayer.Event.Vout -> {
                     if (event.voutCount > 0) {
                         if (isTorrentFile) onBuffering(false)
                         layout.post { onFormatRefreshNeeded() }
-                        refreshAudio(allowAutoSelect = true)
+                        refreshAudioAndSubtitles(allowAutoSelect = true)
                     }
                 }
                 MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> {
                     onPlayingState(false)
                 }
                 MediaPlayer.Event.ESAdded -> {
-                    // Importante per i Torrent MKV/MP4: quando il demuxer rileva una traccia audio
-                    // un istante dopo l'apertura del file, la aggancia subito
                     if (isTorrentFile && mp.isPlaying) {
-                        refreshAudio(allowAutoSelect = !hasAutoSelectedBestTrack)
+                        refreshAudioAndSubtitles(allowAutoSelect = !hasAutoSelectedBestTrack)
                     }
                 }
                 MediaPlayer.Event.ESSelected -> {
-                    // Aggiorna solo la lista UI senza forzare cambi traccia mentre carica
                     if (mp.isPlaying) {
-                        refreshAudio(allowAutoSelect = false)
+                        refreshAudioAndSubtitles(allowAutoSelect = false)
                     }
                 }
                 MediaPlayer.Event.EncounteredError -> {
@@ -247,11 +245,6 @@ class VlcPlayerManager(private val context: Context) {
         return mp
     }
 
-    /**
-     * Logica Formati e Zoom specifica per LibVLC:
-     * - Formati classici (16:9, 4:3, ecc.): usa mp.aspectRatio nativo senza distorsioni.
-     * - Zoom (110%..135%, FILL): allarga i lati (zoomLati) e rimpicciolisce dal basso in alto (zoomAltoBasso).
-     */
     fun applyAspectRatioAndScale(
         vlcLayout: VLCVideoLayout?,
         aspectRatio: String?,
@@ -268,7 +261,6 @@ class VlcPlayerManager(private val context: Context) {
             }
         }
 
-        // Se è un formato nativo standard (es. "16:9", "4:3", o null), resetta le scale e usa LibVLC
         if (aspectRatio == "16:9" || aspectRatio == "4:3" || (aspectRatio != null && !aspectRatio.startsWith("ZOOM") && aspectRatio != "FILL" && scale == 0f)) {
             vlcLayout?.scaleX = 1f
             vlcLayout?.scaleY = 1f
@@ -277,10 +269,9 @@ class VlcPlayerManager(private val context: Context) {
             return
         }
 
-        // Altrimenti, applica lo zoom personalizzato solo se richiesto esplicitamente
         if (scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL") {
             mp.scale = 0f
-            mp.aspectRatio = null // Lasciamo gestire al layout via scaleX/scaleY
+            mp.aspectRatio = null
 
             val zoomLati = when (aspectRatio) {
                 "ZOOM110" -> 1.06f
@@ -323,7 +314,6 @@ class VlcPlayerManager(private val context: Context) {
             return
         }
 
-        // Default di sicurezza
         vlcLayout?.scaleX = 1f
         vlcLayout?.scaleY = 1f
         mp.scale = 0f
@@ -337,7 +327,7 @@ class VlcPlayerManager(private val context: Context) {
     ): String {
         if (activeId == -1) {
             val validTracks = tracks.filter { it.id != -1 }
-            return if (validTracks.isEmpty()) "🔇 Nessun audio" else "⊘ Disattivato"
+            return if (validTracks.isEmpty()) "Nessun audio" else "Disattivato"
         }
 
         val selectedTrackDesc = tracks.firstOrNull { it.id == activeId }
@@ -351,7 +341,6 @@ class VlcPlayerManager(private val context: Context) {
                 val count = media.trackCount
                 for (i in 0 until count) {
                     val t = media.getTrack(i)
-                    // Verifica che t.id corrisponda esattamente alla traccia activeId!
                     if (t != null && t.type == IMedia.Track.Type.Audio && t.id == activeId && t is IMedia.AudioTrack) {
                         val codec = when (t.codec?.uppercase()) {
                             "MPGA", "MP2", "MP3" -> "MP2"
@@ -387,6 +376,38 @@ class VlcPlayerManager(private val context: Context) {
 
     fun selectAudioTrack(trackId: Int) {
         mediaPlayer?.audioTrack = trackId
+    }
+
+    fun selectSubtitleTrack(trackId: Int) {
+        mediaPlayer?.spuTrack = trackId
+    }
+
+    fun selectSubtitleByLanguageCode(langCode: String): Int {
+        preferredSubLang = when (langCode.lowercase()) {
+            "it" -> "it,ita,italiano"
+            "en" -> "en,eng,english"
+            "es" -> "es,spa,spanish,espanol"
+            "fr" -> "fr,fra,fre,french"
+            "de" -> "de,deu,ger,german"
+            else -> langCode
+        }
+        val mp = mediaPlayer ?: return -1
+        val spuTracks = mp.spuTracks?.filter { it.id != -1 } ?: return -1
+        val keywords = preferredSubLang.split(",")
+        val match = spuTracks.firstOrNull { track ->
+            val lower = track.name.lowercase()
+            keywords.any { lower.contains(it) }
+        }
+        if (match != null) {
+            mp.spuTrack = match.id
+            return match.id
+        }
+        return mp.spuTrack
+    }
+
+    fun updateSubtitleAppearance(scaleFactor: Float, vlcColor: Int) {
+        subTextScalePercent = (scaleFactor * 100f).toInt().coerceIn(50, 200)
+        subColorInt = vlcColor
     }
 
     fun togglePlayPause() {
