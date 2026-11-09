@@ -6,17 +6,25 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.CacheControl
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.libtorrent4j.*
-import org.libtorrent4j.swig.libtorrent
+import org.libtorrent4j.swig.settings_pack
 import org.libtorrent4j.swig.torrent_handle_vector
 import timber.log.Timber
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.net.URLDecoder
 import java.text.SimpleDateFormat
 import java.util.Collections
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPInputStream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -26,16 +34,20 @@ sealed class TorrentStreamState {
         val statusText: String,
         val progressPercent: Int = 0,
         val downloadSpeedKbps: Int = 0,
-        val peers: Int = 0
+        val peers: Int = 0,
+        val torrentTitle: String = "" // 👈 Titolo estratto dal Magnet o dai Metadati
     ) : TorrentStreamState()
-    data class Ready(val videoFile: File) : TorrentStreamState()
+    data class Ready(
+        val videoFile: File,
+        val torrentTitle: String = "" // 👈 Titolo finale reale del Torrent
+    ) : TorrentStreamState()
     data class Error(val message: String) : TorrentStreamState()
 }
 
 class TorrentStreamEngine(private val context: Context) {
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        logToFile("FATAL CoroutineExceptionHandler: ${throwable.message}\n${ stackTraceToString(throwable) }")
+        logToFile("FATAL CoroutineExceptionHandler: ${throwable.message}\n${stackTraceToString(throwable)}")
         Timber.e(throwable, "Eccezione intercettata in TorrentStreamEngine")
         _state.value = TorrentStreamState.Error(
             "Errore motore Torrent: ${throwable.localizedMessage ?: throwable.javaClass.simpleName}"
@@ -52,6 +64,12 @@ class TorrentStreamEngine(private val context: Context) {
     private var lastPieceIndex: Int = 0
     private var isConfigured: Boolean = false
     private var isReadyEmitted: Boolean = false
+    private var readyWaitTicks: Int = 0
+
+    // Memorizza il titolo estratto dai metadati del torrent
+    @Volatile
+    var currentTorrentTitle: String = ""
+        private set
 
     private val _state = MutableStateFlow<TorrentStreamState>(TorrentStreamState.Idle)
     val state: StateFlow<TorrentStreamState> = _state.asStateFlow()
@@ -90,13 +108,18 @@ class TorrentStreamEngine(private val context: Context) {
         monitorJob?.cancel()
         isReadyEmitted = false
         isConfigured = false
+        readyWaitTicks = 0
         selectedFileIndex = -1
         selectedVideoFile = null
         selectedVideoSize = 0L
+        currentTorrentTitle = extractDisplayNameFromMagnet(rawInput)
         clearLogFile()
-        logToFile("startStream chiamato con input: $rawInput")
+        logToFile("startStream chiamato con input: $rawInput (titolo iniziale='$currentTorrentTitle')")
 
-        _state.value = TorrentStreamState.Buffering("Avvio motore Torrent interno...")
+        _state.value = TorrentStreamState.Buffering(
+            statusText = "Avvio motore Torrent rapido...",
+            torrentTitle = currentTorrentTitle
+        )
 
         monitorJob = scope.launch {
             try {
@@ -107,7 +130,7 @@ class TorrentStreamEngine(private val context: Context) {
                 }
 
                 removeAllActiveTorrents(session)
-                delay(250)
+                delay(200)
                 cleanOldDirsExcept(null)
 
                 currentSaveDir = File(baseStreamDir, "session_${System.currentTimeMillis()}").apply {
@@ -117,8 +140,15 @@ class TorrentStreamEngine(private val context: Context) {
 
                 when (val resolved = resolveTorrentInput(rawInput)) {
                     is ResolvedInput.Magnet -> {
+                        val magnetTitle = extractDisplayNameFromMagnet(resolved.magnetUri)
+                        if (magnetTitle.isNotBlank()) {
+                            currentTorrentTitle = magnetTitle
+                        }
                         logToFile("Avvio download Magnet: ${resolved.magnetUri.take(100)}...")
-                        _state.value = TorrentStreamState.Buffering("Ricerca peer e recupero metadati...")
+                        _state.value = TorrentStreamState.Buffering(
+                            statusText = "Ricerca peer e recupero metadati...",
+                            torrentTitle = currentTorrentTitle
+                        )
                         session.download(
                             resolved.magnetUri,
                             currentSaveDir,
@@ -127,9 +157,15 @@ class TorrentStreamEngine(private val context: Context) {
                     }
                     is ResolvedInput.TorrentFile -> {
                         logToFile("Avvio download File .torrent: ${resolved.file.absolutePath}")
-                        _state.value = TorrentStreamState.Buffering("Apertura file .torrent...")
                         val ti = TorrentInfo(resolved.file)
                         pinnedSwigObjects.add(ti)
+                        if (ti.isValid && !ti.name().isNullOrBlank()) {
+                            currentTorrentTitle = cleanTorrentTitle(ti.name())
+                        }
+                        _state.value = TorrentStreamState.Buffering(
+                            statusText = "Apertura file .torrent...",
+                            torrentTitle = currentTorrentTitle
+                        )
                         session.download(
                             ti,
                             currentSaveDir,
@@ -144,8 +180,9 @@ class TorrentStreamEngine(private val context: Context) {
                 var activeHandle: TorrentHandle? = null
                 var ticks = 0
 
-                while (isActive && !isReadyEmitted) {
-                    delay(750)
+                // Il loop continua anche dopo isReadyEmitted per mantenere la Sliding Window dei pezzi!
+                while (isActive) {
+                    delay(if (isReadyEmitted) 1500L else 500L)
                     ticks++
 
                     if (activeHandle == null || !activeHandle.isValid) {
@@ -163,20 +200,29 @@ class TorrentStreamEngine(private val context: Context) {
                     val speedKbps = status.downloadPayloadRate() / 1024
                     val peers = status.numPeers()
 
+                    // Se lo status ha già il nome del torrent, aggiorniamo il titolo
+                    if (currentTorrentTitle.isBlank() && !status.name().isNullOrBlank()) {
+                        currentTorrentTitle = cleanTorrentTitle(status.name())
+                    }
+
                     if (!status.hasMetadata()) {
                         _state.value = TorrentStreamState.Buffering(
                             statusText = "Recupero metadati dal Magnet...",
                             progressPercent = 0,
                             downloadSpeedKbps = speedKbps,
-                            peers = peers
+                            peers = peers,
+                            torrentTitle = currentTorrentTitle
                         )
                     } else {
                         if (!isConfigured) {
-                            logToFile("Metadati ricevuti! Configurazione file video in corso...")
+                            logToFile("Metadati ricevuti! Configurazione file video e priorità Head/Tail...")
                             configureVideoSelectionOnce(handle)
                         }
                         if (isConfigured) {
-                            checkIfReadyToPlay(handle, status, ticks)
+                            maintainSlidingWindowPriorities(handle)
+                            if (!isReadyEmitted) {
+                                checkIfReadyToPlay(handle, status, ticks)
+                            }
                         }
                     }
                 }
@@ -223,12 +269,15 @@ class TorrentStreamEngine(private val context: Context) {
 
         var bestIndex = 0
         var maxVideoSize = -1L
-        val videoExtensions = listOf(".mp4", ".mkv", ".avi", ".ts", ".webm", ".mov", ".m4v", ".flv", ".mpg", ".mpeg")
+        val videoExtensions = listOf(
+            ".mp4", ".mkv", ".avi", ".ts", ".webm", ".mov",
+            ".m4v", ".flv", ".mpg", ".mpeg", ".m2ts", ".wmv", ".ogv"
+        )
 
         for (i in 0 until numFiles) {
             val name = files.fileName(i).lowercase()
             val size = files.fileSize(i)
-            val isVideo = videoExtensions.any { name.endsWith(it) }
+            val isVideo = videoExtensions.any { name.endsWith(it) } && !name.contains("sample")
             if (isVideo && size > maxVideoSize) {
                 maxVideoSize = size
                 bestIndex = i
@@ -250,6 +299,14 @@ class TorrentStreamEngine(private val context: Context) {
         selectedVideoFile = File(currentSaveDir, relPath)
         selectedVideoSize = files.fileSize(selectedFileIndex).coerceAtLeast(1L)
 
+        // Estrae il titolo migliore dai metadati ufficiali del torrent o dal file video principale
+        val rawMetadataName = ti.name()?.takeIf { it.isNotBlank() }
+            ?: files.fileName(selectedFileIndex)
+        val cleanedTitle = cleanTorrentTitle(rawMetadataName)
+        if (cleanedTitle.isNotBlank()) {
+            currentTorrentTitle = cleanedTitle
+        }
+
         val pieceLength = ti.pieceLength().toLong().coerceAtLeast(1L)
         val fileOffset = files.fileOffset(selectedFileIndex)
         val totalPieces = ti.numPieces().coerceAtLeast(1)
@@ -265,22 +322,57 @@ class TorrentStreamEngine(private val context: Context) {
             handle.prioritizeFiles(filePriorities)
         }
 
-        handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
-        handle.resume()
+        // Priorità massima e deadline immediata ai primi pezzi (Head) E agli ultimi 2 pezzi (Tail)
+        try {
+            handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)
 
+            val headEnd = min(lastPieceIndex, firstPieceIndex + 5)
+            for (p in firstPieceIndex..headEnd) {
+                handle.piecePriority(p, Priority.TOP_PRIORITY)
+                handle.setPieceDeadline(p, 500 + (p - firstPieceIndex) * 200)
+            }
+
+            val tailStart = max(firstPieceIndex, lastPieceIndex - 1)
+            for (p in tailStart..lastPieceIndex) {
+                handle.piecePriority(p, Priority.TOP_PRIORITY)
+                handle.setPieceDeadline(p, 800)
+            }
+        } catch (e: Throwable) {
+            logToFile("Avviso impostazione deadline pezzi: ${e.message}")
+        }
+
+        handle.resume()
         isConfigured = true
+        readyWaitTicks = 0
+
         logToFile(
             "File video selezionato [idx=$selectedFileIndex/$numFiles]: ${selectedVideoFile?.absolutePath} " +
-                "(size=${selectedVideoSize / (1024 * 1024)}MB, pieces=$firstPieceIndex..$lastPieceIndex)"
+                "| Titolo='$currentTorrentTitle' (size=${selectedVideoSize / (1024 * 1024)}MB, pieces=$firstPieceIndex..$lastPieceIndex)"
         )
+    }
+
+    private fun maintainSlidingWindowPriorities(handle: TorrentHandle) {
+        if (!handle.isValid) return
+        try {
+            var boosted = 0
+            for (p in firstPieceIndex..lastPieceIndex) {
+                if (!handle.havePiece(p)) {
+                    handle.piecePriority(p, Priority.TOP_PRIORITY)
+                    handle.setPieceDeadline(p, 1000 + boosted * 250)
+                    boosted++
+                    if (boosted >= 6) break
+                }
+            }
+        } catch (_: Throwable) {}
     }
 
     private fun checkIfReadyToPlay(handle: TorrentHandle, status: TorrentStatus, ticks: Int) {
         if (isReadyEmitted || !handle.isValid) return
         val videoFile = selectedVideoFile ?: return
         val fileSize = selectedVideoSize.coerceAtLeast(1L)
+        readyWaitTicks++
 
-        val requiredHeadPieces = min(5, (lastPieceIndex - firstPieceIndex + 1).coerceAtLeast(1))
+        val requiredHeadPieces = min(3, (lastPieceIndex - firstPieceIndex + 1).coerceAtLeast(1))
         var downloadedHeadPieces = 0
         for (i in 0 until requiredHeadPieces) {
             if (handle.havePiece(firstPieceIndex + i)) {
@@ -288,40 +380,52 @@ class TorrentStreamEngine(private val context: Context) {
             }
         }
 
-        val minBufferBytes = min(15L * 1024 * 1024, max(8L * 1024 * 1024, (fileSize * 0.04).toLong()))
+        val hasTailPiece = handle.havePiece(lastPieceIndex)
+        val tailSatisfied = hasTailPiece || readyWaitTicks >= 16
+
+        val minBufferBytes = min(8L * 1024 * 1024, max(4L * 1024 * 1024, (fileSize * 0.015).toLong()))
         val downloadedBytes = status.totalWantedDone()
 
         val headProgress = (downloadedHeadPieces.toFloat() / requiredHeadPieces.toFloat())
+        val tailProgress = if (tailSatisfied) 1f else 0.3f
         val byteProgress = (downloadedBytes.toFloat() / minBufferBytes.toFloat()).coerceAtMost(1f)
-        val bufferPercent = ((headProgress * 0.5f + byteProgress * 0.5f) * 100).toInt().coerceIn(0, 99)
+        val bufferPercent = ((headProgress * 0.45f + byteProgress * 0.40f + tailProgress * 0.15f) * 100)
+            .toInt()
+            .coerceIn(0, 99)
 
         val speedKbps = status.downloadPayloadRate() / 1024
         val peers = status.numPeers()
 
         if (ticks % 4 == 0) {
             logToFile(
-                "Pre-buffering: $bufferPercent% | headPieces=$downloadedHeadPieces/$requiredHeadPieces | " +
-                    "downloaded=${downloadedBytes / 1024}KB / target=${minBufferBytes / 1024}KB | " +
-                    "fileExists=${videoFile.exists()} | peers=$peers | speed=${speedKbps}KB/s"
+                "Pre-buffering: $bufferPercent% | head=$downloadedHeadPieces/$requiredHeadPieces | tail=$hasTailPiece | " +
+                    "dl=${downloadedBytes / 1024}KB / target=${minBufferBytes / 1024}KB | " +
+                    "peers=$peers | speed=${speedKbps}KB/s"
             )
         }
 
         val isFileReady = videoFile.exists() && videoFile.length() > 0 && (
             status.isFinished ||
                 status.isSeeding ||
-                (downloadedHeadPieces >= requiredHeadPieces && downloadedBytes >= minBufferBytes)
+                (downloadedHeadPieces >= requiredHeadPieces && tailSatisfied && downloadedBytes >= minBufferBytes)
             )
 
         if (isFileReady) {
             isReadyEmitted = true
-            logToFile("BUFFER PRONTO! Avvio riproduzione sul file: ${videoFile.absolutePath} (length=${videoFile.length()})")
-            _state.value = TorrentStreamState.Ready(videoFile)
+            val finalTitle = currentTorrentTitle.ifBlank { cleanTorrentTitle(videoFile.nameWithoutExtension) }
+            currentTorrentTitle = finalTitle
+            logToFile("BUFFER PRONTO! Avvio riproduzione: ${videoFile.absolutePath} (Titolo='$finalTitle')")
+            _state.value = TorrentStreamState.Ready(
+                videoFile = videoFile,
+                torrentTitle = finalTitle
+            )
         } else {
             _state.value = TorrentStreamState.Buffering(
-                statusText = "Pre-buffering Torrent ($bufferPercent%)...",
+                statusText = "Pre-buffering rapido ($bufferPercent%)...",
                 progressPercent = bufferPercent,
                 downloadSpeedKbps = speedKbps,
-                peers = peers
+                peers = peers,
+                torrentTitle = currentTorrentTitle
             )
         }
     }
@@ -377,6 +481,19 @@ class TorrentStreamEngine(private val context: Context) {
             .replace("\n", "")
             .replace("\r", "")
 
+        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+            logToFile("Scaricamento metadati via OkHttp + Gzip da: $trimmed")
+            val bytes = downloadWithOkHttpGzip(trimmed)
+            val extractedMagnet = extractMagnetOrHashFromBytes(bytes)
+            return if (extractedMagnet != null) {
+                ResolvedInput.Magnet(appendDefaultTrackers(extractedMagnet))
+            } else {
+                val tempTorrent = File(currentSaveDir, "remote_${System.currentTimeMillis()}.torrent")
+                tempTorrent.writeBytes(bytes)
+                ResolvedInput.TorrentFile(tempTorrent)
+            }
+        }
+
         val localFile = when {
             trimmed.startsWith("file://") -> Uri.parse(trimmed).path?.let { File(it) }
             trimmed.startsWith("/") -> File(trimmed)
@@ -405,6 +522,34 @@ class TorrentStreamEngine(private val context: Context) {
         throw IllegalArgumentException("Input Torrent non riconosciuto: $trimmed")
     }
 
+    private fun downloadWithOkHttpGzip(url: String): ByteArray {
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept-Encoding", "gzip")
+            .header("User-Agent", "PortalStreamPro/1.0 (Android; TorrentEngine)")
+            .cacheControl(CacheControl.FORCE_NETWORK)
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("HTTP ${response.code} durante il download del torrent")
+            }
+            val rawBytes = response.body?.bytes() ?: ByteArray(0)
+            if (rawBytes.isEmpty()) {
+                throw IllegalStateException("Risposta HTTP vuota")
+            }
+            val isGzipped = rawBytes.size >= 2 &&
+                rawBytes[0] == 0x1f.toByte() &&
+                rawBytes[1] == 0x8b.toByte()
+
+            return if (isGzipped) {
+                GZIPInputStream(ByteArrayInputStream(rawBytes)).use { it.readBytes() }
+            } else {
+                rawBytes
+            }
+        }
+    }
+
     private fun stackTraceToString(t: Throwable): String {
         val sw = StringWriter()
         t.printStackTrace(PrintWriter(sw))
@@ -415,8 +560,19 @@ class TorrentStreamEngine(private val context: Context) {
         private val INFOHASH_HEX_REGEX = Regex("^[0-9a-fA-F]{40}$")
         private val INFOHASH_BASE32_REGEX = Regex("^[a-zA-Z2-7]{32}$")
         private val MAGNET_IN_TEXT_REGEX = Regex("(magnet:\\?[^\\s\"'<>]+)", RegexOption.IGNORE_CASE)
+        private val MAGNET_DN_REGEX = Regex("[?&]dn=([^&]+)", RegexOption.IGNORE_CASE)
 
         private val pinnedSwigObjects: MutableList<Any> = Collections.synchronizedList(mutableListOf())
+
+        private val okHttpClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+                .build()
+        }
 
         @Volatile
         private var sharedSession: SessionManager? = null
@@ -429,7 +585,22 @@ class TorrentStreamEngine(private val context: Context) {
                     return existing
                 }
                 val newSession = SessionManager()
-                newSession.start()
+                try {
+                    val sp = SettingsPack()
+                    sp.connectionsLimit(250)
+                    sp.maxPeerlistSize(1500)
+                    sp.downloadRateLimit(0)
+                    sp.uploadRateLimit(0)
+                    sp.activeDownloads(4)
+                    sp.setString(
+                        settings_pack.string_types.dht_bootstrap_nodes.swigValue(),
+                        "router.bittorrent.com:6881,router.utorrent.com:6881,dht.transmissionbt.com:6881,dht.aelitis.com:6881"
+                    )
+                    val params = SessionParams(sp)
+                    newSession.start(params)
+                } catch (_: Throwable) {
+                    newSession.start()
+                }
                 sharedSession = newSession
                 return newSession
             }
@@ -441,6 +612,8 @@ class TorrentStreamEngine(private val context: Context) {
             "udp://tracker.torrent.eu.org:451/announce",
             "udp://exodus.desync.com:6969/announce",
             "udp://tracker.moeking.me:6969/announce",
+            "udp://explodie.org:6969/announce",
+            "udp://tracker1.bt.moack.co.kr:80/announce",
             "http://tracker.opentrackr.org:1337/announce"
         )
 
@@ -452,6 +625,32 @@ class TorrentStreamEngine(private val context: Context) {
                 s.endsWith(".torrent", ignoreCase = true) ||
                 clean.matches(INFOHASH_HEX_REGEX) ||
                 clean.matches(INFOHASH_BASE32_REGEX)
+        }
+
+        /**
+         * Estrae il parametro 'dn' (Display Name) da un link Magnet, se presente.
+         */
+        fun extractDisplayNameFromMagnet(input: String): String {
+            val match = MAGNET_DN_REGEX.find(input) ?: return ""
+            val encoded = match.groupValues.getOrNull(1) ?: return ""
+            return try {
+                cleanTorrentTitle(URLDecoder.decode(encoded, "UTF-8"))
+            } catch (_: Exception) {
+                cleanTorrentTitle(Uri.decode(encoded))
+            }
+        }
+
+        /**
+         * Pulisce il nome del file/torrent rimuovendo estensioni video e sostituendo '.' e '_' con spazi.
+         */
+        fun cleanTorrentTitle(rawName: String?): String {
+            if (rawName.isNullOrBlank()) return ""
+            return rawName
+                .replace(Regex("\\.(mp4|mkv|avi|ts|webm|mov|m4v|flv|mpg|mpeg)$", RegexOption.IGNORE_CASE), "")
+                .replace('.', ' ')
+                .replace('_', ' ')
+                .replace(Regex("\\s+"), " ")
+                .trim()
         }
 
         fun extractMagnetOrHashFromBytes(bytes: ByteArray): String? {
@@ -487,3 +686,4 @@ class TorrentStreamEngine(private val context: Context) {
         }
     }
 }
+                
