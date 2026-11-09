@@ -152,6 +152,20 @@ fun AddPortalTypeDialog(
                     )
                 }
 
+                Spacer(Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = { onSelect(PortalType.WEB_STREAM) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "WEB / YOUTUBE STREAM",
+                        color = Color(0xFF00E5FF),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
                 Spacer(Modifier.height(16.dp))
 
                 TextButton(
@@ -196,7 +210,6 @@ fun PortalFormDialog(
     var uaMenu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
-    // Quando viene scelto un file tramite "Sfoglia file", aggiorna il campo link/magnet
     LaunchedEffect(pickedFileUrl) {
         if (!pickedFileUrl.isNullOrBlank()) {
             url = pickedFileUrl
@@ -212,6 +225,7 @@ fun PortalFormDialog(
         PortalType.MAG -> "MAG Portale"
         PortalType.XSTREAM -> "Xtream Codes Portal"
         PortalType.TORRENT -> "Torrent Stream"
+        PortalType.WEB_STREAM -> "Web / YouTube Stream"
         else -> "Portale"
     }
 
@@ -234,7 +248,6 @@ fun PortalFormDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Titolo del Dialog
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
@@ -249,7 +262,7 @@ fun PortalFormDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nome Playlist (opzionale)") },
+                    label = { Text("Nome (opzionale)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -302,6 +315,29 @@ fun PortalFormDialog(
                             }
                             OutlinedButton(onClick = onPickFile) {
                                 Text("Sfoglia file")
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    PortalType.WEB_STREAM -> {
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text("Link YouTube o Sito Streaming") },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(fontSize = 13.sp),
+                            maxLines = 3
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            OutlinedButton(
+                                onClick = { clipboard.getText()?.text?.let { url = it } },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Incolla Link")
                             }
                         }
                         Spacer(Modifier.height(4.dp))
@@ -395,8 +431,7 @@ fun PortalFormDialog(
                     else -> {}
                 }
 
-                // Per TORRENT non servono Usa VPN, Profilo e Usa User Agent
-                if (type != PortalType.TORRENT) {
+                if (type != PortalType.TORRENT && type != PortalType.WEB_STREAM) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
                         Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
@@ -441,7 +476,6 @@ fun PortalFormDialog(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Pulsanti Annulla e Salva disposti in basso in modo pulito
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -452,6 +486,7 @@ fun PortalFormDialog(
                     }
                     TextButton(onClick = {
                         val base = existing ?: Portal(id = 0)
+                        val isDirectType = (type == PortalType.TORRENT || type == PortalType.WEB_STREAM)
                         onSave(
                             base.copy(
                                 name = name.trim(),
@@ -463,10 +498,10 @@ fun PortalFormDialog(
                                 password = password,
                                 streamFormat = streamFormat,
                                 forceStreamLink = forceLink,
-                                useVpn = if (type == PortalType.TORRENT) false else useVpn,
-                                profile = if (type == PortalType.TORRENT) "" else profile.trim(),
-                                useCustomUserAgent = if (type == PortalType.TORRENT) false else useCustomUa,
-                                userAgent = if (type == PortalType.TORRENT) "" else userAgent.trim()
+                                useVpn = if (isDirectType) false else useVpn,
+                                profile = if (isDirectType) "" else profile.trim(),
+                                useCustomUserAgent = if (isDirectType) false else useCustomUa,
+                                userAgent = if (isDirectType) "" else userAgent.trim()
                             )
                         )
                     }) {
