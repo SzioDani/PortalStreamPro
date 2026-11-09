@@ -26,32 +26,47 @@ class ExoPlayerManager(private val context: Context) {
         private set
 
     private var activeListener: Player.Listener? = null
+    private var httpDataSourceFactory: DefaultHttpDataSource.Factory? = null
 
-    // Stato predefinito iniziale del formato e della scala
     var currentAspectRatio: String = "16:9"
     var currentScale: Float = 0f
 
-    fun ensureInitialized(userAgent: String?): ExoPlayer {
-        exoPlayer?.let { return it }
+    fun ensureInitialized(
+        userAgent: String?,
+        referer: String? = null,
+        origin: String? = null
+    ): ExoPlayer {
+        val resolvedUa = if (!userAgent.isNullOrBlank()) {
+            userAgent
+        } else {
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
 
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+        val headers = mutableMapOf<String, String>()
+        if (!referer.isNullOrBlank()) headers["Referer"] = referer
+        if (!origin.isNullOrBlank()) headers["Origin"] = origin
+
+        exoPlayer?.let { existingPlayer ->
+            httpDataSourceFactory?.setUserAgent(resolvedUa)
+            httpDataSourceFactory?.setDefaultRequestProperties(headers)
+            return existingPlayer
+        }
+
+        val factory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(8000)
-            .setReadTimeoutMs(8000)
-            .apply {
-                if (!userAgent.isNullOrBlank()) {
-                    setUserAgent(userAgent)
-                } else {
-                    setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                }
-            }
+            .setConnectTimeoutMs(10000)
+            .setReadTimeoutMs(12000)
+            .setUserAgent(resolvedUa)
+            .setDefaultRequestProperties(headers)
+
+        httpDataSourceFactory = factory
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(3000, 15000, 1500, 2500)
+            .setBufferDurationsMs(2500, 15000, 1200, 2000)
             .build()
 
         return ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpDataSourceFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
             .setLoadControl(loadControl)
             .build()
             .apply {
@@ -68,19 +83,20 @@ class ExoPlayerManager(private val context: Context) {
         playerView: PlayerView,
         streamUrl: String,
         userAgent: String?,
-        aspectRatio: String?, // Riceve lo stato attuale
-        scale: Float,         // Riceve lo scale attuale
+        referer: String? = null,
+        origin: String? = null,
+        aspectRatio: String?,
+        scale: Float,
         onBuffering: (Boolean) -> Unit,
         onPlayingState: (Boolean) -> Unit,
         onAudioTracksUpdated: (List<UiAudioTrack>, Int, String) -> Unit,
         onFormatRefreshNeeded: () -> Unit,
         onError: () -> Unit
     ): ExoPlayer {
-        // Aggiorniamo le variabili di stato interne con quelle passate
         if (aspectRatio != null) currentAspectRatio = aspectRatio
         currentScale = scale
 
-        val player = ensureInitialized(userAgent)
+        val player = ensureInitialized(userAgent, referer, origin)
         playerView.player = player
 
         activeListener?.let { player.removeListener(it) }
@@ -101,6 +117,7 @@ class ExoPlayerManager(private val context: Context) {
                             format.sampleMimeType?.contains("mp4a") == true -> "AAC"
                             format.sampleMimeType?.contains("ac3") == true -> "AC3"
                             format.sampleMimeType?.contains("eac3") == true -> "EAC3"
+                            format.sampleMimeType?.contains("opus") == true -> "OPUS"
                             format.sampleMimeType?.contains("mpeg") == true -> "MP2"
                             else -> format.sampleMimeType?.substringAfter("/")?.uppercase()
                         }
@@ -131,7 +148,7 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             val info = list.firstOrNull { it.id == selectedId }?.formattedInfo
-                ?: if (list.isEmpty()) "🔇 Nessun audio" else list.first().formattedInfo
+                ?: if (list.isEmpty()) "Audio Predefinito" else list.first().formattedInfo
             onAudioTracksUpdated(list, selectedId, info)
         }
 
@@ -141,7 +158,6 @@ class ExoPlayerManager(private val context: Context) {
                     Player.STATE_BUFFERING -> onBuffering(true)
                     Player.STATE_READY -> {
                         onBuffering(false)
-                        // APPLICA IL FORMATO ATTUALE (Sarà 16:9 all'avvio, o lo zoom scelto in seguito)
                         applyAspectRatioAndScale(playerView, currentAspectRatio, currentScale)
                         onFormatRefreshNeeded()
                     }
@@ -182,11 +198,6 @@ class ExoPlayerManager(private val context: Context) {
         return player
     }
 
-    /**
-     * Logica Formati e Zoom specifica per ExoPlayer:
-     * - Formati nativi standard (16:9, 4:3, 21:9, ecc.): applicano il corretto aspect ratio senza distorcere.
-     * - Zoom (ZOOM110..135, FILL): applicano i fattori di scala personalizzati su scaleX e scaleY.
-     */
     fun applyAspectRatioAndScale(
         playerView: PlayerView?,
         aspectRatio: String?,
@@ -197,7 +208,6 @@ class ExoPlayerManager(private val context: Context) {
             androidx.media3.ui.R.id.exo_content_frame
         ) ?: return
 
-        // Aggiorniamo lo stato interno se richiamato direttamente
         if (aspectRatio != null) currentAspectRatio = aspectRatio
         currentScale = scale
 
@@ -206,11 +216,9 @@ class ExoPlayerManager(private val context: Context) {
         contentFrame.clipChildren = false
         contentFrame.clipToPadding = false
 
-        // Verifica se si tratta di una modalità Zoom esplicita o FILL con scale attiva
         val isZoomMode = scale > 0f || aspectRatio?.startsWith("ZOOM") == true || aspectRatio == "FILL"
 
         if (!isZoomMode) {
-            // Resetta le scale e applica correttamente il formato nativo scelto (default 16:9)
             contentFrame.scaleX = 1f
             contentFrame.scaleY = 1f
             pv.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -223,7 +231,7 @@ class ExoPlayerManager(private val context: Context) {
                 "1.85:1" -> 1.85f
                 "2.35:1" -> 2.35f
                 "2.39:1" -> 2.39f
-                else     -> 16f / 9f // Default di sicurezza a 16:9
+                else     -> 16f / 9f
             }
 
             contentFrame.setAspectRatio(targetRatio)
@@ -231,7 +239,6 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
-        // Modalità Zoom personalizzato
         pv.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         contentFrame.setAspectRatio(16f / 9f)
