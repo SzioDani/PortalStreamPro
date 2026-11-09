@@ -291,12 +291,13 @@ fun PlayerOptionsMenu(
                         "21:9 (Cinematic)" to "21:9",
                         "1.85:1 (Film)" to "1.85:1",
                         "2.35:1 (CinemaScope)" to "2.35:1",
-                        "Riempi Schermo" to "FILL",
+                        "2.39:1 (UltraWide)" to "2.39:1",
                         "Zoom 110%" to "ZOOM110",
                         "Zoom 120%" to "ZOOM120",
                         "Zoom 125%" to "ZOOM125",
                         "Zoom 130%" to "ZOOM130",
-                        "Zoom 135%" to "ZOOM135"
+                        "Zoom 135%" to "ZOOM135",
+                        "Riempi Schermo" to "FILL"
                     )
                     SectionCardContainer {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
