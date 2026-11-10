@@ -536,6 +536,7 @@ class PlayerActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(Color.Black.copy(alpha = 0.45f))
                     ) {
+                        // BARRA SUPERIORE PROFESSIONALE
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -565,19 +566,28 @@ class PlayerActivity : ComponentActivity() {
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-
+                            // CHIP DI CAMBIO MOTORE STILIZZATO E PROFESSIONALE
                             Surface(
                                 onClick = {
                                     isBuffering = true
                                     errorResult = null
+                                    // Rilascia preventivamente le risorse del player attuale per evitare conflitti
+                                    if (useExoPlayer == true) {
+                                        exoManager.release()
+                                    } else {
+                                        vlcManager.release()
+                                    }
+                                    // Inverte il motore in modo pulito
                                     useExoPlayer = !(useExoPlayer ?: false)
                                 },
-                                color = Color.White.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(16.dp)
+                                color = Color.Black.copy(alpha = 0.55f),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                modifier = Modifier.height(36.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.SwapHoriz,
@@ -585,12 +595,12 @@ class PlayerActivity : ComponentActivity() {
                                         tint = Color(0xFF00E5FF),
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = if (useExoPlayer == true) "Exo" else "VLC",
+                                        text = if (useExoPlayer == true) "ExoPlayer" else "LibVLC",
                                         color = Color.White,
                                         style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -724,93 +734,103 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-                // CARD ERRORE DI RIPRODUZIONE CON ICONE VETTORIALI DINAMICHE
-                errorResult?.let { result ->
-                    if (!isInPipMode && !isMinimized) {
-                        val errorIcon = when (result.type) {
-                            StreamErrorType.UNAUTHORIZED -> Icons.Default.Lock
-                            StreamErrorType.NOT_FOUND -> Icons.Default.SearchOff
-                            StreamErrorType.GEO_BLOCKED -> Icons.Default.PublicOff
+				// =================================================================
+				// CARD ERRORE DI RIPRODUZIONE (UNICO PULSANTE RIPROVA)
+				// =================================================================
+				errorResult?.let { result ->
+				    if (!isInPipMode && !isMinimized) {
+				        val errorIcon = when (result.type) {
+				            StreamErrorType.UNAUTHORIZED -> Icons.Default.Lock
+				            StreamErrorType.NOT_FOUND -> Icons.Default.SearchOff
+				            StreamErrorType.GEO_BLOCKED -> Icons.Default.PublicOff
                             StreamErrorType.CONNECTION_LIMIT -> Icons.Default.Group
-                            StreamErrorType.SERVER_ERROR -> Icons.Default.CloudOff
-                            StreamErrorType.NETWORK_FAILURE -> Icons.Default.WifiOff
-                            StreamErrorType.DECODE_ERROR -> Icons.Default.MovieCreation
-                            else -> Icons.Default.ErrorOutline
-                        }
-
-                        Surface(
-                            color = Color.Black.copy(alpha = 0.90f),
-                            shape = RoundedCornerShape(18.dp),
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .padding(24.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(24.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = errorIcon,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = when (result.type) {
-                                            StreamErrorType.UNAUTHORIZED -> "Accesso Non Autorizzato"
-                                            StreamErrorType.GEO_BLOCKED -> "Blocco Geografico / VPN"
-                                            StreamErrorType.NOT_FOUND -> "Contenuto Non Trovato"
-                                            StreamErrorType.SERVER_ERROR -> "Errore del Server"
-                                            else -> "Errore di Riproduzione"
-                                        },
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Text(
-                                    text = result.message,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(20.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Button(onClick = {
-                                        errorResult = null
-                                        isBuffering = true
-                                        if (isTorrent && playbackUrl.isBlank()) {
-                                            torrentEngine?.startStream(streamUrl)
-                                        } else if (useExoPlayer == true) {
-                                            exoManager.retry()
-                                        } else {
-                                            lifecycleScope.launch {
-                                                delay(300)
-                                                vlcManager.mediaPlayer?.play()
-                                            }
-                                        }
-                                    }) {
-                                        Text("Riprova")
-                                    }
-
-                                    OutlinedButton(onClick = {
-                                        errorResult = null
-                                        isBuffering = true
-                                        useExoPlayer = !(useExoPlayer ?: false)
-                                    }) {
-                                        val otherEngine = if (useExoPlayer == true) "LibVLC" else "ExoPlayer"
-                                        Text("Usa $otherEngine", color = Color.White)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+				            StreamErrorType.SERVER_ERROR -> Icons.Default.CloudOff
+				            StreamErrorType.NETWORK_FAILURE -> Icons.Default.WifiOff
+				            StreamErrorType.DECODE_ERROR -> Icons.Default.MovieCreation
+				            else -> Icons.Default.ErrorOutline
+				        }
+				
+				        Surface(
+				            color = Color.Black.copy(alpha = 0.92f),
+				            shape = RoundedCornerShape(20.dp),
+				            tonalElevation = 8.dp,
+				            modifier = Modifier
+				                .align(Alignment.Center)
+				                .padding(24.dp)
+				        ) {
+				            Column(
+				                horizontalAlignment = Alignment.CenterHorizontally,
+				                modifier = Modifier.padding(24.dp)
+				            ) {
+				                Row(
+				                    verticalAlignment = Alignment.CenterVertically,
+				                    modifier = Modifier.padding(bottom = 8.dp)
+				                ) {
+				                    Icon(
+				                        imageVector = errorIcon,
+				                        contentDescription = null,
+				                        tint = MaterialTheme.colorScheme.error,
+				                        modifier = Modifier.size(30.dp)
+				                    )
+				                    Spacer(modifier = Modifier.width(10.dp))
+				                    Text(
+				                        text = when (result.type) {
+				                            StreamErrorType.UNAUTHORIZED -> "Accesso Non Autorizzato"
+				                            StreamErrorType.GEO_BLOCKED -> "Blocco Geografico / VPN"
+				                            StreamErrorType.NOT_FOUND -> "Contenuto Non Trovato"
+				                            StreamErrorType.SERVER_ERROR -> "Errore del Server"
+				                            StreamErrorType.CONNECTION_LIMIT -> "Limite Raggiunto"
+				                            else -> "Errore di Riproduzione"
+				                        },
+				                        style = MaterialTheme.typography.titleMedium,
+				                        color = MaterialTheme.colorScheme.error,
+				                        fontWeight = FontWeight.Bold
+				                    )
+				                }
+				                
+				                Text(
+				                    text = result.message,
+				                    color = Color.White.copy(alpha = 0.85f),
+				                    style = MaterialTheme.typography.bodyMedium,
+				                    textAlign = TextAlign.Center
+				                )
+				                
+				                Spacer(modifier = Modifier.height(24.dp))
+				                
+				                // PULSANTE UNICO "RIPROVA" (Ripartenza da zero)
+				                Button(
+				                    onClick = {
+				                        // 1. Pulisce l'errore e rimette il player in buffering
+				                        errorResult = null
+				                        isBuffering = true
+				                        
+				                        // 2. Riavvia la riproduzione da zero in base alla sorgente attiva
+				                        if (isTorrent && playbackUrl.isBlank()) {
+				                            torrentEngine?.startStream(streamUrl)
+				                        } else if (useExoPlayer == true) {
+				                            exoManager.retry()
+				                        } else {
+				                            lifecycleScope.launch {
+				                                vlcManager.mediaPlayer?.stop()
+				                                delay(200)
+				                                vlcManager.mediaPlayer?.play()
+				                            }
+				                        }
+				                    },
+				                    modifier = Modifier.fillMaxWidth()
+				                ) {
+				                    Icon(
+				                        imageVector = Icons.Default.Refresh,
+				                        contentDescription = null,
+				                        modifier = Modifier.size(18.dp)
+				                    )
+				                    Spacer(modifier = Modifier.width(8.dp))
+				                    Text("Riprova")
+				                }
+				            }
+				        }
+				    }
+				}
 
                 PlayerOptionsMenu(
                     visible = showSettingsSheet && !isInPipMode && !isMinimized,
