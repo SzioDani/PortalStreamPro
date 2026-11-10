@@ -764,7 +764,7 @@ class ChannelsActivity : ComponentActivity() {
 				                                    Icon(
 				                                        imageVector = if (isFavGroup) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
 				                                        contentDescription = null,
-				                                        tint = if (isFavGroup) Color(0xFF00E5FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+				                                        tint = if (isFavGroup) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant,
 				                                        modifier = Modifier.size(18.dp)
 				                                    )
 				                                }
