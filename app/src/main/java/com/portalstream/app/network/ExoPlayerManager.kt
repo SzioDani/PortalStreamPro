@@ -302,9 +302,16 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 
-    fun retry() {
-        exoPlayer?.prepare()
-        exoPlayer?.play()
+    /**
+     * Svuota la cache, ricrea il MediaItem da zero e forza una nuova connessione pulita di rete.
+     */
+    fun retry(streamUrl: String) {
+        val player = exoPlayer ?: return
+        player.stop()
+        val mediaItem = MediaItem.fromUri(Uri.parse(streamUrl))
+        player.setMediaItem(mediaItem)
+        player.prepare()
+        player.play()
     }
 
     fun stopAndDetach(playerView: PlayerView?) {
