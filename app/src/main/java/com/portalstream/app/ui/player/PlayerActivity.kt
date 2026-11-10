@@ -808,13 +808,11 @@ class PlayerActivity : ComponentActivity() {
 				                        if (isTorrent && playbackUrl.isBlank()) {
 				                            torrentEngine?.startStream(streamUrl)
 				                        } else if (useExoPlayer == true) {
-				                            exoManager.retry()
+				                            // Sfrutta il nuovo metodo di reset completo di ExoPlayer
+				                            exoManager.retry(playbackUrl)
 				                        } else {
-				                            lifecycleScope.launch {
-				                                vlcManager.mediaPlayer?.stop()
-				                                delay(200)
-				                                vlcManager.mediaPlayer?.play()
-				                            }
+				                            // Sfrutta il nuovo metodo di reset completo di LibVLC
+				                            vlcManager.retry(playbackUrl, userAgent)
 				                        }
 				                    },
 				                    modifier = Modifier.fillMaxWidth()
