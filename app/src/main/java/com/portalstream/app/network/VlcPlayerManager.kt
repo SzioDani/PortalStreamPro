@@ -224,6 +224,64 @@ class VlcPlayerManager(private val context: Context) {
         return mp
     }
 
+    /**
+     * Svuota la cache, distrugge il media precedente e rinegozia una nuova connessione da zero.
+     */
+    fun retry(streamUrl: String, userAgent: String?) {
+        val mp = mediaPlayer ?: return
+        val vlc = libVLC ?: return
+
+        // 1. Ferma la riproduzione attuale
+        mp.stop()
+
+        val trimmedUrl = streamUrl.trim()
+        val lowerUrl = trimmedUrl.lowercase()
+
+        val isTorrentFile = trimmedUrl.startsWith("/") ||
+            trimmedUrl.startsWith("file://") ||
+            lowerUrl.contains("torrent_stream")
+
+        val mediaUri: Uri = if (isTorrentFile && trimmedUrl.startsWith("/")) {
+            Uri.fromFile(File(trimmedUrl))
+        } else {
+            Uri.parse(trimmedUrl)
+        }
+
+        // 2. Crea un oggetto Media totalmente nuovo con tutte le opzioni e gli header aggiornati
+        val media = Media(vlc, mediaUri).apply {
+            if (isTorrentFile) {
+                setHWDecoderEnabled(true, false)
+                addOption(":file-caching=2500")
+                addOption(":no-spu")
+                addOption(":audio-language=it,ita,italiano,en,eng,und")
+            } else {
+                setHWDecoderEnabled(true, true)
+                addOption(":http-reconnect")
+                addOption(":network-caching=8000")
+                addOption(":live-caching=8000")
+                addOption(":audio-language=it,ita,italiano")
+
+                val isRawMacStream = lowerUrl.contains("live.php") ||
+                    lowerUrl.contains("extension=ts") ||
+                    lowerUrl.endsWith(".ts")
+
+                if (isRawMacStream) {
+                    addOption(":http-continuous")
+                    addOption(":clock-jitter=0")
+                }
+
+                if (!userAgent.isNullOrBlank()) {
+                    addOption(":http-user-agent=$userAgent")
+                }
+            }
+        }
+
+        // 3. Assegna il nuovo media e avvia la riproduzione pulita
+        mp.media = media
+        media.release()
+        mp.play()
+    }
+
     fun applyAspectRatioAndScale(
         vlcLayout: VLCVideoLayout?,
         aspectRatio: String?,
