@@ -20,18 +20,27 @@ class PlaylistDownloader {
     /**
      * Scarica la playlist da un URL e la processa riga per riga in tempo reale.
      * @param playlistUrl Il link .m3u o .m3u8
+     * @param customUserAgent Lo User-Agent personalizzato (opzionale) scelto dai preset o inserito manualmente
      * @param onChannelExtracted Callback eseguita ogni volta che viene estratto un singolo canale
      */
     suspend fun downloadAndParse(
         playlistUrl: String,
+        customUserAgent: String? = null,
         onChannelExtracted: (Channel) -> Unit
     ) {
         // Spostiamo l'operazione sul thread di Input/Output per non bloccare l'interfaccia utente
         withContext(Dispatchers.IO) {
+            // Se l'utente ha impostato uno User-Agent personalizzato usiamo quello,
+            // altrimenti usiamo di default il MAG250 che è compatibile con la maggior parte dei portali.
+            val userAgentToUse = if (!customUserAgent.isNullOrBlank()) {
+                customUserAgent
+            } else {
+                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG250 stbapp ver: 2.20.06"
+            }
+
             val request = Request.Builder()
                 .url(playlistUrl)
-                // Inseriamo un User-Agent standard per evitare che alcuni server ci blocchino
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("User-Agent", userAgentToUse)
                 .build()
 
             try {
@@ -53,7 +62,6 @@ class PlaylistDownloader {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Qui in futuro potremo aggiungere la logica di Auto-Retry
                 throw Exception("Impossibile scaricare o parsare la playlist: ${e.message}")
             }
         }
