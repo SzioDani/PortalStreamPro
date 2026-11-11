@@ -77,29 +77,30 @@ class PortalStore(context: Context) {
     }
 
     private fun write(portals: List<Portal>) {
-        val arr = JSONArray()
-        portals.forEach { p ->
-            arr.put(
-                JSONObject().apply {
-                    put("id", p.id)
-                    put("name", p.name)
-                    put("type", p.type.name)
-                    put("url", p.url)
-                    put("mac", p.macAddress)
-                    put("vpn", p.useVpn)
-                    put("profile", p.profile)
-                    put("customUa", p.useCustomUserAgent)
-                    put("ua", p.userAgent)
-                    put("server", p.server)
-                    put("user", p.username)
-                    put("pass", p.password)
-                    put("format", p.streamFormat)
-                    put("forceLink", p.forceStreamLink)
-                    put("expireDate", p.expireDate)           // 👈 Aggiunto
-                    put("activationDate", p.activationDate)     // 👈 Aggiunto
-                }
-            )
+        val jsonObjects = portals.map { p ->
+            JSONObject().apply {   
+                put("id", p.id)
+                put("name", p.name)
+                put("type", p.type.name)
+                put("url", p.url)
+                put("mac", p.macAddress)
+                put("vpn", p.useVpn)
+                put("profile", p.profile)
+                put("customUa", p.useCustomUserAgent)
+                put("ua", p.userAgent)
+                put("server", p.server)
+                put("user", p.username)
+                put("pass", p.password)
+                put("format", p.streamFormat)
+                put("forceLink", p.forceStreamLink)
+                put("expireDate", p.expireDate)           // 👈 Aggiunto
+                put("activationDate", p.activationDate)     // 👈 Aggiunto
+            }.toString(1)
         }
-        file.writeText(arr.toString())
+        val finalString = jsonObjects.joinToString(
+            separator = ",\n\n ",
+            prefix = "[\n ",
+            postfix = "\n]"
+        )
+        file.writeText(finalString)
     }
-}
