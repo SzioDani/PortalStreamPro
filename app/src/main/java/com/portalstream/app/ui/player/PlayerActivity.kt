@@ -803,24 +803,25 @@ class PlayerActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(20.dp))
                                 
-                                // 🔄 PULSANTE CIRCOLARE "RIPROVA" SEMPLIFICATO E STABILE
+                                // 🔄 PULSANTE CIRCOLARE "RIPROVA" CON EFFETTO NEON COMPLETO
                                 val interactionSource = remember { MutableInteractionSource() }
                                 val isPressed by interactionSource.collectIsPressedAsState()
 
-                                // Usiamo solo animateDpAsState che sappiamo per certo che funziona senza conflitti
-                                val borderWidth by animateDpAsState(targetValue = if (isPressed) 3.dp else 1.5.dp)
+                                // Usiamo solo componenti nativi sicuri al 100%
+                                val borderWidth by animateDpAsState(targetValue = if (isPressed) 3.5.dp else 1.5.dp)
+                                val glowAlpha by animateFloatAsState(targetValue = if (isPressed) 1f else 0.7f)
 
                                 Box(
                                     modifier = Modifier
                                         .size(64.dp)
                                         .shadow(
-                                            elevation = if (isPressed) 10.dp else 6.dp,
+                                            elevation = if (isPressed) 14.dp else 6.dp,
                                             shape = CircleShape
                                         )
                                         .background(Color(0xFF161922), CircleShape)
                                         .border(
                                             width = borderWidth, 
-                                            color = Color(0xFF00E5FF),
+                                            color = Color(0xFF00E5FF).copy(alpha = glowAlpha),
                                             shape = CircleShape
                                         )
                                         .clickable(
@@ -843,7 +844,7 @@ class PlayerActivity : ComponentActivity() {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = "Riprova",
-                                        tint = Color(0xFF00E5FF),
+                                        tint = Color(0xFF00E5FF).copy(alpha = glowAlpha), // L'icona si accende insieme al bordo
                                         modifier = Modifier.size(34.dp)
                                     )
                                 }
