@@ -1,7 +1,9 @@
 package com.portalstream.app.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,23 +47,17 @@ import com.portalstream.app.data.PortalType
 
 private data class UaPreset(val label: String, val value: String)
 
+// Lista completa dei preset STB e Browser basata sui tuoi array originali
 private val UA_PRESETS = listOf(
-    UaPreset(
-        "MAG200",
-        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG200 stbapp ver: 4.3.1939"
-    ),
-    UaPreset(
-        "MAG250",
-        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG250 stbapp ver: 4.3.1939"
-    ),
-    UaPreset(
-        "MAG322",
-        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG322 stbapp ver: 4.3.1939"
-    ),
-    UaPreset(
-        "Browser generico",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-    )
+    UaPreset("MAG250", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG250 stbapp ver: 2.20.06"),
+    UaPreset("MAG254", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG254 stbapp ver: 2.20.06"),
+    UaPreset("MAG322 (Versione Base)", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG322 stbapp ver: 2.20.68.4.1.3"),
+    UaPreset("MAG322 (Firmware v4.3)", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG322 stbapp ver: 4.3.1939"),
+    UaPreset("MAG420", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG420 stbapp ver: 2.22.1"),
+    UaPreset("MAG520", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG520 stbapp ver: 2.24.2"),
+    UaPreset("MAG524", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG524 stbapp ver: 2.24.2"),
+    UaPreset("MAG200 (Firmware v4.3)", "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 MAG200 stbapp ver: 4.3.1939"),
+    UaPreset("Browser Chrome (Desktop)", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 )
 
 @Composable
@@ -79,7 +75,7 @@ fun AddPortalTypeDialog(
                     shape = RoundedCornerShape(28.dp)
                 ),
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = Color(0xFF111318), // Sfondo ripreso dal tuo layout XML
             tonalElevation = 6.dp
         ) {
             Column(
@@ -91,7 +87,7 @@ fun AddPortalTypeDialog(
                 Text(
                     text = "Aggiungi playlist",
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold
                 )
@@ -104,7 +100,7 @@ fun AddPortalTypeDialog(
                 ) {
                     Text(
                         "FILE O LINK PLAYLIST",
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -118,7 +114,7 @@ fun AddPortalTypeDialog(
                 ) {
                     Text(
                         "MAG PORTALE",
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -132,7 +128,7 @@ fun AddPortalTypeDialog(
                 ) {
                     Text(
                         "XTREAM CODES PORTAL",
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -146,7 +142,7 @@ fun AddPortalTypeDialog(
                 ) {
                     Text(
                         "TORRENT STREAM",
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -196,7 +192,6 @@ fun PortalFormDialog(
     var uaMenu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
-    // Quando viene scelto un file tramite "Sfoglia file", aggiorna il campo link/magnet
     LaunchedEffect(pickedFileUrl) {
         if (!pickedFileUrl.isNullOrBlank()) {
             url = pickedFileUrl
@@ -221,11 +216,11 @@ fun PortalFormDialog(
                 .width(320.dp)
                 .border(
                     width = 1.5.dp,
-                    color = Color(0xFF00E5FF),
+                    color = Color(0xFF00E5FF), // Cornice Neon Ciano
                     shape = RoundedCornerShape(28.dp)
                 ),
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = Color(0xFF111318), // Sfondo scuro coerente con l'XML
             tonalElevation = 6.dp
         ) {
             Column(
@@ -234,11 +229,10 @@ fun PortalFormDialog(
                     .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Titolo del Dialog
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
@@ -249,7 +243,7 @@ fun PortalFormDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nome Playlist (opzionale)") },
+                    label = { Text("Nome Playlist (opzionale)", color = Color(0xFF888888)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -260,9 +254,9 @@ fun PortalFormDialog(
                         OutlinedTextField(
                             value = url,
                             onValueChange = { url = it },
-                            label = { Text("Link della playlist") },
+                            label = { Text("Link della playlist", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
+                            textStyle = TextStyle(fontSize = 13.sp, color = Color.White),
                             maxLines = 2
                         )
                         Spacer(Modifier.height(4.dp))
@@ -285,9 +279,9 @@ fun PortalFormDialog(
                         OutlinedTextField(
                             value = url,
                             onValueChange = { url = it },
-                            label = { Text("InfoHash o Magnet") },
+                            label = { Text("InfoHash o Magnet", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
+                            textStyle = TextStyle(fontSize = 13.sp, color = Color.White),
                             maxLines = 2
                         )
                         Spacer(Modifier.height(4.dp))
@@ -310,18 +304,19 @@ fun PortalFormDialog(
                         OutlinedTextField(
                             value = url,
                             onValueChange = { url = it },
-                            label = { Text("Link Portale MAG") },
+                            label = { Text("Link Portale MAG", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
+                            textStyle = TextStyle(fontSize = 13.sp, color = Color.White),
                             maxLines = 2
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = mac,
                             onValueChange = { mac = it },
-                            label = { Text("MAC Address") },
+                            label = { Text("MAC Address", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White)
                         )
                         Spacer(Modifier.height(4.dp))
                     }
@@ -329,31 +324,34 @@ fun PortalFormDialog(
                         OutlinedTextField(
                             value = server,
                             onValueChange = { server = it },
-                            label = { Text("Server:porta") },
+                            label = { Text("Server:porta", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White)
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = username,
                             onValueChange = { username = it },
-                            label = { Text("Utente") },
+                            label = { Text("Utente", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White)
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
-                            label = { Text("Password") },
+                            label = { Text("Password", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            textStyle = TextStyle(color = Color.White),
                             visualTransformation =
                                 if (showPassword) VisualTransformation.None
                                 else PasswordVisualTransformation(),
                             trailingIcon = {
                                 TextButton(onClick = { showPassword = !showPassword }) {
-                                    Text(if (showPassword) "Nascondi" else "Mostra")
+                                    Text(if (showPassword) "Nascondi" else "Mostra", color = Color(0xFF00E5FF))
                                 }
                             }
                         )
@@ -361,87 +359,123 @@ fun PortalFormDialog(
                         Text(
                             text = "Formato Streams",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF888888)
                         )
                         Row {
                             OutlinedButton(
                                 onClick = { streamFormat = "ts" },
                                 colors = if (streamFormat == "ts")
                                     ButtonDefaults.outlinedButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                        containerColor = Color(0xFF00E5FF).copy(alpha = 0.2f)
                                     )
                                 else ButtonDefaults.outlinedButtonColors()
                             ) {
-                                Text("TS")
+                                Text("TS", color = Color.White)
                             }
                             Spacer(Modifier.width(8.dp))
                             OutlinedButton(
                                 onClick = { streamFormat = "m3u8" },
                                 colors = if (streamFormat == "m3u8")
                                     ButtonDefaults.outlinedButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                        containerColor = Color(0xFF00E5FF).copy(alpha = 0.2f)
                                     )
                                 else ButtonDefaults.outlinedButtonColors()
                             ) {
-                                Text("M3U8")
+                                Text("M3U8", color = Color.White)
                             }
                         }
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = forceLink, onCheckedChange = { forceLink = it })
-                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text("Forza utilizzo Link", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                         }
                     }
                     else -> {}
                 }
 
-                // Per TORRENT non servono Usa VPN, Profilo e Usa User Agent
                 if (type != PortalType.TORRENT) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = useVpn, onCheckedChange = { useVpn = it })
-                        Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Usa VPN", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                     }
                     OutlinedTextField(
                         value = profile,
                         onValueChange = { profile = it },
-                        label = { Text("Profilo") },
+                        label = { Text("Profilo", color = Color(0xFF888888)) },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        textStyle = TextStyle(color = Color.White)
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = useCustomUa, onCheckedChange = { useCustomUa = it })
-                        Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Usa User Agent", style = MaterialTheme.typography.bodyMedium, color = Color.White)
                     }
+                    
                     if (useCustomUa) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Modello STB / User-Agent:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                        Spacer(Modifier.height(4.dp))
+
+                        // Spinner a tendina personalizzato con stile coerente
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { uaMenu = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                val currentLabel = UA_PRESETS.find { it.value == userAgent }?.label ?: "Seleziona modello STB..."
+                                Text(
+                                    text = currentLabel,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Start,
+                                    style = TextStyle(fontSize = 13.sp, color = Color.White)
+                                )
+                                Text("▼", color = Color(0xFF00E5FF), fontSize = 12.sp)
+                            }
+
+                            DropdownMenu(
+                                expanded = uaMenu,
+                                onDismissRequest = { uaMenu = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.8f)
+                                    .background(Color(0xFF111318))
+                            ) {
+                                UA_PRESETS.forEach { preset ->
+                                    DropdownMenuItem(
+                                        text = { 
+                                            Text(
+                                                text = preset.label,
+                                                style = TextStyle(fontSize = 14.sp, color = Color.White)
+                                            ) 
+                                        },
+                                        onClick = {
+                                            userAgent = preset.value
+                                            uaMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(4.dp))
+
                         OutlinedTextField(
                             value = userAgent,
                             onValueChange = { userAgent = it },
-                            label = { Text("Inserisci o seleziona User-Agent") },
+                            label = { Text("Stringa User-Agent effettiva", color = Color(0xFF888888)) },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 12.sp),
+                            textStyle = TextStyle(fontSize = 11.sp, color = Color.White),
                             maxLines = 2
                         )
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedButton(onClick = { uaMenu = true }) {
-                            Text("Seleziona preset")
-                        }
-                        DropdownMenu(expanded = uaMenu, onDismissRequest = { uaMenu = false }) {
-                            UA_PRESETS.forEach { preset ->
-                                DropdownMenuItem(
-                                    text = { Text(preset.label) },
-                                    onClick = {
-                                        userAgent = preset.value
-                                        uaMenu = false
-                                    }
-                                )
-                            }
-                        }
                     }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
-                // Pulsanti Annulla e Salva disposti in basso in modo pulito
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -472,7 +506,7 @@ fun PortalFormDialog(
                     }) {
                         Text(
                             text = if (existing == null) "Salva" else "OK",
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color(0xFF00E5FF),
                             fontWeight = FontWeight.Bold
                         )
                     }
