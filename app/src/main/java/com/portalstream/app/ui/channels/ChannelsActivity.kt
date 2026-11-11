@@ -728,7 +728,7 @@ class ChannelsActivity : ComponentActivity() {
 				                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 				
 				                    // Elementi della lista filtrata
-				                    filteredGroups.forEach { group ->
+                                    filteredGroups.forEach { group ->
 				                        val isFavGroup = favoriteGroups.contains(group)
 				                        Surface(
 				                            modifier = Modifier
@@ -1010,23 +1010,42 @@ class ChannelsActivity : ComponentActivity() {
                             } else if (currentChannels.isEmpty()) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     if (statusMessage.isNotBlank()) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier = Modifier.padding(16.dp)
+                                        // Contenitore centrale con stile coerente e pulito
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.85f)
+                                                .padding(24.dp),
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = Color(0xFF161922), // Sfondo scuro coordinato (CardBg)
+                                            border = BorderStroke(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.6f)) // Bordo rosso errore delicato
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ErrorOutline,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Text(
-                                                text = statusMessage,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                textAlign = TextAlign.Center
-                                            )
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(20.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                // Icona posizionata SOPRA il testo e centrata, con il colore rosso errore
+                                                Icon(
+                                                    imageVector = Icons.Default.ErrorOutline,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFEF4444), // Rosso errore coerente con l'app
+                                                    modifier = Modifier.size(38.dp)
+                                                )
+                                                
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                
+                                                Text(
+                                                    text = statusMessage,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    ),
+                                                    color = Color.White,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
                                         }
                                     } else {
                                         Text(
@@ -1681,4 +1700,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-
