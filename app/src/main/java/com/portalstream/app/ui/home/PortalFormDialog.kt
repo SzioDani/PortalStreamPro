@@ -490,6 +490,7 @@ fun PortalFormDialog(
                                 onDismissRequest = { uaMenu = false },
                                 modifier = Modifier
                                     .fillMaxWidth(0.78f)
+                                    .heightIn(max = 240.dp)
                                     .background(CardBg, RoundedCornerShape(12.dp))
                                     .border(1.5.dp, NeonCyan, RoundedCornerShape(12.dp))
                                     .padding(vertical = 4.dp, horizontal = 6.dp)
