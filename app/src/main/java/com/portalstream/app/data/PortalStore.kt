@@ -95,13 +95,14 @@ class PortalStore(context: Context) {
                 put("forceLink", p.forceStreamLink)
                 put("expireDate", p.expireDate)           // 👈 Aggiunto
                 put("activationDate", p.activationDate)     // 👈 Aggiunto
-            }.toString(1)
+            }.toString()
         }
         val finalString = jsonObjects.joinToString(
             separator = ",\n\n ",
             prefix = "[\n ",
             postfix = "\n]"
         )
+        val cleanedString = finalString.replace("\\/", "/")
         file.writeText(finalString)
     }
 }
