@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -104,7 +105,7 @@ class PlayerActivity : ComponentActivity() {
             ?: intent.getStringExtra("STREAM_URL")
             ?: intent.dataString
             ?: ""
-
+        
         val isTorrentInput = TorrentStreamEngine.isTorrentSource(streamUrl)
         val rawExtraName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
             ?: intent.getStringExtra("CHANNEL_NAME")
@@ -133,7 +134,6 @@ class PlayerActivity : ComponentActivity() {
                 it.startStream(streamUrl)
             }
         }
-
         setContent {
             MaterialTheme {
                 PlayerScreen(
@@ -143,7 +143,6 @@ class PlayerActivity : ComponentActivity() {
             }
         }
     }
-
     /**
      * Ferma la riproduzione, svuota immediatamente la cache del file Torrent e chiude il player.
      */
@@ -254,7 +253,6 @@ class PlayerActivity : ComponentActivity() {
                 isLoadingSubtitles = false
             }
         }
-
         // Osserva lo stato del motore Torrent
         LaunchedEffect(torrentState?.value) {
             when (val st = torrentState?.value) {
