@@ -567,41 +567,39 @@ class PlayerActivity : ComponentActivity() {
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            // CHIP DI CAMBIO MOTORE STILIZZATO E PROFESSIONALE
+                            // CHIP DI CAMBIO MOTORE STILE CYBER/NEON PULITO
                             Surface(
                                 onClick = {
                                     isBuffering = true
                                     errorResult = null
-                                    // Rilascia preventivamente le risorse del player attuale per evitare conflitti
                                     if (useExoPlayer == true) {
                                         exoManager.release()
                                     } else {
                                         vlcManager.release()
                                     }
-                                    // Inverte il motore in modo pulito
                                     useExoPlayer = !(useExoPlayer ?: false)
                                 },
-                                color = Color.Black.copy(alpha = 0.55f),
-                                shape = RoundedCornerShape(20.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                color = Color(0xFF161922),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SwapHoriz,
-                                        contentDescription = null,
-                                        tint = Color(0xFF00E5FF),
-                                        modifier = Modifier.size(16.dp)
+                                    // Sostituito il simbolo delle frecce con un pallino indicatore luminoso stile stato
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(Color(0xFF00E5FF), CircleShape)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (useExoPlayer == true) "ExoPlayer" else "LibVLC",
+                                        text = if (useExoPlayer == true) "EXO" else "VLC",
                                         color = Color.White,
                                         style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -735,101 +733,102 @@ class PlayerActivity : ComponentActivity() {
                     }
                 }
 
-				// =================================================================
-				// CARD ERRORE DI RIPRODUZIONE (UNICO PULSANTE RIPROVA)
-				// =================================================================
-				errorResult?.let { result ->
-				    if (!isInPipMode && !isMinimized) {
-				        val errorIcon = when (result.type) {
-				            StreamErrorType.UNAUTHORIZED -> Icons.Default.Lock
-				            StreamErrorType.NOT_FOUND -> Icons.Default.SearchOff
-				            StreamErrorType.GEO_BLOCKED -> Icons.Default.PublicOff
+                // =================================================================
+                // CARD ERRORE DI RIPRODUZIONE (PULSANTE CIRCOLARE CYBER/NEON)
+                // =================================================================
+                errorResult?.let { result ->
+                    if (!isInPipMode && !isMinimized) {
+                        val errorIcon = when (result.type) {
+                            StreamErrorType.UNAUTHORIZED -> Icons.Default.Lock
+                            StreamErrorType.NOT_FOUND -> Icons.Default.SearchOff
+                            StreamErrorType.GEO_BLOCKED -> Icons.Default.PublicOff
                             StreamErrorType.CONNECTION_LIMIT -> Icons.Default.Group
-				            StreamErrorType.SERVER_ERROR -> Icons.Default.CloudOff
-				            StreamErrorType.NETWORK_FAILURE -> Icons.Default.WifiOff
-				            StreamErrorType.DECODE_ERROR -> Icons.Default.MovieCreation
-				            else -> Icons.Default.ErrorOutline
-				        }
-				
-				        Surface(
-				            color = Color.Black.copy(alpha = 0.92f),
-				            shape = RoundedCornerShape(20.dp),
-				            tonalElevation = 8.dp,
-				            modifier = Modifier
-				                .align(Alignment.Center)
-				                .padding(24.dp)
-				        ) {
-				            Column(
-				                horizontalAlignment = Alignment.CenterHorizontally,
-				                modifier = Modifier.padding(24.dp)
-				            ) {
-				                Row(
-				                    verticalAlignment = Alignment.CenterVertically,
-				                    modifier = Modifier.padding(bottom = 8.dp)
-				                ) {
-				                    Icon(
-				                        imageVector = errorIcon,
-				                        contentDescription = null,
-				                        tint = MaterialTheme.colorScheme.error,
-				                        modifier = Modifier.size(30.dp)
-				                    )
-				                    Spacer(modifier = Modifier.width(10.dp))
-				                    Text(
-				                        text = when (result.type) {
-				                            StreamErrorType.UNAUTHORIZED -> "Accesso Non Autorizzato"
-				                            StreamErrorType.GEO_BLOCKED -> "Blocco Geografico / VPN"
-				                            StreamErrorType.NOT_FOUND -> "Contenuto Non Trovato"
-				                            StreamErrorType.SERVER_ERROR -> "Errore del Server"
-				                            StreamErrorType.CONNECTION_LIMIT -> "Limite Raggiunto"
-				                            else -> "Errore di Riproduzione"
-				                        },
-				                        style = MaterialTheme.typography.titleMedium,
-				                        color = MaterialTheme.colorScheme.error,
-				                        fontWeight = FontWeight.Bold
-				                    )
-				                }
-				                
-				                Text(
-				                    text = result.message,
-				                    color = Color.White.copy(alpha = 0.85f),
-				                    style = MaterialTheme.typography.bodyMedium,
-				                    textAlign = TextAlign.Center
-				                )
-				                
-				                Spacer(modifier = Modifier.height(24.dp))
-				                
-				                // PULSANTE UNICO "RIPROVA" (Ripartenza da zero)
-				                Button(
-				                    onClick = {
-				                        // 1. Pulisce l'errore e rimette il player in buffering
-				                        errorResult = null
-				                        isBuffering = true
-				                        
-				                        // 2. Riavvia la riproduzione da zero in base alla sorgente attiva
-				                        if (isTorrent && playbackUrl.isBlank()) {
-				                            torrentEngine?.startStream(streamUrl)
-				                        } else if (useExoPlayer == true) {
-				                            // Sfrutta il nuovo metodo di reset completo di ExoPlayer
-				                            exoManager.retry(playbackUrl)
-				                        } else {
-				                            // Sfrutta il nuovo metodo di reset completo di LibVLC
-				                            vlcManager.retry(playbackUrl, userAgent)
-				                        }
-				                    },
-				                    modifier = Modifier.fillMaxWidth()
-				                ) {
-				                    Icon(
-				                        imageVector = Icons.Default.Refresh,
-				                        contentDescription = null,
-				                        modifier = Modifier.size(18.dp)
-				                    )
-				                    Spacer(modifier = Modifier.width(8.dp))
-				                    Text("Riprova")
-				                }
-				            }
-				        }
-				    }
-				}
+                            StreamErrorType.SERVER_ERROR -> Icons.Default.CloudOff
+                            StreamErrorType.NETWORK_FAILURE -> Icons.Default.WifiOff
+                            StreamErrorType.DECODE_ERROR -> Icons.Default.MovieCreation
+                            else -> Icons.Default.ErrorOutline
+                        }
+
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.92f),
+                            shape = RoundedCornerShape(20.dp),
+                            tonalElevation = 8.dp,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(24.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = errorIcon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = when (result.type) {
+                                            StreamErrorType.UNAUTHORIZED -> "Accesso Non Autorizzato"
+                                            StreamErrorType.GEO_BLOCKED -> "Blocco Geografico / VPN"
+                                            StreamErrorType.NOT_FOUND -> "Contenuto Non Trovato"
+                                            StreamErrorType.SERVER_ERROR -> "Errore del Server"
+                                            StreamErrorType.CONNECTION_LIMIT -> "Limite Raggiunto"
+                                            else -> "Errore di Riproduzione"
+                                        },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                Text(
+                                    text = result.message,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                                
+                                Spacer(modifier = Modifier.height(20.dp))
+                                
+                                // 🔄 NUOVO PULSANTE CIRCOLARE "RIPROVA"
+                                Surface(
+                                    onClick = {
+                                        errorResult = null
+                                        isBuffering = true
+                                        
+                                        if (isTorrent && playbackUrl.isBlank()) {
+                                            torrentEngine?.startStream(streamUrl)
+                                        } else if (useExoPlayer == true) {
+                                            exoManager.retry(playbackUrl)
+                                        } else {
+                                            vlcManager.retry(playbackUrl, userAgent)
+                                        }
+                                    },
+                                    modifier = Modifier.size(64.dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(1.5.dp, Color(0xFF00E5FF)),
+                                    shadowElevation = 6.dp
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Riprova",
+                                            tint = Color(0xFF00E5FF),
+                                            modifier = Modifier.size(34.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 PlayerOptionsMenu(
                     visible = showSettingsSheet && !isInPipMode && !isMinimized,
