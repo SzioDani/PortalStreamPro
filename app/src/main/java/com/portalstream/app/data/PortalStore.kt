@@ -104,3 +104,4 @@ class PortalStore(context: Context) {
         )
         file.writeText(finalString)
     }
+}
