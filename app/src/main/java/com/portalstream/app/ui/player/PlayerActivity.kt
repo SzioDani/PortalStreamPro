@@ -22,11 +22,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -800,49 +804,52 @@ class PlayerActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(20.dp))
                                 
-                                // 🔄 PULSANTE CIRCOLARE "RIPROVA" CON EFFETTO LUMINOSO AL TOCCO
+                                // 🔄 PULSANTE CIRCOLARE "RIPROVA" CORRETTO
                                 val interactionSource = remember { MutableInteractionSource() }
                                 val isPressed by interactionSource.collectIsPressedAsState()
 
-                                // Anima lo spessore del bordo, l'intensità della luce e la scala al tocco
+                                // Animazioni corrette per Dp e Float
                                 val borderWidth by animateDpAsState(targetValue = if (isPressed) 3.dp else 1.5.dp)
-                                val glowAlpha by animateDpAsState(targetValue = if (isPressed) 1f else 0.6f)
-                                val scale by animateAsState(targetValue = if (isPressed) 0.92f else 1f)
+                                val glowAlpha by animateFloatAsState(targetValue = if (isPressed) 1f else 0.6f)
+                                val scale by animateFloatAsState(targetValue = if (isPressed) 0.92f else 1f)
 
-                                Surface(
-                                    onClick = {
-                                        errorResult = null
-                                        isBuffering = true
-                                        
-                                        if (isTorrent && playbackUrl.isBlank()) {
-                                            torrentEngine?.startStream(streamUrl)
-                                        } else if (useExoPlayer == true) {
-                                            exoManager.retry(playbackUrl)
-                                        } else {
-                                            vlcManager.retry(playbackUrl, userAgent)
-                                        }
-                                    },
+                                Box(
                                     modifier = Modifier
                                         .size(64.dp)
-                                        .graphicsLayer(scaleX = scale, scaleY = scale), // Effetto pressione stile rimbalzo
-                                    shape = CircleShape,
-                                    color = Color(0xFF161922),
-                                    border = BorderStroke(
-                                        width = borderWidth, 
-                                        color = Color(0xFF00E5FF).copy(alpha = glowAlpha) // Illumina il cian al tocco
-                                    ),
-                                    shadowElevation = if (isPressed) 12.dp else 6.dp, // Aumenta l'ombra se premuto
-                                    interactionSource = interactionSource,
-                                    indication = rememberRipple(bounded = false, color = Color(0xFF00E5FF))
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = "Riprova",
-                                            tint = Color(0xFF00E5FF).copy(alpha = glowAlpha), // Anche l'icona si accende
-                                            modifier = Modifier.size(34.dp)
+                                        .graphicsLayer(scaleX = scale, scaleY = scale)
+                                        .shadow(
+                                            elevation = if (isPressed) 12.dp else 6.dp,
+                                            shape = CircleShape
                                         )
-                                    }
+                                        .background(Color(0xFF161922), CircleShape)
+                                        .border(
+                                            width = borderWidth, 
+                                            color = Color(0xFF00E5FF).copy(alpha = glowAlpha),
+                                            shape = CircleShape
+                                        )
+                                        .clickable(
+                                            interactionSource = interactionSource,
+                                            indication = rememberRipple(bounded = false, color = Color(0xFF00E5FF))
+                                        ) {
+                                            errorResult = null
+                                            isBuffering = true
+                                            
+                                            if (isTorrent && playbackUrl.isBlank()) {
+                                                torrentEngine?.startStream(streamUrl)
+                                            } else if (useExoPlayer == true) {
+                                                exoManager.retry(playbackUrl)
+                                            } else {
+                                                vlcManager.retry(playbackUrl, userAgent)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Riprova",
+                                        tint = Color(0xFF00E5FF).copy(alpha = glowAlpha),
+                                        modifier = Modifier.size(34.dp)
+                                    )
                                 }
                             }
                         }
