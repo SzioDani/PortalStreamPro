@@ -17,7 +17,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
@@ -47,6 +46,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -579,41 +582,138 @@ class PlayerActivity : ComponentActivity() {
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            // CHIP DI CAMBIO MOTORE STILE CYBER/NEON PULITO
-                            Surface(
-                                onClick = {
-                                    isBuffering = true
+                            // [STATO PRESSIONE] Rileva quando il dito preme sulla chip
+							val chipInteractionSource = remember { MutableInteractionSource() }
+							val isChipPressed by chipInteractionSource.collectIsPressedAsState()
+							
+							// [COLORI DEI MOTORI] Scegli i due colori esadecimali per i rispettivi player
+							val exoColor = Color(0xFF00E5FF) // Ciano neon elettrico per EXO
+							val vlcColor = Color(0xFFFF6D00) // Arancione neon brillante (stile cono VLC) per VLC
+							
+							// [COLORE DINAMICO ANIMATO] Sfuma dolcemente da un colore all'altro al cambio motore
+							val activeNeonColor by animateColorAsState(
+							    targetValue = if (useExoPlayer == true) exoColor else vlcColor,
+							    // [VELOCITÀ TRANSIZIONE] Durata in millisecondi della sfumatura colore (350ms = fluida)
+							    animationSpec = tween(durationMillis = 350),
+							    label = "activeNeonColor"
+							)
+							
+							// [BORDO] Spessore del contorno della pillola (Premuto vs Normale)
+							val chipBorderWidth by animateDpAsState(
+							    targetValue = if (isChipPressed) 2.5.dp else 1.5.dp,
+							    label = "chipBorderWidth"
+							)
+							
+							// [OPACITÀ LUCE] Intensità del bordo e dell'alone quando premi (da 0.0f a 1.0f)
+							val chipGlowAlpha by animateFloatAsState(
+							    targetValue = if (isChipPressed) 1f else 0.75f,
+							    label = "chipGlowAlpha"
+							)
+							
+							// [SCALA PRESSIONE] Leggero effetto rimpicciolimento al tocco (1f = 100%, 0.95f = 95%)
+							val chipScale by animateFloatAsState(
+							    targetValue = if (isChipPressed) 0.95f else 1f,
+							    label = "chipScale"
+							)
+							
+							// [AMPIEZZA ALONE] Quanto si espande la sfumatura neon fuori dai bordi della pillola
+							val chipBlurRadius by animateDpAsState(
+							    targetValue = if (isChipPressed) 18.dp else 10.dp,
+							    label = "chipBlurRadius"
+							)
+							
+							// CHIP DI CAMBIO MOTORE STILE CYBER/NEON DINAMICO
+							Surface(
+							    onClick = {
+							        isBuffering = true
                                     errorResult = null
-                                    if (useExoPlayer == true) {
-                                        exoManager.release()
-                                    } else {
-                                        vlcManager.release()
-                                    }
-                                    useExoPlayer = !(useExoPlayer ?: false)
-                                },
-                                color = Color(0xFF161922),
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
-                                modifier = Modifier.height(36.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                ) {
-                                    // Sostituito il simbolo delle frecce con un pallino indicatore luminoso stile stato
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .background(Color(0xFF00E5FF), CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (useExoPlayer == true) "EXO" else "VLC",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+							        if (useExoPlayer == true) {
+							            exoManager.release()
+							        } else {
+							            vlcManager.release()
+							        }
+							        useExoPlayer = !(useExoPlayer ?: false)
+							    },
+							    // [COLORE SFONDO CHIP] Sfondo scuro interno
+							    color = Color(0xFF161922),
+							    // [FORMA E ANGOLI] Arrotondamento degli angoli della pillola
+							    shape = RoundedCornerShape(16.dp),
+							    border = BorderStroke(
+							        width = chipBorderWidth, 
+							        color = activeNeonColor.copy(alpha = chipGlowAlpha)
+							    ),
+							    interactionSource = chipInteractionSource,
+							    modifier = Modifier
+							        // [ALTEZZA CHIP] Altezza totale del pulsante
+							        .height(36.dp)
+							        .graphicsLayer(scaleX = chipScale, scaleY = chipScale)
+							        // ✨ DISEGNA L'ALONE NEON RETTANGOLARE DIETRO LA CHIP
+							        .drawBehind {
+							            drawIntoCanvas { canvas ->
+							                val paint = Paint().apply {
+							                    // [INTENSITÀ ALONE ESTERNO] Trasparenza della luce diffusa
+							                    color = activeNeonColor.copy(alpha = if (isChipPressed) 0.65f else 0.35f)
+							                    asFrameworkPaint().apply {
+							                        isAntiAlias = true
+							                        // Applica la sfocatura reale che segue i bordi arrotondati
+							                        maskFilter = android.graphics.BlurMaskFilter(
+							                            chipBlurRadius.toPx(),
+							                            android.graphics.BlurMaskFilter.Blur.NORMAL
+							                        )
+							                    }
+							                }
+							                // Disegna il rettangolo sfocato leggermente più largo della pillola
+							                canvas.drawRoundRect(
+							                    left = -2.dp.toPx(),
+							                    top = -2.dp.toPx(),
+							                    right = size.width + 2.dp.toPx(),
+							                    bottom = size.height + 2.dp.toPx(),
+							                    radiusX = 16.dp.toPx(),
+							                    radiusY = 16.dp.toPx(),
+							                    paint = paint
+							                )
+							            }
+							        }
+							) {
+							    Row(
+							        verticalAlignment = Alignment.CenterVertically,
+							        // [SPAZIATURA INTERNA] Margini interni tra bordo, pallino e testo
+							        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+							    ) {
+							        // PALLINO INDICATORE CON MICRO-ALONE LED DINAMICO
+							        Box(
+							            modifier = Modifier
+							                // [DIMENSIONE PALLINO] Grandezza del punto luminoso
+							                .size(8.dp)
+							                // ✨ DISEGNA UN PICCOLO BAGLIORE ATTORNO AL PALLINO LED
+							                .drawBehind {
+							                    drawCircle(
+							                        brush = Brush.radialGradient(
+							                            colors = listOf(
+							                                activeNeonColor.copy(alpha = 0.85f),
+							                                Color.Transparent
+							                            ),
+							                            // [RAGGIO ALONE PALLINO] Ampiezza bagliore del LED
+							                            radius = size.minDimension * 1.1f
+							                        ),
+							                        radius = size.minDimension * 1.1f
+							                    )
+							                }
+							                .background(activeNeonColor, CircleShape)
+							        )
+							        
+							        // [DISTANZA PALLINO-TESTO] Spazio tra il LED e la scritta
+							        Spacer(modifier = Modifier.width(8.dp))
+							        
+							        Text(
+							            // [TESTO MOTORE] Etichetta visualizzata
+							            text = if (useExoPlayer == true) "EXO" else "VLC",
+							            // [COLORE TESTO] Colore della scritta
+							            color = Color.White,
+							            style = MaterialTheme.typography.labelMedium,
+							            fontWeight = FontWeight.Bold
+							        )
+							    }
                             }
 
                             Spacer(modifier = Modifier.width(8.dp))
@@ -809,7 +909,7 @@ class PlayerActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(20.dp))
                                 
 								// 🔄 PULSANTE CIRCOLARE "RIPROVA" CON EFFETTO LUMINOSO AL TOCCO
-								val interactionSource = remember { MutableInteractionSource() }
+                                val interactionSource = remember { MutableInteractionSource() }
 								val isPressed by interactionSource.collectIsPressedAsState()
 								
 								// [BORDO] Spessore del contorno del pulsante (Premuto vs Normale)
@@ -998,3 +1098,4 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
+                
