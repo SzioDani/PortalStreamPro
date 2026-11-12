@@ -603,7 +603,7 @@ class ChannelsActivity : ComponentActivity() {
 				        Surface(
 				            modifier = Modifier
 				                .fillMaxWidth(0.88f)
-				                .wrapContentHeight(),
+                                .wrapContentHeight(),
 				            shape = RoundedCornerShape(24.dp),
 				            color = MaterialTheme.colorScheme.surface,
 				            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
@@ -705,7 +705,7 @@ class ChannelsActivity : ComponentActivity() {
 				                    Surface(
 				                        modifier = Modifier
 				                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
+				                            .clip(RoundedCornerShape(8.dp))
 				                            .clickable {
 				                                selectedGroup = null
 				                                showOnlyFavorites = false
@@ -1181,176 +1181,170 @@ class ChannelsActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun StandardChannelCard(
-        channel: Channel,
-        epgInfo: EpgInfo?,
-        isFavorite: Boolean,
-        isLoading: Boolean,
-        channelTextSize: Float,
-        logoSize: Int,
-        onFavoriteToggle: () -> Unit,
-        onPlayClick: () -> Unit,
-        onLongClick: () -> Unit
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp) // 👈 Spaziatura compatta consigliata
-                .combinedClickable(
-                    onClick = onPlayClick,
-                    onLongClick = onLongClick
-                ),
-            shape = RoundedCornerShape(16.dp), // 👈 Angoli ridotti a 16.dp
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface
-            ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant // 👈 Bordo sottile ed elegante
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 1.dp, // 👈 Ridotta l'ombra per eliminare l'effetto "fluttuante"
-                pressedElevation = 0.dp,
-                focusedElevation = 2.dp,
-                hoveredElevation = 2.dp
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 104.dp) // 👈 Altezza card ottimizzata a circa 104.dp
-                    .padding(start = 12.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Utilizzo del nuovo contenitore protetto per il logo
-                if (!channel.logoUrl.isNullOrBlank()) {
-                    ChannelLogo(
-                        logoUrl = channel.logoUrl,
-                        channelName = channel.name,
-                        logoSize = logoSize
-                    )
-                    Spacer(modifier = Modifier.width(14.dp))
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 2.dp)
-                ) {
-                    Text(
-                        text = channel.name,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = (channelTextSize + 1f).sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    
-                    Spacer(modifier = Modifier.height(2.dp))
-                    
-                    Text(
-                        text = channel.group.ifBlank { "Altro" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Gestione EPG (Programma in corso e successivo)
-                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        // Programma In Corso
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = colorResource(id = R.color.text_neonciano)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = epgInfo.currentProgram,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colorResource(id = R.color.text_neonciano),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (epgInfo.timeRange.isNotBlank()) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = epgInfo.timeRange,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = colorResource(id = R.color.text_neonciano),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-
-                        if (epgInfo.nextProgram.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(3.dp))
-                            // Programma Successivo
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FastForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = colorResource(id = R.color.text_pinkcyber)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = epgInfo.nextProgram,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = colorResource(id = R.color.text_pinkcyber),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (epgInfo.nextTimeRange.isNotBlank()) {
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = epgInfo.nextTimeRange,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = colorResource(id = R.color.text_pinkcyber),
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
-                } else {
-                    IconButton(
-                        onClick = onFavoriteToggle,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = if (isFavorite) "Rimuovi dai preferiti" else "Aggiungi ai preferiti",
-                            tint = if (isFavorite) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
+	private fun StandardChannelCard(
+	    channel: Channel,
+	    epgInfo: EpgInfo?,
+	    isFavorite: Boolean,
+	    isLoading: Boolean,
+	    channelTextSize: Float,
+	    logoSize: Int,
+	    onFavoriteToggle: () -> Unit,
+	    onPlayClick: () -> Unit,
+	    onLongClick: () -> Unit
+	) {
+	    Card(
+	        modifier = Modifier
+	            .fillMaxWidth()
+	            .padding(horizontal = 12.dp, vertical = 4.dp)
+	            .combinedClickable(
+	                onClick = onPlayClick,
+	                onLongClick = onLongClick
+	            ),
+	        shape = RoundedCornerShape(14.dp),
+	        colors = CardDefaults.cardColors(
+	            containerColor = MaterialTheme.colorScheme.surface,
+	            contentColor = MaterialTheme.colorScheme.onSurface
+	        ),
+	        // Bordo leggermente più definito per fare staccare la card dallo sfondo
+	        border = BorderStroke(
+	            width = 1.dp,
+	            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+	        ),
+	        elevation = CardDefaults.cardElevation(
+	            defaultElevation = 1.dp,
+	            pressedElevation = 0.dp
+	        )
+	    ) {
+	        Row(
+	            modifier = Modifier
+	                .fillMaxWidth()
+	                .heightIn(min = 78.dp) // Altezza compatta e ordinata
+	                .padding(horizontal = 10.dp, vertical = 8.dp),
+	            verticalAlignment = Alignment.CenterVertically
+	        ) {
+	            if (!channel.logoUrl.isNullOrBlank()) {
+	                ChannelLogo(
+	                    logoUrl = channel.logoUrl,
+	                    channelName = channel.name,
+	                    logoSize = logoSize.coerceAtMost(52)
+	                )
+	                Spacer(modifier = Modifier.width(12.dp))
+	            }
+	
+	            Column(
+	                modifier = Modifier
+	                    .weight(1f)
+	                    .padding(vertical = 2.dp)
+	            ) {
+	                Text(
+	                    text = channel.name,
+	                    style = MaterialTheme.typography.titleMedium.copy(
+	                        fontSize = channelTextSize.sp,
+	                        fontWeight = FontWeight.Bold
+	                    ),
+	                    color = MaterialTheme.colorScheme.onSurface,
+	                    maxLines = 1,
+	                    overflow = TextOverflow.Ellipsis
+	                )
+	                
+	                Spacer(modifier = Modifier.height(2.dp))
+	                
+	                Text(
+	                    text = channel.group.ifBlank { "Altro" },
+	                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+	                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+	                    maxLines = 1,
+	                    overflow = TextOverflow.Ellipsis
+	                )
+	
+	                if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
+	                    Spacer(modifier = Modifier.height(4.dp))
+	                    
+	                    Row(
+	                        verticalAlignment = Alignment.CenterVertically,
+	                        modifier = Modifier.fillMaxWidth()
+	                    ) {
+	                        Icon(
+	                            imageVector = Icons.Default.PlayArrow,
+	                            contentDescription = null,
+	                            modifier = Modifier.size(13.dp),
+	                            tint = colorResource(id = R.color.text_neonciano)
+	                        )
+	                        Spacer(modifier = Modifier.width(3.dp))
+	                        Text(
+	                            text = epgInfo.currentProgram,
+	                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+	                            color = colorResource(id = R.color.text_neonciano),
+	                            maxLines = 1,
+	                            overflow = TextOverflow.Ellipsis,
+	                            modifier = Modifier.weight(1f)
+	                        )
+	                        if (epgInfo.timeRange.isNotBlank()) {
+	                            Spacer(modifier = Modifier.width(6.dp))
+	                            Text(
+	                                text = epgInfo.timeRange,
+	                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+	                                color = colorResource(id = R.color.text_neonciano),
+	                                maxLines = 1
+	                            )
+	                        }
+	                    }
+	
+	                    if (epgInfo.nextProgram.isNotBlank()) {
+	                        Spacer(modifier = Modifier.height(2.dp))
+	                        Row(
+	                            verticalAlignment = Alignment.CenterVertically,
+	                            modifier = Modifier.fillMaxWidth()
+	                        ) {
+	                            Icon(
+	                                imageVector = Icons.Default.FastForward,
+	                                contentDescription = null,
+	                                modifier = Modifier.size(13.dp),
+	                                tint = colorResource(id = R.color.text_pinkcyber)
+	                            )
+	                            Spacer(modifier = Modifier.width(3.dp))
+	                            Text(
+	                                text = epgInfo.nextProgram,
+	                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+	                                color = colorResource(id = R.color.text_pinkcyber),
+	                                maxLines = 1,
+	                                overflow = TextOverflow.Ellipsis,
+	                                modifier = Modifier.weight(1f)
+	                            )
+	                            if (epgInfo.nextTimeRange.isNotBlank()) {
+	                                Spacer(modifier = Modifier.width(6.dp))
+	                                Text(
+	                                    text = epgInfo.nextTimeRange,
+	                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+	                                    color = colorResource(id = R.color.text_pinkcyber),
+	                                    maxLines = 1
+	                                )
+	                            }
+	                        }
+	                    }
+	                }
+	            }
+	
+	            Spacer(modifier = Modifier.width(8.dp))
+	
+	            if (isLoading) {
+	                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+	            } else {
+	                IconButton(
+	                    onClick = onFavoriteToggle,
+	                    modifier = Modifier.size(40.dp)
+	                ) {
+	                    Icon(
+	                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+	                        contentDescription = null,
+	                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+	                        modifier = Modifier.size(22.dp)
+	                    )
+	                }
+	            }
+	        }
+	    }
+	}   
 
     @Composable
     private fun ChannelCard(
@@ -1500,17 +1494,22 @@ class ChannelsActivity : ComponentActivity() {
 	    logoSize: Int,
 	    modifier: Modifier = Modifier
 	) {
+	    // Se siamo in tema scuro usiamo un grigio scuro/bluastro per il box del logo, altrimenti bianco puro
+	    val isDark = isSystemInDarkTheme() // oppure controlla la tua variabile darkTheme
+	    val containerBg = if (isDark) Color(0xFF1E293B) else Color.White
+	    val borderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+	
 	    Box(
 	        modifier = modifier
 	            .size(logoSize.dp)
-	            .clip(RoundedCornerShape(12.dp))
-	            .background(Color.White)
+	            .clip(RoundedCornerShape(10.dp))
+	            .background(containerBg)
 	            .border(
 	                width = 1.dp,
-	                color = MaterialTheme.colorScheme.outlineVariant,
-	                shape = RoundedCornerShape(12.dp)
+	                color = borderColor,
+	                shape = RoundedCornerShape(10.dp)
 	            )
-	            .padding(6.dp),
+	            .padding(4.dp),
 	        contentAlignment = Alignment.Center
 	    ) {
 	        AsyncImage(
@@ -1742,5 +1741,8 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
+
+                    
+	        
 
 
