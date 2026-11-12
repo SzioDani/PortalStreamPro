@@ -85,6 +85,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import com.portalstream.app.R
 import androidx.compose.foundation.isSystemInDarkTheme
+import coil.request.ImageRequest
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
