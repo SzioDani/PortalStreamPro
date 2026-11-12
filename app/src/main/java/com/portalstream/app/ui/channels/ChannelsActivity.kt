@@ -1526,8 +1526,8 @@ class ChannelsActivity : ComponentActivity() {
 	    val isDark = isSystemInDarkTheme()
 	    // NEL TEMA SCURO: Sfondo chiaro (es. bianco o grigio chiarissimo) così i loghi scuri/neri si vedono perfettamente!
 	    // NEL TEMA CHIARO: Sfondo bianco pulito con un bordo grigio delicato.
-	    const val containerBgDark = 0xFFF8FAFC // Bianco sporco/ghiaccio molto luminoso in dark mode
-	    const val containerBgLight = 0xFFFFFFFF // Bianco puro in light mode
+	    val containerBgDark = 0xFFF8FAFC // Bianco sporco/ghiaccio molto luminoso in dark mode
+	    val containerBgLight = 0xFFFFFFFF // Bianco puro in light mode
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
 	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1) // Bordo più marcato per staccare
