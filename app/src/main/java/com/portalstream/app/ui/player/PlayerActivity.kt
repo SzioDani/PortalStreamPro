@@ -812,25 +812,31 @@ class PlayerActivity : ComponentActivity() {
 								val interactionSource = remember { MutableInteractionSource() }
 								val isPressed by interactionSource.collectIsPressedAsState()
 								
-								// Anima bordo, intensitÃ  luce, scala e raggio dell'alone esterno
+								// [BORDO] Spessore del contorno del pulsante (Premuto vs Normale)
 								val borderWidth by animateDpAsState(
-								    targetValue = if (isPressed) 3.dp else 1.5.dp,
+								    targetValue = if (isPressed) 3.5.dp else 2.dp, // Aumentato leggermente per marcare il bordo
 								    label = "borderWidth"
 								)
+								
+								// [OPACITÀ BORDO E ICONA] Intensità della luce del bordo e dell'icona (da 0.0f a 1.0f)
 								val glowAlpha by animateFloatAsState(
-								    targetValue = if (isPressed) 1f else 0.6f,
+								    targetValue = if (isPressed) 1f else 0.8f, // Più luminoso anche a riposo
 								    label = "glowAlpha"
 								)
+								
+								// [SCALA PRESSIONE] Rimpicciolimento al tocco (1f = dimensione originale, 0.92f = 92%)
 								val scale by animateFloatAsState(
 								    targetValue = if (isPressed) 0.92f else 1f,
 								    label = "scale"
 								)
-								// Controlla quanto si allarga l'alone luminoso esterno
+								
+								// [AMPIEZZA ALONE] Quanto si estende la luce fuori dal pulsante (1.0f = bordo esatto del pulsante)
 								val glowRadiusMultiplier by animateFloatAsState(
-								    targetValue = if (isPressed) 1.55f else 1.25f,
+								    targetValue = if (isPressed) 2.1f else 1.65f, // AMPLIATO: prima era 1.55f e 1.25f
 								    label = "glowRadius"
 								)
 								
+								// [COLORE PRINCIPALE] Colore della luce e del tema del pulsante
 								val cyanColor = Color(0xFF00E5FF)
 								
 								Surface(
@@ -847,16 +853,22 @@ class PlayerActivity : ComponentActivity() {
 								        }
 								    },
 								    modifier = Modifier
+								        // [DIMENSIONE PULSANTE] Larghezza e altezza del cerchio centrale
 								        .size(64.dp)
 								        .graphicsLayer(scaleX = scale, scaleY = scale)
-								        // âœ¨ DISEGNA L'ALONE LUMINOSO DIETRO AL PULSANTE
+								        // ✨ DISEGNA L'ALONE LUMINOSO DIETRO AL PULSANTE
 								        .drawBehind {
 								            val radius = (size.minDimension / 2f) * glowRadiusMultiplier
 								            drawCircle(
 								                brush = Brush.radialGradient(
+								                    // [INTENSITÀ E SFUMATURA ALONE] Più colori metti, più l'alone resta pieno prima di svanire
 								                    colors = listOf(
-								                        cyanColor.copy(alpha = if (isPressed) 0.55f else 0.25f),
-								                        Color.Transparent
+								                        // 1. Centro: luce molto forte (era 0.55f / 0.25f)
+								                        cyanColor.copy(alpha = if (isPressed) 0.85f else 0.45f), 
+								                        // 2. Fascia intermedia: mantiene l'alone marcato più a lungo
+								                        cyanColor.copy(alpha = if (isPressed) 0.40f else 0.18f), 
+								                        // 3. Bordo esterno: sfuma completamente nel nulla
+								                        Color.Transparent 
 								                    ),
 								                    center = center,
 								                    radius = radius
@@ -866,6 +878,7 @@ class PlayerActivity : ComponentActivity() {
 								            )
 								        },
 								    shape = CircleShape,
+								    // [COLORE SFONDO PULSANTE] Il colore scuro interno del cerchio
 								    color = Color(0xFF161922),
 								    border = BorderStroke(
 								        width = borderWidth, 
@@ -878,6 +891,7 @@ class PlayerActivity : ComponentActivity() {
 								            imageVector = Icons.Default.Refresh,
 								            contentDescription = "Riprova",
 								            tint = cyanColor.copy(alpha = glowAlpha),
+								            // [DIMENSIONE ICONA] Grandezza della freccia interna
 								            modifier = Modifier.size(34.dp)
 								        )
 								    }
