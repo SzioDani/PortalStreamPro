@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.material.ripple.rememberRipple
@@ -803,51 +805,58 @@ class PlayerActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(20.dp))
                                 
-                                // 🔄 PULSANTE CIRCOLARE "RIPROVA" CON EFFETTO NEON COMPLETO
-                                val interactionSource = remember { MutableInteractionSource() }
-                                val isPressed by interactionSource.collectIsPressedAsState()
-
-                                // Usiamo solo componenti nativi sicuri al 100%
-                                val borderWidth by animateDpAsState(targetValue = if (isPressed) 4.5.dp else 1.5.dp)
-                                val glowAlpha by animateFloatAsState(targetValue = if (isPressed) 3f else 0.7f)
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .shadow(
-                                            elevation = if (isPressed) 14.dp else 6.dp,
-                                            shape = CircleShape
-                                        )
-                                        .background(Color(0xFF161922), CircleShape)
-                                        .border(
-                                            width = borderWidth, 
-                                            color = Color(0xFF00E5FF).copy(alpha = glowAlpha),
-                                            shape = CircleShape
-                                        )
-                                        .clickable(
-                                            interactionSource = interactionSource,
-                                            indication = rememberRipple(bounded = false, color = Color(0xFF00E5FF))
-                                        ) {
-                                            errorResult = null
-                                            isBuffering = true
-                                            
-                                            if (isTorrent && playbackUrl.isBlank()) {
-                                                torrentEngine?.startStream(streamUrl)
-                                            } else if (useExoPlayer == true) {
-                                                exoManager.retry(playbackUrl)
-                                            } else {
-                                                vlcManager.retry(playbackUrl, userAgent)
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Riprova",
-                                        tint = Color(0xFF00E5FF).copy(alpha = glowAlpha), // L'icona si accende insieme al bordo
-                                        modifier = Modifier.size(34.dp)
-                                    )
-                                }
+								// 🔄 PULSANTE CIRCOLARE "RIPROVA" CON EFFETTO LUMINOSO AL TOCCO
+								val interactionSource = remember { MutableInteractionSource() }
+								val isPressed by interactionSource.collectIsPressedAsState()
+								
+								// Anima lo spessore del bordo, l'intensità della luce e la scala al tocco
+								val borderWidth by animateDpAsState(
+								    targetValue = if (isPressed) 3.dp else 1.5.dp,
+								    label = "borderWidth"
+								)
+								val glowAlpha by animateFloatAsState(
+								    targetValue = if (isPressed) 1f else 0.6f,
+								    label = "glowAlpha"
+								)
+								val scale by animateFloatAsState(
+								    targetValue = if (isPressed) 0.92f else 1f,
+								    label = "scale"
+								)
+								
+								Surface(
+								    onClick = {
+								        errorResult = null
+								        isBuffering = true
+								        
+								        if (isTorrent && playbackUrl.isBlank()) {
+								            torrentEngine?.startStream(streamUrl)
+								        } else if (useExoPlayer == true) {
+								            exoManager.retry(playbackUrl)
+								        } else {
+								            vlcManager.retry(playbackUrl, userAgent)
+								        }
+								    },
+								    modifier = Modifier
+								        .size(64.dp)
+								        .graphicsLayer(scaleX = scale, scaleY = scale),
+								    shape = CircleShape,
+								    color = Color(0xFF161922),
+								    border = BorderStroke(
+								        width = borderWidth, 
+								        color = Color(0xFF00E5FF).copy(alpha = glowAlpha)
+								    ),
+								    shadowElevation = if (isPressed) 12.dp else 6.dp,
+								    interactionSource = interactionSource
+								) {
+								    Box(contentAlignment = Alignment.Center) {
+								        Icon(
+								            imageVector = Icons.Default.Refresh,
+								            contentDescription = "Riprova",
+								            tint = Color(0xFF00E5FF).copy(alpha = glowAlpha),
+								            modifier = Modifier.size(34.dp)
+								        )
+								    }
+							    }
                             }
                         }
                     }
