@@ -15,6 +15,9 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
@@ -809,7 +812,7 @@ class PlayerActivity : ComponentActivity() {
 								val interactionSource = remember { MutableInteractionSource() }
 								val isPressed by interactionSource.collectIsPressedAsState()
 								
-								// Anima lo spessore del bordo, l'intensità della luce e la scala al tocco
+								// Anima bordo, intensitÃ  luce, scala e raggio dell'alone esterno
 								val borderWidth by animateDpAsState(
 								    targetValue = if (isPressed) 3.dp else 1.5.dp,
 								    label = "borderWidth"
@@ -822,6 +825,13 @@ class PlayerActivity : ComponentActivity() {
 								    targetValue = if (isPressed) 0.92f else 1f,
 								    label = "scale"
 								)
+								// Controlla quanto si allarga l'alone luminoso esterno
+								val glowRadiusMultiplier by animateFloatAsState(
+								    targetValue = if (isPressed) 1.55f else 1.25f,
+								    label = "glowRadius"
+								)
+								
+								val cyanColor = Color(0xFF00E5FF)
 								
 								Surface(
 								    onClick = {
@@ -838,21 +848,36 @@ class PlayerActivity : ComponentActivity() {
 								    },
 								    modifier = Modifier
 								        .size(64.dp)
-								        .graphicsLayer(scaleX = scale, scaleY = scale),
+								        .graphicsLayer(scaleX = scale, scaleY = scale)
+								        // âœ¨ DISEGNA L'ALONE LUMINOSO DIETRO AL PULSANTE
+								        .drawBehind {
+								            val radius = (size.minDimension / 2f) * glowRadiusMultiplier
+								            drawCircle(
+								                brush = Brush.radialGradient(
+								                    colors = listOf(
+								                        cyanColor.copy(alpha = if (isPressed) 0.55f else 0.25f),
+								                        Color.Transparent
+								                    ),
+								                    center = center,
+								                    radius = radius
+								                ),
+								                radius = radius,
+								                center = center
+								            )
+								        },
 								    shape = CircleShape,
 								    color = Color(0xFF161922),
 								    border = BorderStroke(
 								        width = borderWidth, 
-								        color = Color(0xFF00E5FF).copy(alpha = glowAlpha)
+								        color = cyanColor.copy(alpha = glowAlpha)
 								    ),
-								    shadowElevation = if (isPressed) 12.dp else 6.dp,
 								    interactionSource = interactionSource
 								) {
 								    Box(contentAlignment = Alignment.Center) {
 								        Icon(
 								            imageVector = Icons.Default.Refresh,
 								            contentDescription = "Riprova",
-								            tint = Color(0xFF00E5FF).copy(alpha = glowAlpha),
+								            tint = cyanColor.copy(alpha = glowAlpha),
 								            modifier = Modifier.size(34.dp)
 								        )
 								    }
