@@ -1200,15 +1200,15 @@ class ChannelsActivity : ComponentActivity() {
 	
 	    // Calibrazione colori cornice interna per Tema Chiaro e Tema Scuro
 	    val innerFrameBg = if (isDark) {
-	        Color(0xFF2A3142) // Sfondo scuro
+	        Color(0xFF3f4554) // Sfondo scuro
 	    } else {
-	        Color(0xFFFFFFFF) // Sfondo chiaro pulito
+	        Color(0xFFE5E5E5) // Sfondo chiaro pulito
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
 	        Color(0xFF425069) // Bordo definito e visibile in dark mode
 	    } else {
-	        Color(0xFFB6BFCA) // Bordo grigio chiaro pulito in light mode
+	        Color(0xFFA3ABB5) // Bordo grigio chiaro pulito in light mode
 	    }
 	
 	    // Colori EPG calibrati per essere leggibili sia su chiaro che su scuro
@@ -1218,7 +1218,7 @@ class ChannelsActivity : ComponentActivity() {
 	    Card(
 	        modifier = Modifier
 	            .fillMaxWidth()
-	            .padding(horizontal = 12.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
+	            .padding(horizontal = 4.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
 	            .combinedClickable(
 	                onClick = onPlayClick,
 	                onLongClick = onLongClick
