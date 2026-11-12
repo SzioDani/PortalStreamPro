@@ -537,7 +537,7 @@ class ChannelsActivity : ComponentActivity() {
 										}
 									},
 									modifier = Modifier.fillMaxWidth(),
-									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
 								) {
 									Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
 									Spacer(modifier = Modifier.width(8.dp))
@@ -613,7 +613,7 @@ class ChannelsActivity : ComponentActivity() {
 				                modifier = Modifier
 				                    .padding(20.dp)
 				                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
+				                verticalArrangement = Arrangement.spacedBy(14.dp)
 				            ) {
 				                // Intestazione del Dialog
 				                Row(verticalAlignment = Alignment.CenterVertically) {
@@ -759,7 +759,7 @@ class ChannelsActivity : ComponentActivity() {
 				                                IconButton(
 				                                    onClick = {
 				                                        val newFavs = if (isFavGroup) favoriteGroups - group else favoriteGroups + group
-				                                        favoriteGroups = newFavs
+                                                        favoriteGroups = newFavs
 				                                        prefs.edit().putStringSet("favorite_groups", newFavs).apply()
 				                                    },
 				                                    modifier = Modifier.size(32.dp)
@@ -1189,16 +1189,19 @@ class ChannelsActivity : ComponentActivity() {
 	    isLoading: Boolean,
 	    channelTextSize: Float,
 	    logoSize: Int,
-	    onFavoriteToggle: () -> Unit,
+        onFavoriteToggle: () -> Unit,
 	    onPlayClick: () -> Unit,
 	    onLongClick: () -> Unit
 	) {
 	    val isDark = isSystemInDarkTheme()
 	
+	    // Colore del nome canale dinamico in base al tema
+	    val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+	
 	    // Calibrazione colori cornice interna per Tema Chiaro e Tema Scuro
 	    val innerFrameBg = if (isDark) {
 	        Color(0xFF131B2E) // Sfondo scuro
-	    } else 
+	    } else {
 	        Color(0xFFFFFFFF) // Sfondo chiaro pulito
 	    }
 	
@@ -1209,13 +1212,13 @@ class ChannelsActivity : ComponentActivity() {
 	    }
 	
 	    // Colori EPG calibrati per essere leggibili sia su chiaro che su scuro
-	    val currentProgColor = if (isDark) colorResource(id = R.color.text_neonciano) else Color(0xFF0284C7) // Ciano intenso su chiaro
-	    val nextProgColor = if (isDark) colorResource(id = R.color.text_pinkcyber) else Color(0xFFC026D3)   // Fucsia intenso su chiaro
+	    val currentProgColor = if (isDark) colorResource(id = R.color.text_neonciano) else Color(0xFF0284C7)
+	    val nextProgColor = if (isDark) colorResource(id = R.color.text_pinkcyber) else Color(0xFFC026D3)
 	
 	    Card(
 	        modifier = Modifier
 	            .fillMaxWidth()
-	            .padding(horizontal = 8.dp, vertical = 2.dp),
+	            .padding(horizontal = 8.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
 	            .combinedClickable(
 	                onClick = onPlayClick,
 	                onLongClick = onLongClick
@@ -1235,7 +1238,7 @@ class ChannelsActivity : ComponentActivity() {
 	        Surface(
 	            modifier = Modifier
 	                .fillMaxWidth()
-	                .padding(5.dp), // Spessore della cornice esterna
+	                .padding(5.dp),
 	            shape = RoundedCornerShape(10.dp),
 	            color = innerFrameBg,
 	            border = BorderStroke(1.dp, innerFrameBorder)
@@ -1246,7 +1249,7 @@ class ChannelsActivity : ComponentActivity() {
 	                    .padding(horizontal = 8.dp, vertical = 4.dp),
 	                verticalAlignment = Alignment.CenterVertically
 	            ) {
-	                // 1. LOGO A SINISTRA (Inglobato nella cornice)
+	                // 1. LOGO A SINISTRA
 	                if (!channel.logoUrl.isNullOrBlank()) {
 	                    ChannelLogo(
 	                        logoUrl = channel.logoUrl,
@@ -1256,7 +1259,7 @@ class ChannelsActivity : ComponentActivity() {
 	                    Spacer(modifier = Modifier.width(10.dp))
 	                }
 	
-	                // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG a tutta larghezza sotto)
+	                // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG sotto)
 	                Column(
 	                    modifier = Modifier.weight(1f)
 	                ) {
@@ -1291,7 +1294,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
 	                                    contentDescription = null,
 	                                    tint = if (isFavorite) Color(0xFFFF4081) 
-                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+	                                            else MaterialTheme.colorScheme.onSurfaceVariant,
 	                                    modifier = Modifier.size(18.dp)
 	                                )
 	                            }
@@ -1299,14 +1302,12 @@ class ChannelsActivity : ComponentActivity() {
 	                    }
 	
 	                    Spacer(modifier = Modifier.height(4.dp))
-                        val isDark = isSystemInDarkTheme()
-                        // Colore del nome canale dinamico in base al tema
-                        val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
+	
 	                    // Dimensioni dinamiche proporzionate
 	                    val epgMainSize = (channelTextSize - 1.5f).coerceAtLeast(9.5f).sp
 	                    val epgTimeSize = (channelTextSize - 2.5f).coerceAtLeast(8.5f).sp
 	
-	                    // Riga inferiore: EPG a tutta larghezza (molto più respiro per i testi!)
+	                    // Riga inferiore: EPG a tutta larghezza
 	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
 	                        // Programma in corso
 	                        Row(
@@ -1337,7 +1338,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                    text = epgInfo.timeRange,
 	                                    style = MaterialTheme.typography.labelSmall.copy(
 	                                        fontWeight = FontWeight.SemiBold,
-                                            fontSize = epgTimeSize
+	                                        fontSize = epgTimeSize
 	                                    ),
 	                                    color = currentProgColor,
 	                                    maxLines = 1
@@ -1544,12 +1545,11 @@ class ChannelsActivity : ComponentActivity() {
 	private fun ChannelLogo(
 	    logoUrl: String?,
 	    channelName: String,
-        logoSize: Int,
+	    logoSize: Int,
 	    modifier: Modifier = Modifier
 	) {
 	    val isDark = isSystemInDarkTheme()
 	    
-	    // Rimosso 'const' perché siamo all'interno di una funzione
 	    val containerBgDark = 0xFFF8FAFC 
 	    val containerBgLight = 0xFFFFFFFF 
 	    
@@ -1798,6 +1798,5 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-        
-                                            
-                                
+            
+            
