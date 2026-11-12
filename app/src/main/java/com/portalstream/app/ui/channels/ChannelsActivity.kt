@@ -1224,7 +1224,7 @@ class ChannelsActivity : ComponentActivity() {
 	    Card(
 	        modifier = Modifier
 	            .fillMaxWidth()
-	            .padding(horizontal = 2.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
+	            .padding(horizontal = 0.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
 	            .combinedClickable(
 	                onClick = onPlayClick,
 	                onLongClick = onLongClick
@@ -1344,7 +1344,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                Text(
 	                                    text = epgInfo.timeRange,
 	                                    style = MaterialTheme.typography.labelSmall.copy(
-	                                        fontWeight = FontWeight.Bold,
+	                                        fontWeight = FontWeight.SemiBold,
 	                                        fontSize = epgTimeSize
 	                                    ),
 	                                    color = currentProgColor,
@@ -1370,7 +1370,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                Text(
 	                                    text = epgInfo.nextProgram,
 	                                    style = MaterialTheme.typography.labelSmall.copy(
-	                                        fontWeight = FontWeight.Medium,
+	                                        fontWeight = FontWeight.Bold,
 	                                        fontSize = epgMainSize
 	                                    ),
 	                                    color = nextProgColor,
