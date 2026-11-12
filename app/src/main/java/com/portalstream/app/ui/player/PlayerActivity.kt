@@ -808,8 +808,8 @@ class PlayerActivity : ComponentActivity() {
                                 val isPressed by interactionSource.collectIsPressedAsState()
 
                                 // Usiamo solo componenti nativi sicuri al 100%
-                                val borderWidth by animateDpAsState(targetValue = if (isPressed) 3.5.dp else 1.5.dp)
-                                val glowAlpha by animateFloatAsState(targetValue = if (isPressed) 1f else 0.7f)
+                                val borderWidth by animateDpAsState(targetValue = if (isPressed) 4.5.dp else 1.5.dp)
+                                val glowAlpha by animateFloatAsState(targetValue = if (isPressed) 3f else 0.7f)
 
                                 Box(
                                     modifier = Modifier
