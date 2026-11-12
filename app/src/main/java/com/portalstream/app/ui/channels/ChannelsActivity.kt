@@ -1285,12 +1285,12 @@ class ChannelsActivity : ComponentActivity() {
 	                        } else {
 	                            IconButton(
 	                                onClick = onFavoriteToggle,
-	                                modifier = Modifier.size(28.dp)
+	                                modifier = Modifier.size(32.dp)
 	                            ) {
 	                                Icon(
 	                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
 	                                    contentDescription = null,
-	                                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+	                                    tint = if (isFavorite) Color(0xFFFF4081), else MaterialTheme.colorScheme.onSurfaceVariant,
 	                                    modifier = Modifier.size(18.dp)
 	                                )
 	                            }
