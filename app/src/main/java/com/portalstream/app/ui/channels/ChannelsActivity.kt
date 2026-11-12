@@ -586,7 +586,7 @@ class ChannelsActivity : ComponentActivity() {
 								Button(
 									onClick = { showSettingsDialog = false },
 									modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
+									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
 								) {
 									Text(
 									    text = "Chiudi",
@@ -607,7 +607,7 @@ class ChannelsActivity : ComponentActivity() {
 				                .wrapContentHeight(),
 				            shape = RoundedCornerShape(24.dp),
 				            color = MaterialTheme.colorScheme.surface,
-				            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
+                            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
 				        ) {
 				            Column(
 				                modifier = Modifier
@@ -1188,7 +1188,7 @@ class ChannelsActivity : ComponentActivity() {
 	    isFavorite: Boolean,
 	    isLoading: Boolean,
 	    channelTextSize: Float,
-	    logoSize: Int,
+        logoSize: Int,
 	    onFavoriteToggle: () -> Unit,
 	    onPlayClick: () -> Unit,
 	    onLongClick: () -> Unit
@@ -1196,53 +1196,49 @@ class ChannelsActivity : ComponentActivity() {
 	    Card(
 	        modifier = Modifier
 	            .fillMaxWidth()
-	            .padding(horizontal = 12.dp, vertical = 2.dp) // Spazio ridotto tra le card
+	            .padding(horizontal = 12.dp, vertical = 3.dp)
 	            .combinedClickable(
 	                onClick = onPlayClick,
 	                onLongClick = onLongClick
 	            ),
-	        shape = RoundedCornerShape(10.dp), // Angoli compatti
+	        shape = RoundedCornerShape(12.dp),
 	        colors = CardDefaults.cardColors(
 	            containerColor = MaterialTheme.colorScheme.surface,
 	            contentColor = MaterialTheme.colorScheme.onSurface
 	        ),
-	        // Bordo netto e ben visibile per ancorare la card ed eliminare l'effetto "fluttuante"
 	        border = BorderStroke(
 	            width = 1.dp,
 	            color = MaterialTheme.colorScheme.outline
 	        ),
-	        elevation = CardDefaults.cardElevation(
-	            defaultElevation = 0.dp, // Zero ombra
-	            pressedElevation = 0.dp
-	        )
+	        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
 	    ) {
 	        Row(
 	            modifier = Modifier
 	                .fillMaxWidth()
-	                .heightIn(min = 58.dp) // 👈 ALTEZZA RIDOTTA: bagnata e stretta, perfetta come lista professionale
-	                .padding(horizontal = 10.dp, vertical = 4.dp), // 👈 Padding interni super compatti
+	                .padding(horizontal = 10.dp, vertical = 8.dp),
 	            verticalAlignment = Alignment.CenterVertically
 	        ) {
-	            // Logo del canale con il box a contrasto (chiaro in dark mode per far risaltare i loghi scuri)
+	            // 1. LOGO DEL CANALE (Dimensione dinamica)
 	            if (!channel.logoUrl.isNullOrBlank()) {
 	                ChannelLogo(
 	                    logoUrl = channel.logoUrl,
 	                    channelName = channel.name,
-	                    logoSize = logoSize.coerceAtMost(40) // Logo ridimensionato per non gonfiare l'altezza
+	                    logoSize = logoSize
 	                )
-	                Spacer(modifier = Modifier.width(10.dp))
+	                Spacer(modifier = Modifier.width(12.dp))
 	            }
 	
-	            // Testi del canale e EPG
+	            // 2. COLONNA CENTRALE (Testi del canale + Card EPG dinamica)
 	            Column(
 	                modifier = Modifier
 	                    .weight(1f)
-	                    .padding(vertical = 0.dp)
+	                    .fillMaxWidth()
 	            ) {
+	                // Nome del canale (dimensione pilotata da channelTextSize)
 	                Text(
 	                    text = channel.name,
 	                    style = MaterialTheme.typography.titleMedium.copy(
-	                        fontSize = (channelTextSize - 1f).sp, // Testo proporzionato alla nuova altezza
+	                        fontSize = channelTextSize.sp,
 	                        fontWeight = FontWeight.Bold
 	                    ),
 	                    color = MaterialTheme.colorScheme.onSurface,
@@ -1250,87 +1246,109 @@ class ChannelsActivity : ComponentActivity() {
 	                    overflow = TextOverflow.Ellipsis
 	                )
 	                
-	                // Programmazione EPG super compatta
-	                if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
-	                    Spacer(modifier = Modifier.height(1.dp))
-	                    
-	                    Row(
-	                        verticalAlignment = Alignment.CenterVertically,
-	                        modifier = Modifier.fillMaxWidth()
-	                    ) {
-	                        Icon(
-	                            imageVector = Icons.Default.PlayArrow,
-	                            contentDescription = null,
-	                            modifier = Modifier.size(11.dp),
-	                            tint = colorResource(id = R.color.text_neonciano)
-	                        )
-	                        Spacer(modifier = Modifier.width(2.dp))
-	                        Text(
-	                            text = epgInfo.currentProgram,
-	                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 10.sp),
-	                            color = colorResource(id = R.color.text_neonciano),
-	                            maxLines = 1,
-	                            overflow = TextOverflow.Ellipsis,
-	                            modifier = Modifier.weight(1f)
-	                        )
-	                        if (epgInfo.timeRange.isNotBlank()) {
-	                            Spacer(modifier = Modifier.width(4.dp))
-	                            Text(
-	                                text = epgInfo.timeRange,
-	                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-	                                color = colorResource(id = R.color.text_neonciano),
-	                                maxLines = 1
-	                            )
-	                        }
-	                    }
+	                Spacer(modifier = Modifier.height(4.dp))
 	
-	                    if (epgInfo.nextProgram.isNotBlank()) {
-	                        Spacer(modifier = Modifier.height(1.dp))
-	                        Row(
-	                            verticalAlignment = Alignment.CenterVertically,
-	                            modifier = Modifier.fillMaxWidth()
-	                        ) {
-	                            Icon(
-	                                imageVector = Icons.Default.FastForward,
-	                                contentDescription = null,
-	                                modifier = Modifier.size(11.dp),
-	                                tint = colorResource(id = R.color.text_pinkcyber)
-	                            )
-	                            Spacer(modifier = Modifier.width(2.dp))
-	                            Text(
-	                                text = epgInfo.nextProgram,
-	                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
-	                                color = colorResource(id = R.color.text_pinkcyber),
-	                                maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-	                                modifier = Modifier.weight(1f)
-	                            )
-	                            if (epgInfo.nextTimeRange.isNotBlank()) {
+	                // 3. CARD SOTTO LE SCRITTE CON TESTI DINAMICI
+	                val isDark = isSystemInDarkTheme()
+	                val epgContainerBg = if (isDark) Color(0xFF1E293B).copy(alpha = 0.6f) else Color(0xFFF1F5F9)
+	                val epgBorderColor = if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+	
+	                // Calcoliamo le dimensioni dei testi EPG in proporzione a channelTextSize
+	                val epgMainSize = (channelTextSize - 1f).coerceAtLeast(10f).sp
+	                val epgTimeSize = (channelTextSize - 2f).coerceAtLeast(9f).sp
+	
+	                Surface(
+	                    modifier = Modifier.fillMaxWidth(),
+	                    shape = RoundedCornerShape(8.dp),
+	                    color = epgContainerBg,
+	                    border = BorderStroke(1.dp, epgBorderColor)
+	                ) {
+	                    Column(
+	                        modifier = Modifier
+	                            .fillMaxWidth()
+	                            .padding(horizontal = 8.dp, vertical = 6.dp)
+	                    ) {
+	                        if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
+	                            // Programma In Corso (Ciano)
+	                            Row(
+	                                verticalAlignment = Alignment.CenterVertically,
+	                                modifier = Modifier.fillMaxWidth()
+	                            ) {
+	                                Icon(
+	                                    imageVector = Icons.Default.PlayArrow,
+	                                    contentDescription = null,
+	                                    modifier = Modifier.size(12.dp),
+	                                    tint = colorResource(id = R.color.text_neonciano)
+	                                )
 	                                Spacer(modifier = Modifier.width(4.dp))
 	                                Text(
-	                                    text = epgInfo.nextTimeRange,
-	                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-	                                    color = colorResource(id = R.color.text_pinkcyber),
-	                                    maxLines = 1
+	                                    text = epgInfo.currentProgram,
+	                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = epgMainSize),
+	                                    color = colorResource(id = R.color.text_neonciano),
+	                                    maxLines = 1,
+	                                    overflow = TextOverflow.Ellipsis,
+	                                    modifier = Modifier.weight(1f)
 	                                )
+	                                if (epgInfo.timeRange.isNotBlank()) {
+	                                    Spacer(modifier = Modifier.width(6.dp))
+	                                    Text(
+	                                        text = epgInfo.timeRange,
+	                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = epgTimeSize),
+	                                        color = colorResource(id = R.color.text_neonciano),
+	                                        maxLines = 1
+	                                    )
+	                                }
 	                            }
+	
+	                            if (epgInfo.nextProgram.isNotBlank()) {
+	                                Spacer(modifier = Modifier.height(4.dp))
+	                                // Programma Successivo (Fucsia)
+	                                Row(
+	                                    verticalAlignment = Alignment.CenterVertically,
+	                                    modifier = Modifier.fillMaxWidth()
+	                                ) {
+	                                    Icon(
+	                                        imageVector = Icons.Default.FastForward,
+	                                        contentDescription = null,
+	                                        modifier = Modifier.size(12.dp),
+	                                        tint = colorResource(id = R.color.text_pinkcyber)
+	                                    )
+	                                    Spacer(modifier = Modifier.width(4.dp))
+	                                    Text(
+	                                        text = epgInfo.nextProgram,
+	                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = epgMainSize),
+	                                        color = colorResource(id = R.color.text_pinkcyber),
+	                                        maxLines = 1,
+	                                        overflow = TextOverflow.Ellipsis,
+	                                        modifier = Modifier.weight(1f)
+	                                    )
+	                                    if (epgInfo.nextTimeRange.isNotBlank()) {
+	                                        Spacer(modifier = Modifier.width(6.dp))
+	                                        Text(
+	                                            text = epgInfo.nextTimeRange,
+	                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = epgTimeSize),
+	                                            color = colorResource(id = R.color.text_pinkcyber),
+	                                            maxLines = 1
+	                                        )
+	                                    }
+	                                }
+	                            }
+	                        } else {
+	                            Text(
+	                                text = channel.group.ifBlank { "Altro" },
+	                                style = MaterialTheme.typography.bodySmall.copy(fontSize = epgMainSize),
+	                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+	                                maxLines = 1,
+	                                overflow = TextOverflow.Ellipsis
+	                            )
 	                        }
 	                    }
-	                } else {
-	                    Spacer(modifier = Modifier.height(1.dp))
-	                    Text(
-	                        text = channel.group.ifBlank { "Altro" },
-	                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-	                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-	                        maxLines = 1,
-	                        overflow = TextOverflow.Ellipsis
-	                    )
 	                }
 	            }
 	
-	            Spacer(modifier = Modifier.width(6.dp))
+	            Spacer(modifier = Modifier.width(8.dp))
 	
-	            // Pulsante Preferito compatto
+	            // 4. PULSANTE PREFERITO
 	            if (isLoading) {
 	                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
 	            } else {
@@ -1749,4 +1767,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-                                    
