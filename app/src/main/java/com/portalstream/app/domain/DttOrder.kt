@@ -25,17 +25,17 @@ object DttOrder {
         listOf("rai premium"),
         listOf("cielo", "cielo TV", "Cielo Tv", "Cielo TV"),
         listOf("twenty seven", "27 twenty seven", "27", "27 Twenty Seven", "27 TwentySeven", "Twentyseven"),
-        listOf("tv2000", "tv 2000"),
-        listOf("la7d", "la7 d"),
-        listOf("la5", "la 5"),
-        listOf("real time"),
-        listOf("qvc"),
+        listOf("tv2000", "tv 2000", "TV2000", "TV 2000"),
+        listOf("la7d", "la7 d", "LA7 cinema", "La7 Cinema", "La7cinema"),
+        listOf("la5", "la 5", "La 5", "La5", "LA5", "LA 5"),
+        listOf("real time", "Real Time", "RealTime", "Realtime", "REALTIME", "REAL TIME"),
+        listOf("qvc", "Qvc", "QVC"),
         listOf("food network"),
-        listOf("cine34", "cine 34"),
-        listOf("focus"),
+        listOf("cine34", "cine 34", "Cine34", "Cine 34", "CINE 34", "CINE34"),
+        listOf("focus", "Focus", "focus tv", "FOCUS", "FOCUS TV"),
         listOf("rtl 102 5", "rtl 102.5"),
-        listOf("warner tv"),
-        listOf("giallo"),
+        listOf("warner tv","Warner Tv", "WARNER TV"),
+        listOf("giallo", "Giallo", "GIALLO"),
         listOf("top crime", "topcrime"),
         listOf("boing"),
         listOf("k2"),
@@ -53,9 +53,10 @@ object DttOrder {
         listOf("tgcom24", "tgcom 24"),
         listOf("dmax", "d max", "DMAX", "DMax", "Dmax"),
         listOf("Hgtv-Home & Garden", "HGTV-Home & Garden", "HGTV – Home & Garden Tv"),
-        listOf("Motor Trend", "MOTOR TREND", "motor trend", "Turbo", "turbo", "TURBO")
-        
-        // 👆 Aggiungi/sposta qui i canali per raggiungere l'ordine che vuoi
+        listOf("Motor Trend", "MOTOR TREND", "motor trend", "Turbo", "turbo", "TURBO"),
+        listOf("Company Tv", "COMPANY TV", "Company TV", "Company tv"),
+        listOf("Deejay TV", "DEEJAY TV", "Deejay Tv", "Deejay tv"),
+        listOf("
     )
 
     private val noiseWords = setOf(
@@ -64,6 +65,11 @@ object DttOrder {
 
     private val countryPrefix =
         Regex("""^\s*[\[(|]?\s*(it|ita|italia|italy)\s*[\])|:\-]+\s*""", RegexOption.IGNORE_CASE)
+
+    // Regex per intercettare tag di paesi esteri (es. (CH), [ES], (SE), (TR), ecc.)
+    private val foreignCountryRegex = Regex("""[\[(]\s*(ch|es|se|tr|fr|de|uk|us|al|ro)\s*[\])]""", RegexOption.IGNORE_CASE)
+    private val italianTagRegex = Regex("""[\[(]\s*(it|ita|italia|italy)\s*[\])]""", RegexOption.IGNORE_CASE)
+
     private val bracketContent = Regex("""[\[(].*?[\])]""")
     private val nonAlnum = Regex("""[^a-z0-9]+""")
 
@@ -85,6 +91,12 @@ object DttOrder {
         }
     }
 
-    /** Posizione DTT del canale, oppure null se non è nella tabella. */
-    fun rankOf(channelName: String): Int? = rankByName[normalize(channelName)]
+    /** Posizione DTT del canale, oppure null se non è nella tabella o se è un canale straniero. */
+    fun rankOf(channelName: String): Int? {
+        // Se il canale contiene un tag straniero e non specifica [IT], viene escluso dal ranking DTT
+        if (foreignCountryRegex.containsMatchIn(channelName) && !italianTagRegex.containsMatchIn(channelName)) {
+            return null
+        }
+        return rankByName[normalize(channelName)]
+    }
 }
