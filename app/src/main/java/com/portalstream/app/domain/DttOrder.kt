@@ -14,7 +14,7 @@ object DttOrder {
         listOf("rete 4", "Rete 4","Rete4"),                                    // 4
         listOf("canale 5", "Canale 5"),                                  // 5
         listOf("italia 1", "Italia 1"),                                  // 6
-        listOf("la7", "la 7" "La7", "La 7"),                               // 7
+        listOf("la7", "la 7", "La7", "La 7"),                               // 7
         listOf("tv8", "tv 8", "Tv8", "Tv 8"),                               // 8
         listOf("nove", "Nove"),                                 // 9
         listOf("20", "20 mediaset", "mediaset 20"),          // 20
