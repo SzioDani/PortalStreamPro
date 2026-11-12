@@ -1194,6 +1194,12 @@ class ChannelsActivity : ComponentActivity() {
 	    onLongClick: () -> Unit
 	) {
 	    val isDark = isSystemInDarkTheme()
+        // 👈 Colore del bordo esterno: più chiaro in dark mode, più scuro nel tema chiaro
+        val externalBorderColor = if (isDark) {
+            Color(0xFF475569) // Un grigio-azzurro più chiaro e visibile in dark mode (puoi alzarlo o abbassarlo a piacimento)
+        } else {
+            Color(0xFF64748B) // Un grigio più scuro e marcato per il tema chiaro
+        }
 	
 	    // Colore del nome canale dinamico in base al tema
 	    val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
@@ -1228,9 +1234,10 @@ class ChannelsActivity : ComponentActivity() {
 	            containerColor = MaterialTheme.colorScheme.surface,
 	            contentColor = MaterialTheme.colorScheme.onSurface
 	        ),
+            // 👈 Usiamo la variabile personalizzata per il bordo esterno
 	        border = BorderStroke(
 	            width = 1.dp,
-	            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+	            color = externalBorderColor
 	        ),
 	        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
 	    ) {
