@@ -84,7 +84,6 @@ import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
 import com.portalstream.app.R
-import coil.request.ImageRequest
 import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -586,7 +585,7 @@ class ChannelsActivity : ComponentActivity() {
 								Button(
 									onClick = { showSettingsDialog = false },
 									modifier = Modifier.fillMaxWidth(),
-									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
 								) {
 									Text(
 									    text = "Chiudi",
@@ -1181,8 +1180,8 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun StandardChannelCard(
+	@Composable
+	private fun StandardChannelCard(
 	    channel: Channel,
 	    epgInfo: EpgInfo?,
 	    isFavorite: Boolean,
@@ -1243,7 +1242,7 @@ class ChannelsActivity : ComponentActivity() {
 	                    text = channel.name,
 	                    style = MaterialTheme.typography.titleMedium.copy(
 	                        fontSize = (channelTextSize - 1f).sp, // Testo proporzionato alla nuova altezza
-                            fontWeight = FontWeight.Bold
+	                        fontWeight = FontWeight.Bold
 	                    ),
 	                    color = MaterialTheme.colorScheme.onSurface,
 	                    maxLines = 1,
@@ -1302,7 +1301,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, fontSize = 10.sp),
 	                                color = colorResource(id = R.color.text_pinkcyber),
 	                                maxLines = 1,
-	                                overflow = TextOverflow.Ellipsis,
+                                    overflow = TextOverflow.Ellipsis,
 	                                modifier = Modifier.weight(1f)
 	                            )
 	                            if (epgInfo.nextTimeRange.isNotBlank()) {
@@ -1350,7 +1349,148 @@ class ChannelsActivity : ComponentActivity() {
 	    }
 	}
 
-	@Composable
+    @Composable
+    private fun ChannelCard(
+        channel: Channel,
+        epgPrograms: List<EpgProgram>,
+        epgTextSize: Float,
+        onPlayClick: () -> Unit,
+        onLongClick: () -> Unit
+    ) {
+        val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+        val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
+        var expandedProgramKey by remember { mutableStateOf<String?>(null) }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), shape = RoundedCornerShape(16.dp))
+                .combinedClickable(
+                    onClick = onPlayClick,
+                    onLongClick = onLongClick
+                ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = channel.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = (epgTextSize + 2f).sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Avvia",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                if (epgPrograms.isEmpty()) {
+                    Text(
+                        text = "Nessun palinsesto caricato per oggi.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = epgTextSize.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        epgPrograms.forEach { prog ->
+                            val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
+                            val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
+                            val progKey = "${prog.title}_${prog.startTime}"
+                            val isExpanded = expandedProgramKey == progKey
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        color = if (isCurrent) 
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+                                        else
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    )
+                                    .clickable {
+                                        expandedProgramKey = if (isExpanded) null else progKey
+                                    }
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = prog.title,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        if (isCurrent) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = " IN CORSO ",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    
+                                    Text(
+                                        text = timeRange,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+
+                                if (!prog.description.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = prog.description.replace("\\t", " "),
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 2f).sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                                        overflow = if (isExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    @Composable
 	private fun ChannelLogo(
 	    logoUrl: String?,
 	    channelName: String,
@@ -1391,8 +1531,8 @@ class ChannelsActivity : ComponentActivity() {
 	    }
 	}
 
-    @Composable
-    private fun ChannelDetailsDialog(
+        @Composable
+        private fun ChannelDetailsDialog(
         channel: Channel,
         availableEpgMappings: List<EpgChannelMapping>,
         onDismiss: () -> Unit,
@@ -1608,5 +1748,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-
-
+                                    
