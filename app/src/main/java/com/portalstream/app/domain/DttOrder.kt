@@ -14,15 +14,15 @@ object DttOrder {
         listOf("rete 4", "Rete 4","Rete4"),                                    // 4
         listOf("canale 5", "Canale 5"),                                  // 5
         listOf("italia 1", "Italia 1"),                                  // 6
-        listOf("la7", "la 7"),                               // 7
-        listOf("tv8", "tv 8"),                               // 8
-        listOf("nove", "9"),                                 // 9
+        listOf("la7", "la 7" "La7", "La 7"),                               // 7
+        listOf("tv8", "tv 8", "Tv8", "Tv 8"),                               // 8
+        listOf("nove", "Nove"),                                 // 9
         listOf("20", "20 mediaset", "mediaset 20"),          // 20
-        listOf("rai 4"),
-        listOf("iris"),
-        listOf("rai 5"),
-        listOf("rai movie"),
-        listOf("rai premium"),
+        listOf("rai 4", "Rai4", "Rai 4"),
+        listOf("iris", "Iris"),
+        listOf("rai 5", "Rai5", "Rai 5"),
+        listOf("rai movie", "RaiMovie", "Rai Movie"),
+        listOf("rai premium", "RaiPremium", "Rai Premium"),
         listOf("cielo", "cielo TV", "Cielo Tv", "Cielo TV"),
         listOf("twenty seven", "27 twenty seven", "27", "27 Twenty Seven", "27 TwentySeven", "Twentyseven"),
         listOf("tv2000", "tv 2000", "TV2000", "TV 2000"),
@@ -30,34 +30,36 @@ object DttOrder {
         listOf("la5", "la 5", "La 5", "La5", "LA5", "LA 5"),
         listOf("real time", "Real Time", "RealTime", "Realtime", "REALTIME", "REAL TIME"),
         listOf("qvc", "Qvc", "QVC"),
-        listOf("food network"),
+        listOf("food network", "Food Network", "Food network"),
         listOf("cine34", "cine 34", "Cine34", "Cine 34", "CINE 34", "CINE34"),
         listOf("focus", "Focus", "focus tv", "FOCUS", "FOCUS TV"),
         listOf("rtl 102 5", "rtl 102.5"),
         listOf("warner tv","Warner Tv", "WARNER TV"),
         listOf("giallo", "Giallo", "GIALLO"),
         listOf("top crime", "topcrime"),
-        listOf("boing"),
-        listOf("k2"),
-        listOf("rai gulp"),
-        listOf("rai yoyo"),
-        listOf("frisbee"),
-        listOf("cartoonito"),
-        listOf("super"),
-        listOf("rai news 24", "rai news"),
-        listOf("rai storia"),
+        listOf("boing", "Boing"),
+        listOf("k2", "K2"),
+        listOf("rai gulp", "Rai Gulp", "Rai gulp"),
+        listOf("rai yoyo", "Rai Yoyo", " Rai yoyo"),
+        listOf("frisbee", "Frisbee"),
+        listOf("cartoonito", "Cartoonito"),
+        listOf("super", "Super"),
+        listOf("rai news 24", "rai news", "Rai News", "Rai news"),
+        listOf("rai storia", "Rai Storia", " Rai storia"),
         listOf("mediaset italia 2", "italia 2"),
-        listOf("rai sport"),
-        listOf("rai scuola"),
-        listOf("sky tg24", "sky tg 24"),
-        listOf("tgcom24", "tgcom 24"),
+        listOf("rai sport", "Rai Sport", "Rai sport"),
+        listOf("rai scuola", "Rai Scuola", "Rai scuola"),
+        listOf("sky tg24", "sky tg 24", "Sky Tg24", "Sky tg24"),
+        listOf("tgcom24", "tgcom 24", "TgCom", " Tgcom"),
         listOf("dmax", "d max", "DMAX", "DMax", "Dmax"),
         listOf("Hgtv-Home & Garden", "HGTV-Home & Garden", "HGTV – Home & Garden Tv"),
         listOf("Motor Trend", "MOTOR TREND", "motor trend", "Turbo", "turbo", "TURBO"),
         listOf("Company Tv", "COMPANY TV", "Company TV", "Company tv"),
         listOf("Deejay TV", "DEEJAY TV", "Deejay Tv", "Deejay tv"),
-        listOf("
+        listOf("R101", "r101"),
+        listOf("Radio 105", "radio 105", "Radio 105 Tv", "Radio 105 TV")
     )
+    
 
     private val noiseWords = setOf(
         "hd", "fhd", "uhd", "4k", "sd", "hevc", "h265", "h264", "fullhd", "raw"
