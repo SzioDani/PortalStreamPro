@@ -102,7 +102,7 @@ class PortalStore(context: Context) {
             prefix = "[\n ",
             postfix = "\n]"
         )
-        val cleanedString = finalString.replace("\\/", "/")
+        val cleanedString = finalString.replace("\\", "")
         file.writeText(cleanedString)
     }
 }
