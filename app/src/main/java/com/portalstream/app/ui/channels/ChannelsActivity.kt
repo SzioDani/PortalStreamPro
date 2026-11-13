@@ -1206,9 +1206,9 @@ class ChannelsActivity : ComponentActivity() {
 	
 	    // Calibrazione colori cornice interna per Tema Chiaro e Tema Scuro
 	    val innerFrameBg = if (isDark) {
-	        Color(0xFF3f4554) // Sfondo scuro
+	        Color(0xFF383E4B) // Sfondo scuro del fondo 
 	    } else {
-	        Color(0xFFE5E5E5) // Sfondo chiaro pulito
+	        Color(0xFFEAEAEA) // Sfondo chiaro pulito del fondo 
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
@@ -1557,11 +1557,12 @@ class ChannelsActivity : ComponentActivity() {
 	) {
 	    val isDark = isSystemInDarkTheme()
 	    
-	    val containerBgDark = 0xFF334155
-	    val containerBgLight = 0xFF475569
+	    val containerBgDark = 0xFFC6C8C9
+	    val containerBgLight = 0xFFA3AAB4
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
-	    val borderColor = if (isDark) Color(0xFF475569) else Color(0xFF64748B)
+	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
+        )
 	
 	    Box(
 	        modifier = modifier
@@ -1573,7 +1574,7 @@ class ChannelsActivity : ComponentActivity() {
 	                color = borderColor,
 	                shape = RoundedCornerShape(10.dp)
 	            )
-	            .padding(6.dp),
+	            .padding(4.dp),
 	        contentAlignment = Alignment.Center
 	    ) {
 	        AsyncImage(
