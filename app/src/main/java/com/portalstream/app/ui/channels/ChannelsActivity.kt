@@ -1318,8 +1318,18 @@ class ChannelsActivity : ComponentActivity() {
 	                    // Dimensioni dinamiche proporzionate
 	                    val epgMainSize = (channelTextSize - 4f).coerceAtLeast(8f).sp
 	                    val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(8f).sp
-	
-	                    // Riga inferiore: EPG a tutta larghezza
+                        // Definisci i colori dinamici in base al tema
+                        val currentProgColor = if (isDark) {
+                            Color(0xFF00E5FF) // Ciano brillante per il tema scuro
+                        } else {
+                            Color(0xFF00838F) // Ciano profondo e ben leggibile per il tema chiaro
+                        }
+                        val nextProgColor = if (isDark) {
+                            Color(0xFFFF4081) // Rosa/Fucsia vivace per il tema scuro
+                        } else {
+                            Color(0xFFC2185B) // Rosa/Magenta intenso e marcato per il tema chiaro
+                        }              	
+                        // Riga inferiore: EPG a tutta larghezza
 	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
 	                        // Programma in corso
 	                        Row(
