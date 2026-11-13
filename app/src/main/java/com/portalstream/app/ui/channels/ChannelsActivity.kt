@@ -1304,7 +1304,7 @@ class ChannelsActivity : ComponentActivity() {
                                             Color(0xFFFF4081)
                                         } else {
                                             if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-                                        }
+                                        },
 	                                    modifier = Modifier.size(22.dp)
 	                                )
 	                            }
