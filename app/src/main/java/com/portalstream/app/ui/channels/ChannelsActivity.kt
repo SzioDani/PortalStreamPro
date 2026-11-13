@@ -1210,7 +1210,7 @@ class ChannelsActivity : ComponentActivity() {
 	    val innerFrameBg = if (isDark) {
 	        Color(0xFF383E4B) // Sfondo scuro del fondo 
 	    } else {
-	        Color(0xFFC8C8C8) // Sfondo chiaro pulito del fondo 
+	        Color(0xFFD3D3D3) // Sfondo chiaro pulito del fondo 
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
