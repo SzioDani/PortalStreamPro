@@ -1257,24 +1257,12 @@ class ChannelsActivity : ComponentActivity() {
 	                verticalAlignment = Alignment.CenterVertically
 	            ) {
 	                // 1. LOGO A SINISTRA
-	                if (!channel.logoUrl.isNullOrBlank()) {
-	                    Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            // Sfondo scuro neutro: fa risaltare i loghi bianchi senza nascondere quelli scuril
-                            color = Color(0xFF1E2229), 
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(6.dp), // Un po' di respiro intorno al logo
-                                contentAlignment = Alignment.Center
-                            ) {
-                                ChannelLogo(
-                                    logoUrl = channel.logoUrl,
-                                    channelName = channel.name,
-                                    logoSize = logoSize
-                                )
-                            }
-                        }
+	                if (!channel.logoUrl.isNullOrBlank()) {  
+                        ChannelLogo(
+                            logoUrl = channel.logoUrl,
+                            channelName = channel.name,
+                            logoSize = logoSize
+                        )   
 	                    Spacer(modifier = Modifier.width(10.dp))
 	                }
 	
@@ -1569,11 +1557,11 @@ class ChannelsActivity : ComponentActivity() {
 	) {
 	    val isDark = isSystemInDarkTheme()
 	    
-	    val containerBgDark = 0xFFF8FAFC 
-	    val containerBgLight = 0xFFFFFFFF 
+	    val containerBgDark = 0xFF334155
+	    val containerBgLight = 0xFF475569
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
-	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
+	    val borderColor = if (isDark) Color(0xFF475569) else Color(0xFF64748B)
 	
 	    Box(
 	        modifier = modifier
@@ -1585,7 +1573,7 @@ class ChannelsActivity : ComponentActivity() {
 	                color = borderColor,
 	                shape = RoundedCornerShape(10.dp)
 	            )
-	            .padding(4.dp),
+	            .padding(6.dp),
 	        contentAlignment = Alignment.Center
 	    ) {
 	        AsyncImage(
