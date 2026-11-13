@@ -1274,7 +1274,7 @@ class ChannelsActivity : ComponentActivity() {
                                     logoSize = logoSize
                                 )
                             }
-                        }
+                        )
 	                    Spacer(modifier = Modifier.width(10.dp))
 	                }
 	
