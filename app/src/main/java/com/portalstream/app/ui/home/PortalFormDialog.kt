@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
 
@@ -78,13 +77,10 @@ fun AddPortalTypeDialog(
     onSelect: (PortalType) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false) // <-- Blocca i rimbalzi e i resize indesiderati
-    ) {
+    Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(300.dp) // Rimane esattamente la larghezza che avevi scelto
+                .width(300.dp)
                 .border(
                     width = 1.5.dp,
                     color = NeonCyan,
