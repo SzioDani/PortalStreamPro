@@ -1269,12 +1269,12 @@ class ChannelsActivity : ComponentActivity() {
                                 contentAlignment = Alignment.Center
                             ) {
                                 ChannelLogo(
-                                    logoUrl = channel.logoUrl
+                                    logoUrl = channel.logoUrl,
                                     channelName = channel.name,
                                     logoSize = logoSize
                                 )
                             }
-                        )
+                        }
 	                    Spacer(modifier = Modifier.width(10.dp))
 	                }
 	
