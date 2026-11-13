@@ -1258,7 +1258,7 @@ class ChannelsActivity : ComponentActivity() {
 	            ) {
 	                // 1. LOGO A SINISTRA
 	                if (!channel.logoUrl.isNullOrBlank()) {
-	                    ChannelLogo(
+	                    Surface(
                             shape = RoundedCornerShape(8.dp),
                             // Sfondo scuro neutro: fa risaltare i loghi bianchi senza nascondere quelli scuril
                             color = Color(0xFF1E2229), 
