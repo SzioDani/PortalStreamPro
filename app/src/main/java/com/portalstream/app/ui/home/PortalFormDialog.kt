@@ -80,7 +80,7 @@ fun AddPortalTypeDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(300.dp)
+                .widthIn(min = 280.dp, max = 340.dp) // Larghezza flessibile invece di fissa
                 .border(
                     width = 1.5.dp,
                     color = NeonCyan,
@@ -106,59 +106,31 @@ fun AddPortalTypeDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                TextButton(
-                    onClick = { onSelect(PortalType.M3U) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "FILE O LINK PLAYLIST",
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                PortalButton(
+                    text = "FILE O LINK PLAYLIST",
+                    onClick = { onSelect(PortalType.M3U) }
+                )
 
                 Spacer(Modifier.height(8.dp))
 
-                TextButton(
-                    onClick = { onSelect(PortalType.MAG) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "MAG PORTALE",
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                PortalButton(
+                    text = "MAG PORTALE",
+                    onClick = { onSelect(PortalType.MAG) }
+                )
 
                 Spacer(Modifier.height(8.dp))
 
-                TextButton(
-                    onClick = { onSelect(PortalType.XSTREAM) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "XTREAM CODES PORTAL",
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                PortalButton(
+                    text = "XTREAM CODES PORTAL",
+                    onClick = { onSelect(PortalType.XSTREAM) }
+                )
 
                 Spacer(Modifier.height(8.dp))
 
-                TextButton(
-                    onClick = { onSelect(PortalType.TORRENT) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "TORRENT STREAM",
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                PortalButton(
+                    text = "TORRENT STREAM",
+                    onClick = { onSelect(PortalType.TORRENT) }
+                )
 
                 Spacer(Modifier.height(16.dp))
 
@@ -174,6 +146,27 @@ fun AddPortalTypeDialog(
                 }
             }
         }
+    }
+}
+
+// Componibile di supporto per evitare ripetizioni e gestire correttamente il testo lungo
+@Composable
+private fun PortalButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2, // Impedisce al testo di espandersi all'infinito in altezza
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
