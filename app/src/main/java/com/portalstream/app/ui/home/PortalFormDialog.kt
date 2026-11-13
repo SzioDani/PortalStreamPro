@@ -238,79 +238,110 @@ fun PortalFormDialog(
         checkmarkColor = Color.Black
     )
 
-    Dialog(onDismissRequest = onDismiss) {
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ){
-        Surface(
-            modifier = Modifier
-                .width(350.dp)
-                .border(
-                    width = 1.5.dp,
-                    color = NeonCyan,
-                    shape = RoundedCornerShape(24.dp)
-                ),
-            shape = RoundedCornerShape(24.dp),
-            color = DarkBg,
-            tonalElevation = 6.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nome Playlist (opzionale)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = textFieldColors
-                )
-                Spacer(Modifier.height(8.dp))
-
-                when (type) {
-                    PortalType.M3U -> {
-                        OutlinedTextField(
-                            value = url,
-                            onValueChange = { url = it },
-                            label = { Text("Link della playlist") },
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
-                            singleLine = true,
-                            colors = textFieldColors
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+    Dialog(
+	    onDismissRequest = onDismiss,
+	    properties = DialogProperties(usePlatformDefaultWidth = false) // <-- Spostato correttamente dentro la tonda del Dialog
+	) {
+	    Surface(
+	        modifier = Modifier
+	            .width(350.dp)
+	            .border(
+	                width = 1.5.dp,
+	                color = NeonCyan,
+	                shape = RoundedCornerShape(24.dp)
+	            ),
+	        shape = RoundedCornerShape(24.dp),
+	        color = DarkBg,
+	        tonalElevation = 6.dp
+	    ) {
+	        Column(
+	            modifier = Modifier
+	                .fillMaxWidth()
+	                .padding(horizontal = 18.dp, vertical = 16.dp)
+	                .verticalScroll(rememberScrollState())
+	        ) {
+	            Text(
+	                text = title,
+	                style = MaterialTheme.typography.titleLarge,
+	                color = Color.White,
+	                fontWeight = FontWeight.Bold,
+	                modifier = Modifier.fillMaxWidth(),
+	                textAlign = TextAlign.Center
+	            )
+	
+	            Spacer(Modifier.height(12.dp))
+	
+	            OutlinedTextField(
+	                value = name,
+	                onValueChange = { name = it },
+	                label = { Text("Nome Playlist (opzionale)") },
+	                modifier = Modifier.fillMaxWidth(),
+	                singleLine = true,
+	                colors = textFieldColors
+	            )
+	            Spacer(Modifier.height(8.dp))
+	
+	            when (type) {
+	                PortalType.M3U -> {
+	                    OutlinedTextField(
+	                        value = url,
+	                        onValueChange = { url = it },
+	                        label = { Text("Link della playlist") },
+	                        modifier = Modifier.fillMaxWidth(),
+	                        textStyle = TextStyle(fontSize = 13.sp),
+	                        singleLine = true,
+	                        colors = textFieldColors
+	                    )
+	                    Spacer(Modifier.height(6.dp))
+	                    Row(
+	                        modifier = Modifier.fillMaxWidth(),
+	                        horizontalArrangement = Arrangement.SpaceBetween
+	                    ) {
+	                        OutlinedButton(
+	                            onClick = { clipboard.getText()?.text?.let { url = it } },
+	                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
+	                        ) {
+	                            Text("Incolla", color = Color.White)
+	                        }
+	                        OutlinedButton(
+	                            onClick = onPickFile,
+	                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
+	                        ) {
+	                            Text("Sfoglia file", color = Color.White)
+	                        }
+	                    }
+	                    Spacer(Modifier.height(4.dp))
+	                }
+                PortalType.TORRENT -> {
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = { Text("InfoHash o Magnet") },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(fontSize = 13.sp),
+                        singleLine = true,
+                        colors = textFieldColors
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        OutlinedButton(
+                            onClick = { clipboard.getText()?.text?.let { url = it } },
+                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
                         ) {
-                            OutlinedButton(
-                                onClick = { clipboard.getText()?.text?.let { url = it } },
-                                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
-                            ) {
-                                Text("Incolla", color = Color.White)
-                            }
-                            OutlinedButton(
-                                onClick = onPickFile,
-                                border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
-                            ) {
-                                Text("Sfoglia file", color = Color.White)
-                            }
+                            Text("Incolla", color = Color.White)
                         }
-                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = onPickFile,
+                            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
+                        ) {
+                            Text("Sfoglia file", color = Color.White)
+                        }
                     }
+                    Spacer(Modifier.height(4.dp))
+                }
                     PortalType.TORRENT -> {
                         OutlinedTextField(
                             value = url,
