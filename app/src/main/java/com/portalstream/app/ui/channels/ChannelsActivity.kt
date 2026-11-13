@@ -887,6 +887,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             ),
+                                            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onSurface),
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
