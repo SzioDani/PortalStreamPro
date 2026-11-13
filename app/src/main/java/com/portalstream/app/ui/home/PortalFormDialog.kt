@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.PortalType
 
@@ -77,10 +78,13 @@ fun AddPortalTypeDialog(
     onSelect: (PortalType) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false) // <-- Blocca i rimbalzi e i resize indesiderati
+    ) {
         Surface(
             modifier = Modifier
-                .widthIn(min = 280.dp, max = 340.dp) // Larghezza flessibile invece di fissa
+                .width(300.dp) // Rimane esattamente la larghezza che avevi scelto
                 .border(
                     width = 1.5.dp,
                     color = NeonCyan,
@@ -106,31 +110,59 @@ fun AddPortalTypeDialog(
 
                 Spacer(Modifier.height(20.dp))
 
-                PortalButton(
-                    text = "FILE O LINK PLAYLIST",
-                    onClick = { onSelect(PortalType.M3U) }
-                )
+                TextButton(
+                    onClick = { onSelect(PortalType.M3U) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "FILE O LINK PLAYLIST",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(Modifier.height(8.dp))
 
-                PortalButton(
-                    text = "MAG PORTALE",
-                    onClick = { onSelect(PortalType.MAG) }
-                )
+                TextButton(
+                    onClick = { onSelect(PortalType.MAG) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "MAG PORTALE",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(Modifier.height(8.dp))
 
-                PortalButton(
-                    text = "XTREAM CODES PORTAL",
-                    onClick = { onSelect(PortalType.XSTREAM) }
-                )
+                TextButton(
+                    onClick = { onSelect(PortalType.XSTREAM) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "XTREAM CODES PORTAL",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(Modifier.height(8.dp))
 
-                PortalButton(
-                    text = "TORRENT STREAM",
-                    onClick = { onSelect(PortalType.TORRENT) }
-                )
+                TextButton(
+                    onClick = { onSelect(PortalType.TORRENT) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "TORRENT STREAM",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
 
                 Spacer(Modifier.height(16.dp))
 
@@ -146,27 +178,6 @@ fun AddPortalTypeDialog(
                 }
             }
         }
-    }
-}
-
-// Componibile di supporto per evitare ripetizioni e gestire correttamente il testo lungo
-@Composable
-private fun PortalButton(
-    text: String,
-    onClick: () -> Unit
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            maxLines = 2, // Impedisce al testo di espandersi all'infinito in altezza
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
