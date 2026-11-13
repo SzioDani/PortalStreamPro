@@ -239,9 +239,11 @@ fun PortalFormDialog(
     )
 
     Dialog(onDismissRequest = onDismiss) {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ){
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
+                .width(350.dp)
                 .border(
                     width = 1.5.dp,
                     color = NeonCyan,
@@ -286,7 +288,7 @@ fun PortalFormDialog(
                             label = { Text("Link della playlist") },
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(fontSize = 13.sp),
-                            maxLines = 2,
+                            singleLine = true,
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(6.dp))
