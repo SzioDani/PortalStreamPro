@@ -1562,7 +1562,6 @@ class ChannelsActivity : ComponentActivity() {
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
 	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
-    )
 	    Box(
 	        modifier = modifier
 	            .size(logoSize.dp)
