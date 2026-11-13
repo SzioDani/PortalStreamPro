@@ -245,7 +245,7 @@ fun PortalFormDialog(
 	) {
 	    Surface(
 	        modifier = Modifier
-	            .width(350.dp)
+	            .width(300.dp)
 	            .border(
 	                width = 1.5.dp,
 	                color = NeonCyan,
