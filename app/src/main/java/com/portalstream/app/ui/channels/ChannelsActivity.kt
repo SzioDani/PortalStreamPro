@@ -1259,10 +1259,22 @@ class ChannelsActivity : ComponentActivity() {
 	                // 1. LOGO A SINISTRA
 	                if (!channel.logoUrl.isNullOrBlank()) {
 	                    ChannelLogo(
-	                        logoUrl = channel.logoUrl,
-	                        channelName = channel.name,
-	                        logoSize = logoSize
-	                    )
+                            shape = RoundedCornerShape(8.dp),
+                            // Sfondo scuro neutro: fa risaltare i loghi bianchi senza nascondere quelli scuril
+                            color = Color(0xFF1E2229), 
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(6.dp), // Un po' di respiro intorno al logo
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ChannelLogo(
+                                    logoUrl = channel.logoUrl
+                                    channelName = channel.name,
+                                    logoSize = logoSize
+                                )
+                            }
+                        }
 	                    Spacer(modifier = Modifier.width(10.dp))
 	                }
 	
