@@ -133,15 +133,15 @@ class ChannelsActivity : ComponentActivity() {
             val darkTheme = appTheme == "dark"
 
             var channelTextSize by remember { mutableStateOf(appPrefs.getFloat("channel_text_size", 16f)) }
-            var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
+            var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 52)) }
             var epgTextSize by remember { mutableStateOf(appPrefs.getFloat("epg_text_size", 14f)) }
             
             // TEMA CHIARO PROFESSIONALE
             val customLightScheme = lightColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFF1F5F9),
-                surface = Color(0xFFF0F8FF),
+                background = Color(0xFFD8DCE0),
+                surface = Color(0xFFFFFFFF),
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFE2E8F0),
