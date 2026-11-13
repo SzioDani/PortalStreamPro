@@ -1208,7 +1208,7 @@ class ChannelsActivity : ComponentActivity() {
 	    val innerFrameBg = if (isDark) {
 	        Color(0xFF383E4B) // Sfondo scuro del fondo 
 	    } else {
-	        Color(0xFFEAEAEA) // Sfondo chiaro pulito del fondo 
+	        Color(0xFFFAFAFA) // Sfondo chiaro pulito del fondo 
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
@@ -1295,14 +1295,17 @@ class ChannelsActivity : ComponentActivity() {
 	                        } else {
 	                            IconButton(
 	                                onClick = onFavoriteToggle,
-	                                modifier = Modifier.size(32.dp)
+	                                modifier = Modifier.size(36.dp)
 	                            ) {
 	                                Icon(
 	                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
 	                                    contentDescription = null,
-	                                    tint = if (isFavorite) Color(0xFFFF4081) 
-	                                            else MaterialTheme.colorScheme.onSurfaceVariant,
-	                                    modifier = Modifier.size(18.dp)
+	                                    tint = if (isFavorite) {
+                                            Color(0xFFFF4081)
+                                        } else {
+                                            if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                        }
+	                                    modifier = Modifier.size(22.dp)
 	                                )
 	                            }
 	                        }
@@ -1557,8 +1560,8 @@ class ChannelsActivity : ComponentActivity() {
 	) {
 	    val isDark = isSystemInDarkTheme()
 	    
-	    val containerBgDark = 0xFFC6C8C9
-	    val containerBgLight = 0xFFA3AAB4
+	    val containerBgDark = 0xFFB2B4B4
+	    val containerBgLight = 0xFF9299A2
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
 	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
