@@ -1126,6 +1126,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 isLoading = loadingChannelId == channel.id,
                                                 channelTextSize = channelTextSize,
                                                 logoSize = logoSize,
+                                                isDark = darkTheme,
                                                 onFavoriteToggle = {
                                                     val newFavs = if (favoriteIds.contains(channel.id)) favoriteIds - channel.id else favoriteIds + channel.id
                                                     favoriteIds = newFavs
@@ -1189,11 +1190,11 @@ class ChannelsActivity : ComponentActivity() {
 	    isLoading: Boolean,
 	    channelTextSize: Float,
 	    logoSize: Int,
+        isDark: Boolean,
         onFavoriteToggle: () -> Unit,
 	    onPlayClick: () -> Unit,
 	    onLongClick: () -> Unit
 	) {
-	    val isDark = isSystemInDarkTheme()
         // 👈 Colore del bordo esterno: più chiaro in dark mode, più scuro nel tema chiaro
         val externalBorderColor = if (isDark) {
             Color(0xFF475569) // Un grigio-azzurro più chiaro e visibile in dark mode (puoi alzarlo o abbassarlo a piacimento)
