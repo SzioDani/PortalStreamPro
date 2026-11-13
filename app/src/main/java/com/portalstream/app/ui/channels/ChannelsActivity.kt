@@ -141,7 +141,7 @@ class ChannelsActivity : ComponentActivity() {
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
                 background = Color(0xFFF1F5F9),
-                surface = Color(0xFFFFFFFF),
+                surface = Color(0xFFF0F8FF),
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFE2E8F0),
@@ -1209,7 +1209,7 @@ class ChannelsActivity : ComponentActivity() {
 	    val innerFrameBg = if (isDark) {
 	        Color(0xFF383E4B) // Sfondo scuro del fondo 
 	    } else {
-	        Color(0xFFFAFAFA) // Sfondo chiaro pulito del fondo 
+	        Color(0xFFC8C8C8) // Sfondo chiaro pulito del fondo 
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
