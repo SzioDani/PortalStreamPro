@@ -145,7 +145,7 @@ class ChannelsActivity : ComponentActivity() {
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFE2E8F0),
-                outline = Color(0xFFA2AAB4)
+                outline = Color(0xFF475569)
             )
 
             // TEMA SCURO OTTIMIZZATO
