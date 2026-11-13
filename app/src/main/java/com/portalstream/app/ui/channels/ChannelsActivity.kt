@@ -1322,12 +1322,12 @@ class ChannelsActivity : ComponentActivity() {
                         val currentProgColor = if (isDark) {
                             Color(0xFF00E5FF) // Ciano brillante per il tema scuro
                         } else {
-                            Color(0xFF00838F) // Ciano profondo e ben leggibile per il tema chiaro
+                            Color(0xFF00B8D4) // Ciano profondo e ben leggibile per il tema chiaro
                         }
                         val nextProgColor = if (isDark) {
-                            Color(0xFFFF4081) // Rosa/Fucsia vivace per il tema scuro
+                            Color(0xFFFF2DAA) // Rosa/Fucsia vivace per il tema scuro
                         } else {
-                            Color(0xFFC2185B) // Rosa/Magenta intenso e marcato per il tema chiaro
+                            Color(0xFFFF0090) // Rosa/Magenta intenso e marcato per il tema chiaro
                         }              	
                         // Riga inferiore: EPG a tutta larghezza
 	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
