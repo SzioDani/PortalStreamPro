@@ -394,7 +394,7 @@ class ChannelsActivity : ComponentActivity() {
                                         // 🎨 COLORI DEDICATI SOLO A QUESTO MENÙ (niente più bianco sparato!)
                     // Nel tema chiaro usa un Grigio-Ardesia morbido (0xFFD4DEE8) che fa risaltare i bottoni Neon.
                     // (Se invece vuoi questo menù SEMPRE scuro anche col tema chiaro, metti Color(0xFF182234) al posto di 0xFFD4DEE8)
-                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFF182234)
+                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFD4DEE8)
                     val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFFE4ECF4)
                     val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
                     val menuTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
@@ -728,7 +728,7 @@ class ChannelsActivity : ComponentActivity() {
 				                .wrapContentHeight(),
 				            shape = RoundedCornerShape(24.dp),
 				            color = MaterialTheme.colorScheme.surface,
-				            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
+                            border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
 				        ) {
 				            Column(
 				                modifier = Modifier
@@ -900,7 +900,7 @@ class ChannelsActivity : ComponentActivity() {
 				                Spacer(modifier = Modifier.height(4.dp))
 				
 				                // Pulsante Chiudi in basso
-                                Button(
+				                Button(
 				                    onClick = { showGroupDialog = false },
 				                    modifier = Modifier.fillMaxWidth(),
 				                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -967,14 +967,24 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
+                            val isSearching = searchQuery.isNotEmpty()
+                            val searchBarBg = if (darkTheme) Color(0xFF161922) else Color(0xFFD4DEE8)
+                            val searchBarBorder = if (isSearching) {
+                                Color(0xFF00E5FF)
+                            } else {
+                                if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFA3B4C8)
+                            }
+                            val searchTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                            val searchHintColor = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
+
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(44.dp)
+                                    .height(46.dp)
                                     .padding(bottom = if (isLandscape) 4.dp else 8.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                shape = RoundedCornerShape(14.dp),
+                                color = searchBarBg,
+                                border = BorderStroke(if (isSearching) 1.5.dp else 1.dp, searchBarBorder)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -986,7 +996,7 @@ class ChannelsActivity : ComponentActivity() {
                                         imageVector = Icons.Default.Search,
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = if (isSearching) Color(0xFF00E5FF) else searchHintColor
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
@@ -997,7 +1007,7 @@ class ChannelsActivity : ComponentActivity() {
                                             Text(
                                                 text = "Cerca canale...",
                                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                color = searchHintColor
                                             )
                                         }
                                         BasicTextField(
@@ -1005,38 +1015,40 @@ class ChannelsActivity : ComponentActivity() {
                                             onValueChange = { searchQuery = it },
                                             singleLine = true,
                                             textStyle = MaterialTheme.typography.bodySmall.copy(
-                                                fontSize = 13.sp,
-                                                color = MaterialTheme.colorScheme.onSurface
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = searchTextColor
                                             ),
-                                            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onSurface),
+                                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF00E5FF)),
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
-                                    if (searchQuery.isNotEmpty()) {
+                                    if (isSearching) {
                                         IconButton(
                                             onClick = { searchQuery = "" },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(26.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Clear,
                                                 contentDescription = "Cancella",
                                                 modifier = Modifier.size(16.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = Color(0xFFEF4444)
                                             )
                                         }
                                     }
                                 }
                             }
 
+                            // --- I 3 BOTTONI FILTRO IN STILE NEON CYBER ---
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = if (isLandscape) 6.dp else 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                FilterChip(
-                                    selected = showOnlyFavorites,
+                                // 1. Bottone PREFERITI (Rosa/Fucsia Neon)
+                                NeonCyberChip(
                                     onClick = {
                                         showOnlyFavorites = !showOnlyFavorites
                                         if (showOnlyFavorites) {
@@ -1044,29 +1056,58 @@ class ChannelsActivity : ComponentActivity() {
                                             showOnlyEpg = false
                                         }
                                     },
-                                    label = { 
-                                        Text("Preferiti", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis)
-                                    },
-                                    leadingIcon = {
-                                        Icon(imageVector = Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    },
-                                    modifier = Modifier.weight(1f)     
-                                )
-
-                                FilterChip(
-                                    selected = selectedGroup != null,
-                                    onClick = { showGroupDialog = true },
-                                    label = { 
-                                        Text(text = selectedGroup ?: "Gruppi", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis)
-                                    },
-                                    leadingIcon = {
-                                        Icon(imageVector = Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    },
+                                    isActive = showOnlyFavorites,
+                                    activeColor = Color(0xFFFF2DAA),
+                                    cornerRadius = 12.dp,
+                                    height = 38.dp,
                                     modifier = Modifier.weight(1f)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = if (showOnlyFavorites) Color(0xFFFF2DAA) else Color.LightGray
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "Preferiti",
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (showOnlyFavorites) Color.White else Color.LightGray,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
-                                FilterChip(
-                                    selected = showOnlyEpg,
+                                // 2. Bottone GRUPPI (Ciano Neon)
+                                val isGroupActive = selectedGroup != null
+                                NeonCyberChip(
+                                    onClick = { showGroupDialog = true },
+                                    isActive = isGroupActive,
+                                    activeColor = Color(0xFF00E5FF),
+                                    cornerRadius = 12.dp,
+                                    height = 38.dp,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.List,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = if (isGroupActive) Color(0xFF00E5FF) else Color.LightGray
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = selectedGroup ?: "Gruppi",
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isGroupActive) Color.White else Color.LightGray,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // 3. Bottone GUIDA TV (Arancione Neon)
+                                NeonCyberChip(
                                     onClick = {
                                         showOnlyEpg = !showOnlyEpg
                                         if (showOnlyEpg) {
@@ -1074,14 +1115,28 @@ class ChannelsActivity : ComponentActivity() {
                                             selectedGroup = null
                                         }
                                     },
-                                    label = { 
-                                        Text("Guida TV", maxLines = 1, style = MaterialTheme.typography.labelMedium, overflow = TextOverflow.Ellipsis)
-                                    },
-                                    leadingIcon = {
-                                        Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    },
+                                    isActive = showOnlyEpg,
+                                    activeColor = Color(0xFFFF6D00),
+                                    cornerRadius = 12.dp,
+                                    height = 38.dp,
                                     modifier = Modifier.weight(1f)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tv,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = if (showOnlyEpg) Color(0xFFFF6D00) else Color.LightGray
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "Guida TV",
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (showOnlyEpg) Color.White else Color.LightGray,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
 
                             if (isEpgLoading) {
@@ -1235,6 +1290,8 @@ class ChannelsActivity : ComponentActivity() {
                                                 channel = channel,
                                                 epgPrograms = epgProgramsMap[channel.id] ?: emptyList(),
                                                 epgTextSize = epgTextSize,
+                                                logoSize = logoSize,
+                                                isDark = darkTheme,
                                                 onPlayClick = playAction,
                                                 onLongClick = {
                                                     channelForDetails = channel
@@ -1407,7 +1464,7 @@ class ChannelsActivity : ComponentActivity() {
 	                            ),
 	                            color = channelTitleColor,
 	                            maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+	                            overflow = TextOverflow.Ellipsis,
 	                            modifier = Modifier.weight(1f)
 	                        )
 	
@@ -1474,7 +1531,7 @@ class ChannelsActivity : ComponentActivity() {
 	                                ),
 	                                color = currentProgColor,
 	                                maxLines = 1,
-	                                overflow = TextOverflow.Ellipsis,
+                                    overflow = TextOverflow.Ellipsis,
 	                                modifier = Modifier.weight(1f)
 	                            )
 	                            if (epgInfo.timeRange.isNotBlank()) {
@@ -1550,6 +1607,8 @@ class ChannelsActivity : ComponentActivity() {
         channel: Channel,
         epgPrograms: List<EpgProgram>,
         epgTextSize: Float,
+        logoSize: Int,
+        isDark: Boolean,
         onPlayClick: () -> Unit,
         onLongClick: () -> Unit
     ) {
@@ -1557,50 +1616,111 @@ class ChannelsActivity : ComponentActivity() {
         val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
         var expandedProgramKey by remember { mutableStateOf<String?>(null) }
 
+        // Palette ad alto contrasto (niente bianco sparato nel tema chiaro)
+        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFD4DEE8)
+        val outerBorderColor = if (isDark) Color(0xFF2E3F5C) else Color(0xFF94A3B8)
+        val innerContainerBg = if (isDark) Color(0xFF1B253B) else Color(0xFFE4ECF4)
+        val titleTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+        val subTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
+        val currentAccent = if (isDark) Color(0xFF00E5FF) else Color(0xFF007799)
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 6.dp)
-                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), shape = RoundedCornerShape(16.dp))
                 .combinedClickable(
                     onClick = onPlayClick,
                     onLongClick = onLongClick
                 ),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            colors = CardDefaults.cardColors(containerColor = outerCardBg),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.5.dp, outerBorderColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
+                // --- INTESTAZIONE CANALE (Logo + Nome + Bottone Avvia Neon) ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = channel.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontSize = (epgTextSize + 2f).sp),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Avvia",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (!channel.logoUrl.isNullOrBlank()) {
+                        ChannelLogo(
+                            logoUrl = channel.logoUrl,
+                            channelName = channel.name,
+                            logoSize = (logoSize - 6).coerceAtLeast(34)
                         )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = channel.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontSize = (epgTextSize + 2f).sp),
+                            fontWeight = FontWeight.Bold,
+                            color = titleTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (channel.group.isNotBlank()) {
+                            Text(
+                                text = channel.group,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = subTextColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Badge/Bottone "AVVIA" in stile Neon
+                    Surface(
+                        onClick = onPlayClick,
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF161922),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF00E5FF)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "AVVIA",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                Divider(
+                    color = outerBorderColor.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(vertical = 10.dp)
+                )
 
+                // --- LISTA PROGRAMMI EPG ---
                 if (epgPrograms.isEmpty()) {
-                    Text(
-                        text = "Nessun palinsesto caricato per oggi.",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = epgTextSize.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = innerContainerBg
+                    ) {
+                        Text(
+                            text = "Nessun palinsesto disponibile al momento.",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = epgTextSize.sp),
+                            color = subTextColor,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
@@ -1609,75 +1729,120 @@ class ChannelsActivity : ComponentActivity() {
                             val progKey = "${prog.title}_${prog.startTime}"
                             val isExpanded = expandedProgramKey == progKey
 
-                            Column(
+                            // Calcolo percentuale avanzamento per il programma in corso
+                            val progress = if (isCurrent) {
+                                val totalMin = java.time.Duration.between(prog.startTime, prog.endTime).toMinutes().coerceAtLeast(1)
+                                val elapsedMin = java.time.Duration.between(prog.startTime, now).toMinutes().coerceIn(0, totalMin)
+                                (elapsedMin.toFloat() / totalMin.toFloat()).coerceIn(0f, 1f)
+                            } else 0f
+
+                            val itemBg = if (isCurrent) {
+                                if (isDark) Color(0xFF162B3D) else Color(0xFFCDE4EE)
+                            } else {
+                                innerContainerBg
+                            }
+
+                            val itemBorder = if (isCurrent) {
+                                BorderStroke(1.5.dp, Color(0xFF00E5FF))
+                            } else {
+                                BorderStroke(1.dp, outerBorderColor.copy(alpha = 0.5f))
+                            }
+
+                            Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        color = if (isCurrent) 
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
-                                        else
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                    )
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         expandedProgramKey = if (isExpanded) null else progKey
-                                    }
-                                    .padding(10.dp)
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                color = itemBg,
+                                border = itemBorder
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = prog.title,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        if (isCurrent) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.primary,
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = " IN CORSO ",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimary,
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            if (isCurrent) {
+                                                Surface(
+                                                    color = Color(0xFF161922),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                                                ) {
+                                                    Text(
+                                                        text = "● IN ONDA",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                        color = Color(0xFF00E5FF),
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
                                             }
+
+                                            Text(
+                                                text = prog.title,
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                                color = if (isCurrent) currentAccent else titleTextColor,
+                                                maxLines = if (isExpanded) 2 else 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Badge Orario
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF161922),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF2DAA).copy(alpha = 0.7f)
+                                            )
+                                        ) {
+                                            Text(
+                                                text = timeRange,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp),
+                                                color = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF77C6),
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
                                         }
                                     }
-                                    
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    
-                                    Text(
-                                        text = timeRange,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).sp),
-                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                }
 
-                                if (!prog.description.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = prog.description.replace("\\t", " "),
-                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 2f).sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
-                                        overflow = if (isExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
-                                    )
+                                    // Barra di avanzamento luminosa per il programma in corso
+                                    if (isCurrent) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        LinearProgressIndicator(
+                                            progress = progress,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(4.dp)
+                                                .clip(RoundedCornerShape(2.dp)),
+                                            color = Color(0xFF00E5FF),
+                                            trackColor = Color(0xFF161922).copy(alpha = 0.5f)
+                                        )
+                                    }
+
+                                    // Descrizione programma (espandibile con un tocco)
+                                    if (!prog.description.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = prog.description.replace("\\t", " "),
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp),
+                                            color = subTextColor,
+                                            maxLines = if (isExpanded) Int.MAX_VALUE else 2,
+                                            overflow = if (isExpanded) TextOverflow.Clip else TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1718,7 +1883,7 @@ class ChannelsActivity : ComponentActivity() {
 	        AsyncImage(
 	            model = ImageRequest.Builder(LocalContext.current)
 	                .data(logoUrl)
-                    .crossfade(true)
+	                .crossfade(true)
 	                .build(),
 	            contentDescription = "Logo $channelName",
 	            modifier = Modifier.fillMaxSize(),
@@ -1960,7 +2125,7 @@ class ChannelsActivity : ComponentActivity() {
             if (searchQuery.isBlank()) emptyList()
             else {
                 availableEpgMappings.filter { 
-                    it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.name.contains(searchQuery, ignoreCase = true) || 
                     it.siteId.contains(searchQuery, ignoreCase = true)
                 }.take(8)
             }
