@@ -1361,7 +1361,7 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
-	@Composable
+	@Composable                                   
     private fun StandardChannelCard(
         channel: Channel,
         epgInfo: EpgInfo?,
@@ -1374,11 +1374,10 @@ class ChannelsActivity : ComponentActivity() {
         onPlayClick: () -> Unit,
         onLongClick: () -> Unit
     ) {
-        // Palette coordinata (niente bianco accecante nel tema chiaro)
+        // Palette generale della Card
         val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFD4DEE8)
         val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFFE4ECF4)
 
-        // Il bordo esterno reagisce se il canale sta caricando o è nei preferiti
         val externalBorderColor = when {
             isLoading -> Color(0xFF00E5FF)
             isFavorite -> Color(0xFFFF2DAA).copy(alpha = 0.65f)
@@ -1389,9 +1388,24 @@ class ChannelsActivity : ComponentActivity() {
         val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
         val channelTitleColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
 
-        // Colori EPG ad alto contrasto per entrambi i temi
-        val currentProgColor = if (isDark) Color(0xFF00E5FF) else Color(0xFF006680)
-        val nextProgColor = if (isDark) Color(0xFFFF77C6) else Color(0xFFA21268)
+        // Configurazione Quadretto Cuore compatto (25.dp) con nuovo sfondo
+        val heartBoxSize = 25.dp
+        val heartIconSize = 14.dp
+        val heartBoxBg = when {
+            isFavorite -> Color(0xFF3D122C) // Rubino/Magenta quando attivo
+            isDark -> Color(0xFF26354D)     // Blu-Indaco morbido in Dark Mode
+            else -> Color(0xFFCBD8E6)       // Azzurro-Ardesia leggero in Light Mode
+        }
+        val heartBoxBorder = when {
+            isFavorite -> Color(0xFFFF2DAA)
+            isDark -> Color(0xFF3B4F6B)
+            else -> Color(0xFF94A3B8)
+        }
+        val heartIconTint = when {
+            isFavorite -> Color(0xFFFF2DAA)
+            isDark -> Color(0xFF94A3B8)
+            else -> Color(0xFF475569)
+        }
 
         val epgMainSize = (channelTextSize - 4f).coerceAtLeast(10f).sp
         val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(9f).sp
@@ -1440,11 +1454,11 @@ class ChannelsActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.width(12.dp))
                     }
 
-                    // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG o Gruppo sotto)
+                    // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG sotto)
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Riga superiore: Nome Canale + Bottone Cuore Cyber
+                        // Riga superiore: Nome Canale + Quadretto Cuore compatto
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -1463,17 +1477,16 @@ class ChannelsActivity : ComponentActivity() {
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // Cuore o Spinner di caricamento dentro un mini box scuro
                             if (isLoading) {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF161922),
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = heartBoxBg,
                                     border = BorderStroke(1.dp, Color(0xFF00E5FF)),
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(heartBoxSize)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
+                                            modifier = Modifier.size(13.dp),
                                             strokeWidth = 2.dp,
                                             color = Color(0xFF00E5FF)
                                         )
@@ -1482,20 +1495,17 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 Surface(
                                     onClick = onFavoriteToggle,
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF161922),
-                                    border = BorderStroke(
-                                        width = 1.dp,
-                                        color = if (isFavorite) Color(0xFFFF2DAA) else Color(0xFF334155)
-                                    ),
-                                    modifier = Modifier.size(32.dp)
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = heartBoxBg,
+                                    border = BorderStroke(1.dp, heartBoxBorder),
+                                    modifier = Modifier.size(heartBoxSize)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                             contentDescription = "Preferito",
-                                            tint = if (isFavorite) Color(0xFFFF2DAA) else Color(0xFF94A3B8),
-                                            modifier = Modifier.size(17.dp)
+                                            tint = heartIconTint,
+                                            modifier = Modifier.size(heartIconSize)
                                         )
                                     }
                                 }
@@ -1504,63 +1514,57 @@ class ChannelsActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Riga inferiore: EPG (ORA / DOPO) oppure Badge Gruppo
+                        // Riga inferiore: CORNICE UNICA CONTINUA per ORA e per DOPO
                         if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
-                            // --- PROGRAMMA IN CORSO (ORA) ---
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                            // --- CORNICE UNICA "ORA" (Da ▶ ORA fino all'orario di inizio/fine) ---
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF161922),
+                                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.8f))
                             ) {
-                                // Mini-Badge "ORA"
-                                Surface(
-                                    shape = RoundedCornerShape(5.dp),
-                                    color = Color(0xFF161922),
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(10.dp),
-                                            tint = Color(0xFF00E5FF)
-                                        )
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(11.dp),
+                                        tint = Color(0xFF00E5FF)
+                                    )
+                                    Text(
+                                        text = "ORA",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        ),
+                                        color = Color(0xFF00E5FF)
+                                    )
+                                    Text(
+                                        text = " │ ",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = Color(0xFF00E5FF).copy(alpha = 0.45f)
+                                    )
+                                    Text(
+                                        text = epgInfo.currentProgram,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = epgMainSize
+                                        ),
+                                        color = Color(0xFF00E5FF),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (epgInfo.timeRange.isNotBlank()) {
                                         Text(
-                                            text = "ORA",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold
-                                            ),
-                                            color = Color(0xFF00E5FF)
+                                            text = " │ ",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            color = Color(0xFF00E5FF).copy(alpha = 0.45f)
                                         )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                // Titolo programma in corso
-                                Text(
-                                    text = epgInfo.currentProgram,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = epgMainSize
-                                    ),
-                                    color = currentProgColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                // Orario in un pill-badge scuro
-                                if (epgInfo.timeRange.isNotBlank()) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(5.dp),
-                                        color = Color(0xFF161922),
-                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
-                                    ) {
                                         Text(
                                             text = epgInfo.timeRange,
                                             style = MaterialTheme.typography.labelSmall.copy(
@@ -1568,71 +1572,64 @@ class ChannelsActivity : ComponentActivity() {
                                                 fontSize = epgTimeSize
                                             ),
                                             color = Color(0xFF00E5FF),
-                                            maxLines = 1,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            maxLines = 1
                                         )
                                     }
                                 }
                             }
 
-                            // --- PROGRAMMA SUCCESSIVO (DOPO) ---
+                            // --- CORNICE UNICA "DOPO" (Da ⏭ DOPO fino all'orario successivo) ---
                             if (epgInfo.nextProgram.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.7f))
                                 ) {
-                                    // Mini-Badge "DOPO"
-                                    Surface(
-                                        shape = RoundedCornerShape(5.dp),
-                                        color = Color(0xFF161922),
-                                        border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.8f))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 6.dp, vertical = 3.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.FastForward,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(10.dp),
-                                                tint = Color(0xFFFF77C6)
-                                            )
-                                            Spacer(modifier = Modifier.width(2.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.FastForward,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(11.dp),
+                                            tint = Color(0xFFFF77C6)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            text = "DOPO",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.ExtraBold
+                                            ),
+                                            color = Color(0xFFFF77C6)
+                                        )
+                                        Text(
+                                            text = " │ ",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            color = Color(0xFFFF77C6).copy(alpha = 0.45f)
+                                        )
+                                        Text(
+                                            text = epgInfo.nextProgram,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = epgMainSize
+                                            ),
+                                            color = Color(0xFFFF77C6),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (epgInfo.nextTimeRange.isNotBlank()) {
                                             Text(
-                                                text = "DOPO",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                ),
-                                                color = Color(0xFFFF77C6)
+                                                text = " │ ",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = Color(0xFFFF77C6).copy(alpha = 0.45f)
                                             )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(6.dp))
-
-                                    // Titolo programma successivo
-                                    Text(
-                                        text = epgInfo.nextProgram,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = epgMainSize
-                                        ),
-                                        color = nextProgColor,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    // Orario programma successivo
-                                    if (epgInfo.nextTimeRange.isNotBlank()) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(5.dp),
-                                            color = Color(0xFF161922),
-                                            border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.4f))
-                                        ) {
                                             Text(
                                                 text = epgInfo.nextTimeRange,
                                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -1640,15 +1637,14 @@ class ChannelsActivity : ComponentActivity() {
                                                     fontSize = epgTimeSize
                                                 ),
                                                 color = Color(0xFFFF77C6),
-                                                maxLines = 1,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                maxLines = 1
                                             )
                                         }
                                     }
                                 }
                             }
                         } else {
-                            // Nessun EPG: mostra il Gruppo del canale dentro un badge pulito
+                            // Nessun EPG: Badge Categoria
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = Color(0xFF161922).copy(alpha = if (isDark) 0.7f else 0.85f),
@@ -1669,7 +1665,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }	                            
+    }                                                                                                                            
 
     @Composable
     private fun ChannelCard(
