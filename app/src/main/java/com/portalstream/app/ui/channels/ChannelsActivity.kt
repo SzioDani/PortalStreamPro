@@ -394,7 +394,7 @@ class ChannelsActivity : ComponentActivity() {
                                         // 🎨 COLORI DEDICATI SOLO A QUESTO MENÙ (niente più bianco sparato!)
                     // Nel tema chiaro usa un Grigio-Ardesia morbido (0xFFD4DEE8) che fa risaltare i bottoni Neon.
                     // (Se invece vuoi questo menù SEMPRE scuro anche col tema chiaro, metti Color(0xFF182234) al posto di 0xFFD4DEE8)
-                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFD4DEE8)
+                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFF182234)
                     val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFFE4ECF4)
                     val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
                     val menuTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
