@@ -1533,11 +1533,11 @@ class ChannelsActivity : ComponentActivity() {
                                     Icon(
                                         imageVector = Icons.Default.PlayArrow,
                                         contentDescription = null,
-                                        modifier = Modifier.size(11.dp),
+                                        modifier = Modifier.size(14.dp),
                                         tint = Color(0xFF00E5FF)
                                     )
                                     Text(
-                                        text = "ORA",
+                                        text = "",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.ExtraBold
@@ -1597,12 +1597,12 @@ class ChannelsActivity : ComponentActivity() {
                                         Icon(
                                             imageVector = Icons.Default.FastForward,
                                             contentDescription = null,
-                                            modifier = Modifier.size(11.dp),
+                                            modifier = Modifier.size(14.dp),
                                             tint = Color(0xFFFF77C6)
                                         )
                                         Spacer(modifier = Modifier.width(2.dp))
                                         Text(
-                                            text = "DOPO",
+                                            text = "",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.ExtraBold
@@ -2092,7 +2092,7 @@ class ChannelsActivity : ComponentActivity() {
                     )
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF3B4D63),
+                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF))
                     ) {
                         Text(
