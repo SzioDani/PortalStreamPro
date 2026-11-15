@@ -1671,24 +1671,27 @@ class ChannelsActivity : ComponentActivity() {
                         val blurPx = blurRadius.toPx().coerceAtLeast(1f)
 
                         drawIntoCanvas { canvas ->
-                            val paint = Paint().apply {
-                                color = currentNeonColor.copy(alpha = if (isPressed) 0.65f else 0.35f)
-                                asFrameworkPaint().apply {
-                                    isAntiAlias = true
-                                    maskFilter = android.graphics.BlurMaskFilter(
-                                        blurPx,
-                                        android.graphics.BlurMaskFilter.Blur.NORMAL
-                                    )
-                                }
+                            val nativePaint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                color = android.graphics.Color.argb(
+                                    (currentNeonColor.alpha * (if (isPressed) 0.65f else 0.35f) * 255).toInt(),
+                                    (currentNeonColor.red * 255).toInt(),
+                                    (currentNeonColor.green * 255).toInt(),
+                                    (currentNeonColor.blue * 255).toInt()
+                                )
+                                maskFilter = android.graphics.BlurMaskFilter(
+                                    blurPx,
+                                    android.graphics.BlurMaskFilter.Blur.NORMAL
+                                )
                             }
-                            canvas.drawRoundRect(
-                                left = -offsetPx,
-                                top = -offsetPx,
-                                right = w + offsetPx,
-                                bottom = h + offsetPx,
-                                radiusX = cornerPx,
-                                radiusY = cornerPx,
-                                paint = paint
+                            canvas.nativeCanvas.drawRoundRect(
+                                -offsetPx,
+                                -offsetPx,
+                                w + offsetPx,
+                                h + offsetPx,
+                                cornerPx,
+                                cornerPx,
+                                nativePaint
                             )
                         }
                     }
