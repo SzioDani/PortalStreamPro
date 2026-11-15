@@ -1322,7 +1322,7 @@ class ChannelsActivity : ComponentActivity() {
                         val currentProgColor = if (isDark) {
                             Color(0xFF00E5FF) // Ciano brillante per il tema scuro
                         } else {
-                            Color(0xFF0091EA) // Ciano profondo e ben leggibile per il tema chiaro
+                            Color(0xFF0088D1) // Ciano profondo e ben leggibile per il tema chiaro
                         }
                         val nextProgColor = if (isDark) {
                             Color(0xFFFF2DAA) // Rosa/Fucsia vivace per il tema scuro
