@@ -391,30 +391,57 @@ class ChannelsActivity : ComponentActivity() {
                 }
                 
                 if (showSettingsDialog) {
+                                        // 🎨 COLORI DEDICATI SOLO A QUESTO MENÙ (niente più bianco sparato!)
+                    // Nel tema chiaro usa un Grigio-Ardesia morbido (0xFFD4DEE8) che fa risaltare i bottoni Neon.
+                    // (Se invece vuoi questo menù SEMPRE scuro anche col tema chiaro, metti Color(0xFF182234) al posto di 0xFFD4DEE8)
+                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFD4DEE8)
+                    val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFFE4ECF4)
+                    val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
+                    val menuTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                    val menuSubTextColor = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
+                    val accentCyan = if (darkTheme) Color(0xFF00E5FF) else Color(0xFF0088A3)
+
                     Dialog(onDismissRequest = { showSettingsDialog = false }) {
                         Surface(
                             modifier = Modifier
-                                .fillMaxWidth(0.88f)
+                                .fillMaxWidth(0.92f)
                                 .wrapContentHeight(),
                             shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surface,
+                            color = menuBgColor,
+                            contentColor = menuTextColor,
                             border = BorderStroke(2.dp, Color(0xFF00E5FF))
                         ) {
                             Column(
                                 modifier = Modifier
                                     .padding(20.dp)
                                     .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                // Intestazione personalizzata pulita
+                                // --- INTESTAZIONE ---
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.Default.Settings,
+                                        contentDescription = null,
+                                        tint = accentCyan
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Opzioni Lista Canali", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Opzioni Lista Canali",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = menuTextColor
+                                    )
                                 }
-                                Divider()
+
+                                Divider(color = menuCardBorder)
+
                                 // --- SEZIONE TEMA ---
-                                Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Tema della Lista Canali",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = menuTextColor
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -452,9 +479,16 @@ class ChannelsActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-                                Divider()
+
+                                Divider(color = menuCardBorder)
+
                                 // --- SEZIONE GESTIONE CANALI ---
-                                Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Gestione Canali",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = menuTextColor
+                                )
                                 NeonCyberChip(
                                     onClick = {
                                         showSettingsDialog = false
@@ -469,12 +503,23 @@ class ChannelsActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Aggiorna Lista Canali", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                Divider()
+
+                                Divider(color = menuCardBorder)
+
                                 // --- SEZIONE GUIDA TV (EPG) ---
-                                Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                var selectedCountry by remember { 
-                                    mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
+                                Text(
+                                    text = "Guida TV (EPG)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = menuTextColor
+                                )
+                                Text(
+                                    text = "Nazionalità predefinita EPG (escludi le altre nazioni)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = menuSubTextColor
+                                )
+                                var selectedCountry by remember {
+                                    mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT")
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -503,7 +548,7 @@ class ChannelsActivity : ComponentActivity() {
                                         }
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 NeonCyberChip(
                                     onClick = {
                                         showSettingsDialog = false
@@ -539,7 +584,7 @@ class ChannelsActivity : ComponentActivity() {
                                         }
                                     },
                                     isActive = true,
-                                    activeColor = Color(0xFFFF6D00), // Arancione neon per distinguerlo dall'aggiornamento canali
+                                    activeColor = Color(0xFFFF6D00),
                                     height = 42.dp,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -547,47 +592,120 @@ class ChannelsActivity : ComponentActivity() {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Aggiorna EPG  [ $selectedCountry ]", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
-                                Divider()
-                                // --- SEZIONE PERSONALIZZAZIONE GRAFICA ---
-                                Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
+
+                                Divider(color = menuCardBorder)
+
+                                // --- SEZIONE PERSONALIZZAZIONE GRAFICA RINNOVATA ---
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Personalizzazione Grafica",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = menuTextColor
+                                    )
+                                    // Pulsante rapido per ripristinare le dimensioni di default
+                                    Surface(
+                                        onClick = {
+                                            channelTextSize = 16f
+                                            logoSize = 48
+                                            epgTextSize = 14f
+                                            appPrefs.edit()
+                                                .putFloat("channel_text_size", 16f)
+                                                .putInt("logo_size", 48)
+                                                .putFloat("epg_text_size", 14f)
+                                                .apply()
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF161922),
+                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
+                                    ) {
+                                        Text(
+                                            text = "Reset",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF00E5FF),
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
+                                // 1. Card Regolazione Testo Canali
+                                GraphicControlCard(
+                                    title = "Testo Nome Canale",
+                                    valueLabel = "${channelTextSize.toInt()} sp",
                                     value = channelTextSize,
-                                    onValueChange = { 
-                                        channelTextSize = it
-                                        appPrefs.edit().putFloat("channel_text_size", it).apply()
-                                    },
                                     valueRange = 12f..24f,
-                                    steps = 11
+                                    steps = 11,
+                                    cardBg = menuCardColor,
+                                    cardBorder = menuCardBorder,
+                                    textColor = menuTextColor,
+                                    onValueChange = { newValue ->
+                                        val rounded = kotlin.math.round(newValue)
+                                        channelTextSize = rounded
+                                        appPrefs.edit().putFloat("channel_text_size", rounded).apply()
+                                    },
+                                    onStepChange = { delta ->
+                                        val next = (channelTextSize + delta).coerceIn(12f, 24f)
+                                        channelTextSize = next
+                                        appPrefs.edit().putFloat("channel_text_size", next).apply()
+                                    }
                                 )
-                                Text("Dimensione Loghi: ${logoSize}dp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
+
+                                // 2. Card Regolazione Loghi
+                                GraphicControlCard(
+                                    title = "Dimensione Loghi",
+                                    valueLabel = "$logoSize dp",
                                     value = logoSize.toFloat(),
-                                    onValueChange = { 
-                                        logoSize = it.toInt()
-                                        appPrefs.edit().putInt("logo_size", it.toInt()).apply()
-                                    },
                                     valueRange = 32f..72f,
-                                    steps = 8
-                                )
-                                Text("Dimensione Testo Guida TV: ${epgTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-                                Slider(
-                                    value = epgTextSize,
-                                    onValueChange = { 
-                                        epgTextSize = it
-                                        appPrefs.edit().putFloat("epg_text_size", it).apply()
+                                    steps = 7,
+                                    cardBg = menuCardColor,
+                                    cardBorder = menuCardBorder,
+                                    textColor = menuTextColor,
+                                    onValueChange = { newValue ->
+                                        val rounded = newValue.toInt()
+                                        logoSize = rounded
+                                        appPrefs.edit().putInt("logo_size", rounded).apply()
                                     },
-                                    valueRange = 10f..20f,
-                                    steps = 9
+                                    onStepChange = { delta ->
+                                        val next = (logoSize + delta.toInt() * 4).coerceIn(32, 72)
+                                        logoSize = next
+                                        appPrefs.edit().putInt("logo_size", next).apply()
+                                    }
                                 )
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
+
+                                // 3. Card Regolazione Testo EPG
+                                GraphicControlCard(
+                                    title = "Testo Guida TV (EPG)",
+                                    valueLabel = "${epgTextSize.toInt()} sp",
+                                    value = epgTextSize,
+                                    valueRange = 10f..20f,
+                                    steps = 9,
+                                    cardBg = menuCardColor,
+                                    cardBorder = menuCardBorder,
+                                    textColor = menuTextColor,
+                                    onValueChange = { newValue ->
+                                        val rounded = kotlin.math.round(newValue)
+                                        epgTextSize = rounded
+                                        appPrefs.edit().putFloat("epg_text_size", rounded).apply()
+                                    },
+                                    onStepChange = { delta ->
+                                        val next = (epgTextSize + delta).coerceIn(10f, 20f)
+                                        epgTextSize = next
+                                        appPrefs.edit().putFloat("epg_text_size", next).apply()
+                                    }
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
                                 // --- PULSANTE CHIUDI ROSSO NEON ---
                                 NeonCyberChip(
                                     onClick = { showSettingsDialog = false },
                                     isActive = true,
-                                    activeColor = Color(0xFFEF4444), // Rosso neon
+                                    activeColor = Color(0xFFEF4444),
                                     height = 42.dp,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -782,7 +900,7 @@ class ChannelsActivity : ComponentActivity() {
 				                Spacer(modifier = Modifier.height(4.dp))
 				
 				                // Pulsante Chiudi in basso
-				                Button(
+                                Button(
 				                    onClick = { showGroupDialog = false },
 				                    modifier = Modifier.fillMaxWidth(),
 				                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -1289,7 +1407,7 @@ class ChannelsActivity : ComponentActivity() {
 	                            ),
 	                            color = channelTitleColor,
 	                            maxLines = 1,
-	                            overflow = TextOverflow.Ellipsis,
+                                overflow = TextOverflow.Ellipsis,
 	                            modifier = Modifier.weight(1f)
 	                        )
 	
@@ -1600,7 +1718,7 @@ class ChannelsActivity : ComponentActivity() {
 	        AsyncImage(
 	            model = ImageRequest.Builder(LocalContext.current)
 	                .data(logoUrl)
-	                .crossfade(true)
+                    .crossfade(true)
 	                .build(),
 	            contentDescription = "Logo $channelName",
 	            modifier = Modifier.fillMaxSize(),
@@ -1704,7 +1822,123 @@ class ChannelsActivity : ComponentActivity() {
                 content = content
             )
         }
-    }                                 
+    }           
+        @Composable
+    private fun GraphicControlCard(
+        title: String,
+        valueLabel: String,
+        value: Float,
+        valueRange: ClosedFloatingPointRange<Float>,
+        steps: Int,
+        cardBg: Color,
+        cardBorder: Color,
+        textColor: Color,
+        onValueChange: (Float) -> Unit,
+        onStepChange: (Float) -> Unit
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = cardBg,
+            border = BorderStroke(1.dp, cardBorder)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                // Riga superiore: Titolo a sinistra + Badge Neon del valore a destra
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF161922),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                    ) {
+                        Text(
+                            text = valueLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00E5FF),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Riga inferiore: Pulsante [-] + Slider Neon + Pulsante [+]
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Pulsante "-"
+                    Surface(
+                        onClick = { onStepChange(-1f) },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF161922),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "−",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Slider con colori Ciano Neon
+                    Slider(
+                        value = value,
+                        onValueChange = onValueChange,
+                        valueRange = valueRange,
+                        steps = steps,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(28.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF00E5FF),
+                            activeTrackColor = Color(0xFF00E5FF),
+                            inactiveTrackColor = Color(0xFF161922).copy(alpha = 0.45f),
+                            activeTickColor = Color.Transparent,
+                            inactiveTickColor = Color.Transparent
+                        )
+                    )
+
+                    // Pulsante "+"
+                    Surface(
+                        onClick = { onStepChange(1f) },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF161922),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "+",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }                      
 	            
     @Composable
     private fun ChannelDetailsDialog(
@@ -1726,7 +1960,7 @@ class ChannelsActivity : ComponentActivity() {
             if (searchQuery.isBlank()) emptyList()
             else {
                 availableEpgMappings.filter { 
-                    it.name.contains(searchQuery, ignoreCase = true) || 
+                    it.name.contains(searchQuery, ignoreCase = true) ||
                     it.siteId.contains(searchQuery, ignoreCase = true)
                 }.take(8)
             }
@@ -1924,4 +2158,3 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
-                                      
