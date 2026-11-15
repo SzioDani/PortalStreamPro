@@ -1606,94 +1606,94 @@ class ChannelsActivity : ComponentActivity() {
 	        )
 	    }
 	}
+    @Composable
+    fun NeonCyberChip(
+        onClick: () -> Unit,
+        modifier: Modifier = Modifier,
+        isActive: Boolean = true,
+        activeColor: Color = Color(0xFF00E5FF), // Ciano neon di default
+        inactiveColor: Color = Color(0xFF4A5060), // Grigio spento
+        cornerRadius: Dp = 16.dp,
+        chipHeight: Dp = 38.dp, // Rinominato da height a chipHeight per evitare conflitti con Modifier.height
+        content: @Composable RowScope.() -> Unit
+    ) {
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
 
-   @Composable
-	fun NeonCyberChip(
-	    onClick: () -> Unit,
-	    modifier: Modifier = Modifier,
-	    isActive: Boolean = true,
-	    activeColor: Color = Color(0xFF00E5FF), // Ciano neon di default
-	    inactiveColor: Color = Color(0xFF4A5060), // Grigio spento per elementi non selezionati
-	    cornerRadius: Dp = 16.dp,
-	    height: Dp = 38.dp,
-	    content: @Composable RowScope.() -> Unit
-	) {
-	    val interactionSource = remember { MutableInteractionSource() }
-	    val isPressed by interactionSource.collectIsPressedAsState()
-	
-	    val currentNeonColor by animateColorAsState(
-	        targetValue = if (isActive) activeColor else inactiveColor,
-	        animationSpec = tween(durationMillis = 300),
-	        label = "neonColor"
-	    )
-	
-	    val borderWidth by animateDpAsState(
-	        targetValue = if (isPressed) 2.5.dp else if (isActive) 1.5.dp else 1.dp,
-	        label = "borderWidth"
-	    )
-	
-	    val glowAlpha by animateFloatAsState(
-	        targetValue = if (isPressed) 1f else if (isActive) 0.8f else 0.4f,
-	        label = "glowAlpha"
-	    )
-	
-	    val scale by animateFloatAsState(
-	        targetValue = if (isPressed) 0.95f else 1f,
-	        label = "scale"
-	    )
-	
-	    val blurRadius by animateDpAsState(
-	        targetValue = if (isPressed) 16.dp else if (isActive) 10.dp else 0.dp,
-	        label = "blurRadius"
-	    )
-	
-	    Surface(
-	        onClick = onClick,
-	        color = Color(0xFF161922),
-	        shape = RoundedCornerShape(cornerRadius),
-	        border = BorderStroke(
-	            width = borderWidth,
-	            color = currentNeonColor.copy(alpha = glowAlpha)
-	        ),
-	        interactionSource = interactionSource,
-	        modifier = modifier
-	            .height(height)
-	            .graphicsLayer(scaleX = scale, scaleY = scale)
-	            .drawBehind {
-	                // Disegna l'alone luminoso solo se il pulsante è attivo o premuto
-	                if (isActive || isPressed) {
-	                    drawIntoCanvas { canvas ->
-	                        val paint = Paint().apply {
-	                            color = currentNeonColor.copy(alpha = if (isPressed) 0.65f else 0.35f)
-	                            asFrameworkPaint().apply {
-	                                isAntiAlias = true
-	                                maskFilter = android.graphics.BlurMaskFilter(
-	                                    blurRadius.toPx().coerceAtLeast(1f),
-	                                    android.graphics.BlurMaskFilter.Blur.NORMAL
-	                                )
-	                            }
-	                        }
-	                        canvas.drawRoundRect(
-	                            left = -2.dp.toPx(),
-	                            top = -2.dp.toPx(),
-	                            right = size.width + 2.dp.toPx(),
-	                            bottom = size.height + 2.dp.toPx(),
-	                            radiusX = cornerRadius.toPx(),
-	                            radiusY = cornerRadius.toPx(),
-	                            paint = paint
-	                        )
-	                    }
-	                }
-	            }
-	    ) {
-	        Row(
-	            verticalAlignment = Alignment.CenterVertically,
-	            horizontalArrangement = Arrangement.Center,
-	            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-	            content = content
-	        )
-	    }
-	}
+        val currentNeonColor by animateColorAsState(
+            targetValue = if (isActive) activeColor else inactiveColor,
+            animationSpec = tween(durationMillis = 300),
+            label = "neonColor"
+        )
+
+        val borderWidth by animateDpAsState(
+            targetValue = if (isPressed) 2.5.dp else if (isActive) 1.5.dp else 1.dp,
+            label = "borderWidth"
+        )
+
+        val glowAlpha by animateFloatAsState(
+            targetValue = if (isPressed) 1f else if (isActive) 0.8f else 0.4f,
+            label = "glowAlpha"
+        )
+
+        val scale by animateFloatAsState(
+            targetValue = if (isPressed) 0.95f else 1f,
+            label = "scale"
+        )
+
+        val blurRadius by animateDpAsState(
+            targetValue = if (isPressed) 16.dp else if (isActive) 10.dp else 0.dp,
+            label = "blurRadius"
+        )
+
+        Surface(
+            onClick = onClick,
+            color = Color(0xFF161922),
+            shape = RoundedCornerShape(cornerRadius),
+            border = BorderStroke(
+                width = borderWidth,
+                color = currentNeonColor.copy(alpha = glowAlpha)
+            ),
+            interactionSource = interactionSource,
+            modifier = modifier
+                .height(chipHeight) // Usiamo chipHeight
+                .graphicsLayer(scaleX = scale, scaleY = scale)
+                .drawBehind {
+                    // Disegna l'alone luminoso solo se attivo o premuto
+                    if (isActive || isPressed) {
+                        drawIntoCanvas { canvas ->
+                            val paint = Paint().apply {
+                                color = currentNeonColor.copy(alpha = if (isPressed) 0.65f else 0.35f)
+                                asFrameworkPaint().apply {
+                                    isAntiAlias = true
+                                    maskFilter = android.graphics.BlurMaskFilter(
+                                        blurRadius.toPx().coerceAtLeast(1f),
+                                        android.graphics.BlurMaskFilter.Blur.NORMAL
+                                    )
+                                }
+                            }
+                            canvas.drawRoundRect(
+                                left = -2.dp.toPx(),
+                                top = -2.dp.toPx(),
+                                right = size.width + 2.dp.toPx(), // size riferito al DrawScope corrente
+                                bottom = size.height + 2.dp.toPx(),
+                                radiusX = cornerRadius.toPx(),
+                                radiusY = cornerRadius.toPx(),
+                                paint = paint
+                            )
+                        }
+                    }
+                }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                content = content
+            )
+        }
+    }                               
+	            
      @Composable
         private fun ChannelDetailsDialog(
         channel: Channel,
