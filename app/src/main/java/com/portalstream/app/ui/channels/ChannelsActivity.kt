@@ -10,7 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateFloatAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -66,6 +69,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asFrameworkPaint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.res.colorResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -1659,7 +1663,7 @@ class ChannelsActivity : ComponentActivity() {
             ),
             interactionSource = interactionSource,
             modifier = modifier
-                .height(height = chipHeight) // Risolto l'ambiguity specificando il nome del parametro
+                .height(chipHeight)
                 .graphicsLayer(scaleX = scale, scaleY = scale)
                 .drawBehind {
                     if (isActive || isPressed) {
