@@ -35,11 +35,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material3.Icon
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.rememberLottieComposition
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,7 +54,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
+import androidx.compose.foundation.isSystemInDarkTheme
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.portalstream.app.R
 import com.portalstream.app.data.Portal
 import com.portalstream.app.data.epg.EpgChannelMapping
 import com.portalstream.app.data.epg.EpgMappingStore
@@ -83,11 +81,19 @@ import java.net.URL
 import java.time.format.DateTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
-import com.portalstream.app.R
-import androidx.compose.foundation.isSystemInDarkTheme
-import coil.request.ImageRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Dp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateDpAsState
+import androidx.compose.animation.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.asFrameworkPaint
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
