@@ -86,6 +86,8 @@ import java.time.ZoneId
 import com.portalstream.app.R
 import androidx.compose.foundation.isSystemInDarkTheme
 import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 class ChannelsActivity : ComponentActivity() {
@@ -133,19 +135,19 @@ class ChannelsActivity : ComponentActivity() {
             val darkTheme = appTheme == "dark"
 
             var channelTextSize by remember { mutableStateOf(appPrefs.getFloat("channel_text_size", 16f)) }
-            var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 52)) }
+            var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
             var epgTextSize by remember { mutableStateOf(appPrefs.getFloat("epg_text_size", 14f)) }
             
             // TEMA CHIARO PROFESSIONALE
             val customLightScheme = lightColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFD8DCE0),
+                background = Color(0xFFF1F5F9),
                 surface = Color(0xFFFFFFFF),
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFE2E8F0),
-                outline = Color(0xFF475569)
+                outline = Color(0xFFCBD5E1)
             )
 
             // TEMA SCURO OTTIMIZZATO
@@ -376,228 +378,220 @@ class ChannelsActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(Unit) {
-					fetchChannelsAction(false)
-				}
-
-				if (showSettingsDialog) {
-					Dialog(onDismissRequest = { showSettingsDialog = false }) {
-						Surface(
-							modifier = Modifier
-								.fillMaxWidth(0.88f)
-								.wrapContentHeight(),
-							shape = RoundedCornerShape(24.dp),
-							color = MaterialTheme.colorScheme.surface,
-							border = BorderStroke(2.dp, Color(0xFF00E5FF))
-						) {
-							Column(
-								modifier = Modifier
-									.padding(20.dp)
-									.verticalScroll(rememberScrollState()),
-								verticalArrangement = Arrangement.spacedBy(16.dp)
-							) {
-								// Intestazione personalizzata pulita
-								Row(verticalAlignment = Alignment.CenterVertically) {
-									Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-									Spacer(modifier = Modifier.width(8.dp))
-									Text("Opzioni Lista Canali", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-								}
-
-								Divider()
-
-								Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-								Row(
-									modifier = Modifier.fillMaxWidth(),
-									horizontalArrangement = Arrangement.spacedBy(8.dp)
-								) {
-									Button(
-										onClick = {
-											appTheme = "dark"
-											appPrefs.edit().putString("app_theme", "dark").apply()
-										},
-										modifier = Modifier.weight(1f),
-										colors = ButtonDefaults.buttonColors(
-											containerColor = if (darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-											contentColor = if (darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-										)
-									) {
-										Text("Scuro")
-									}
-									Button(
-										onClick = {
-											appTheme = "light"
-											appPrefs.edit().putString("app_theme", "light").apply()
-										},
-										modifier = Modifier.weight(1f),
-										colors = ButtonDefaults.buttonColors(
-											containerColor = if (!darkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-											contentColor = if (!darkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-										)
-									) {
-										Text("Chiaro")
-									}
-								}
-
-								Divider()
-
-								Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-								Button(
-									onClick = {
-										showSettingsDialog = false
-										fetchChannelsAction(true)
-									},
-									modifier = Modifier.fillMaxWidth(),
-									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-								) {
-									Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-									Spacer(modifier = Modifier.width(8.dp))
-									Text("Aggiorna Lista Canali", fontWeight = FontWeight.Bold)
-								}
-
-								Divider()
-
-								Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-								Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-								var selectedCountry by remember { 
-									mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
-								}
-
-								Row(
-									modifier = Modifier.fillMaxWidth(),
-									horizontalArrangement = Arrangement.spacedBy(6.dp)
-								) {
-									listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
-										val isSelected = selectedCountry.equals(country, ignoreCase = true)
-										Surface(
-											modifier = Modifier
-											    .weight(1f)
-												.height(36.dp)
-												.clip(RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    selectedCountry = country
-                                                    appPrefs.edit().putString("epg_country_filter", country).apply()
-                                                },
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(
-                                                width = 1.dp,
-                                                color = if (isSelected) Color(0xFF00E5FF) else MaterialTheme.colorScheme.outline
-                                            )
+                    fetchChannelsAction(false)
+                }
+                
+                if (showSettingsDialog) {
+                    Dialog(onDismissRequest = { showSettingsDialog = false }) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth(0.88f)
+                                .wrapContentHeight(),
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(2.dp, Color(0xFF00E5FF))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(20.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                // Intestazione personalizzata pulita
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Opzioni Lista Canali", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                }
+                                Divider()
+                                // --- SEZIONE TEMA ---
+                                Text("Tema della Lista Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    NeonCyberChip(
+                                        onClick = {
+                                            appTheme = "dark"
+                                            appPrefs.edit().putString("app_theme", "dark").apply()
+                                        },
+                                        isActive = darkTheme,
+                                        activeColor = Color(0xFF00E5FF),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = "Scuro",
+                                            color = if (darkTheme) Color.White else Color.LightGray,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    NeonCyberChip(
+                                        onClick = {
+                                            appTheme = "light"
+                                            appPrefs.edit().putString("app_theme", "light").apply()
+                                        },
+                                        isActive = !darkTheme,
+                                        activeColor = Color(0xFF00E5FF),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = "Chiaro",
+                                            color = if (!darkTheme) Color.White else Color.LightGray,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Divider()
+                                // --- SEZIONE GESTIONE CANALI ---
+                                Text("Gestione Canali", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                NeonCyberChip(
+                                    onClick = {
+                                        showSettingsDialog = false
+                                        fetchChannelsAction(true)
+                                    },
+                                    isActive = true,
+                                    activeColor = Color(0xFF00E5FF),
+                                    height = 42.dp,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Aggiorna Lista Canali", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                                Divider()
+                                // --- SEZIONE GUIDA TV (EPG) ---
+                                Text("Guida TV (EPG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Nazionalità predefinita EPG (escludi le altre nazioni)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                var selectedCountry by remember { 
+                                    mutableStateOf(appPrefs.getString("epg_country_filter", "IT") ?: "IT") 
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("IT", "UK", "FR", "DE", "ES").forEach { country ->
+                                        val isSelected = selectedCountry.equals(country, ignoreCase = true)
+                                        NeonCyberChip(
+                                            onClick = {
+                                                selectedCountry = country
+                                                appPrefs.edit().putString("epg_country_filter", country).apply()
+                                            },
+                                            isActive = isSelected,
+                                            activeColor = Color(0xFF00E5FF),
+                                            cornerRadius = 10.dp,
+                                            height = 36.dp,
+                                            modifier = Modifier.weight(1f)
                                         ) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = country,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) Color(0xFF000000) else MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1
-                                                )
-                                            }
+                                            Text(
+                                                text = country,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else Color.LightGray,
+                                                maxLines = 1
+                                            )
                                         }
                                     }
                                 }
-
-								Spacer(modifier = Modifier.height(4.dp))
-
-								Button(
-									onClick = {
-										showSettingsDialog = false
-										val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
-										scope.launch(Dispatchers.IO) {
-											withContext(Dispatchers.Main) {
-												isEpgLoading = true
-											}
-											try {
-												val currentPortalList = channelDao.getAllChannelsList().filter {
-													it.id.startsWith(portalPrefix)
-												}
-												val updated = epgRepository.autoAssociatePortalChannels(
-													portalChannels = currentPortalList,
-													countryCode = countryToUse,
-													forceOverwrite = true
-												)
-												channelDao.insertChannels(updated)
-												epgMappingStore.savePortalMappings(portalIdentity, updated)
-
-												val matchedCount = updated.count { it.tvgId.isNotBlank() }
-												val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
-												val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
-												withContext(Dispatchers.Main) {
-													Toast.makeText(this@ChannelsActivity, "Salvati $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
-													epgInfoMap = newInfoMap
-													epgProgramsMap = newProgramsMap
-												}
-											} finally {
-												withContext(Dispatchers.Main) {
-													isEpgLoading = false
-												}
-											}
-										}
-									},
-									modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-								) {
-									Icon(Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
-									Spacer(modifier = Modifier.width(8.dp))
-									Text("Aggiorna EPG  [ $selectedCountry ]", fontWeight = FontWeight.Bold)
-								}
-
-								Divider()
-
-								Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-								Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-								Slider(
-									value = channelTextSize,
-									onValueChange = { 
-										channelTextSize = it
-										appPrefs.edit().putFloat("channel_text_size", it).apply()
-									},
-									valueRange = 12f..24f,
-									steps = 11
-								)
-
-								Text("Dimensione Loghi: ${logoSize}dp", style = MaterialTheme.typography.bodySmall)
-								Slider(
-									value = logoSize.toFloat(),
-									onValueChange = { 
-										logoSize = it.toInt()
-										appPrefs.edit().putInt("logo_size", it.toInt()).apply()
-									},
-									valueRange = 32f..72f,
-									steps = 8
-								)
-
-								Text("Dimensione Testo Guida TV: ${epgTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
-								Slider(
-									value = epgTextSize,
-									onValueChange = { 
-										epgTextSize = it
-										appPrefs.edit().putFloat("epg_text_size", it).apply()
-									},
-									valueRange = 10f..20f,
-									steps = 9
-								)
-
-								Spacer(modifier = Modifier.height(8.dp))
-
-								// Pulsante di chiusura in fondo al contenuto scorrevole
-								Button(
-									onClick = { showSettingsDialog = false },
-									modifier = Modifier.fillMaxWidth(),
-									colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
-								) {
-									Text(
-									    text = "Chiudi",
-										color = Color(0xFFEF4444),
-										fontWeight = FontWeight.Bold
-									)
-								}
-							}
-						}
-					}
-				}
+                                Spacer(modifier = Modifier.height(4.dp))
+                                NeonCyberChip(
+                                    onClick = {
+                                        showSettingsDialog = false
+                                        val countryToUse = appPrefs.getString("epg_country_filter", "IT") ?: "IT"
+                                        scope.launch(Dispatchers.IO) {
+                                            withContext(Dispatchers.Main) {
+                                                isEpgLoading = true
+                                            }
+                                            try {
+                                                val currentPortalList = channelDao.getAllChannelsList().filter {
+                                                    it.id.startsWith(portalPrefix)
+                                                }
+                                                val updated = epgRepository.autoAssociatePortalChannels(
+                                                    portalChannels = currentPortalList,
+                                                    countryCode = countryToUse,
+                                                    forceOverwrite = true
+                                                )
+                                                channelDao.insertChannels(updated)
+                                                epgMappingStore.savePortalMappings(portalIdentity, updated)
+                                                val matchedCount = updated.count { it.tvgId.isNotBlank() }
+                                                val newInfoMap = epgRepository.getAllCurrentEpg(updated, countryToUse)
+                                                val newProgramsMap = epgRepository.getProgramsForChannels(updated, countryToUse)
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(this@ChannelsActivity, "Salvati $matchedCount canali per [$countryToUse]!", Toast.LENGTH_LONG).show()
+                                                    epgInfoMap = newInfoMap
+                                                    epgProgramsMap = newProgramsMap
+                                                }
+                                            } finally {
+                                                withContext(Dispatchers.Main) {
+                                                    isEpgLoading = false
+                                                }
+                                            }
+                                        }
+                                    },
+                                    isActive = true,
+                                    activeColor = Color(0xFFFF6D00), // Arancione neon per distinguerlo dall'aggiornamento canali
+                                    height = 42.dp,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Tv, contentDescription = null, tint = Color(0xFFFF6D00), modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Aggiorna EPG  [ $selectedCountry ]", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                                Divider()
+                                // --- SEZIONE PERSONALIZZAZIONE GRAFICA ---
+                                Text("Personalizzazione Grafica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Dimensione Testo Canali: ${channelTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
+                                Slider(
+                                    value = channelTextSize,
+                                    onValueChange = { 
+                                        channelTextSize = it
+                                        appPrefs.edit().putFloat("channel_text_size", it).apply()
+                                    },
+                                    valueRange = 12f..24f,
+                                    steps = 11
+                                )
+                                Text("Dimensione Loghi: ${logoSize}dp", style = MaterialTheme.typography.bodySmall)
+                                Slider(
+                                    value = logoSize.toFloat(),
+                                    onValueChange = { 
+                                        logoSize = it.toInt()
+                                        appPrefs.edit().putInt("logo_size", it.toInt()).apply()
+                                    },
+                                    valueRange = 32f..72f,
+                                    steps = 8
+                                )
+                                Text("Dimensione Testo Guida TV: ${epgTextSize.toInt()}sp", style = MaterialTheme.typography.bodySmall)
+                                Slider(
+                                    value = epgTextSize,
+                                    onValueChange = { 
+                                        epgTextSize = it
+                                        appPrefs.edit().putFloat("epg_text_size", it).apply()
+                                    },
+                                    valueRange = 10f..20f,
+                                    steps = 9
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                // --- PULSANTE CHIUDI ROSSO NEON ---
+                                NeonCyberChip(
+                                    onClick = { showSettingsDialog = false },
+                                    isActive = true,
+                                    activeColor = Color(0xFFEF4444), // Rosso neon
+                                    height = 42.dp,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Chiudi",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if (showGroupDialog) {
 				    Dialog(onDismissRequest = { showGroupDialog = false }) {
@@ -647,7 +641,7 @@ class ChannelsActivity : ComponentActivity() {
 				                            imageVector = Icons.Default.Search,
 				                            contentDescription = null,
 				                            modifier = Modifier.size(18.dp),
-				                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
 				                        )
 				                        Spacer(modifier = Modifier.width(8.dp))
 				                        Box(
@@ -1191,11 +1185,12 @@ class ChannelsActivity : ComponentActivity() {
 	    isLoading: Boolean,
 	    channelTextSize: Float,
 	    logoSize: Int,
-        isDark: Boolean,
+	    isDark: Boolean,
         onFavoriteToggle: () -> Unit,
 	    onPlayClick: () -> Unit,
 	    onLongClick: () -> Unit
 	) {
+
         // 👈 Colore del bordo esterno: più chiaro in dark mode, più scuro nel tema chiaro
         val externalBorderColor = if (isDark) {
             Color(0xFF475569) // Un grigio-azzurro più chiaro e visibile in dark mode (puoi alzarlo o abbassarlo a piacimento)
@@ -1303,10 +1298,10 @@ class ChannelsActivity : ComponentActivity() {
 	                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
 	                                    contentDescription = null,
 	                                    tint = if (isFavorite) {
-                                            Color(0xFFFF4081)
-                                        } else {
-                                            if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-                                        },
+	                                        Color(0xFFFF4081)
+	                                    } else {
+	                                        if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+	                                    },
 	                                    modifier = Modifier.size(22.dp)
 	                                )
 	                            }
@@ -1318,8 +1313,8 @@ class ChannelsActivity : ComponentActivity() {
 	                    // Dimensioni dinamiche proporzionate
 	                    val epgMainSize = (channelTextSize - 4f).coerceAtLeast(8f).sp
 	                    val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(8f).sp
-                        // Definisci i colori dinamici in base al tema
-                        val currentProgColor = if (isDark) {
+	                    
+	                    val currentProgColor = if (isDark) {
                             Color(0xFF00E5FF) // Ciano brillante per il tema scuro
                         } else {
                             Color(0xFF0088D1) // Ciano profondo e ben leggibile per il tema chiaro
@@ -1329,7 +1324,8 @@ class ChannelsActivity : ComponentActivity() {
                         } else {
                             Color(0xFFE0168E) // Rosa/Magenta intenso e marcato per il tema chiaro
                         }              	
-                        // Riga inferiore: EPG a tutta larghezza
+	
+	                    // Riga inferiore: EPG a tutta larghezza
 	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
 	                        // Programma in corso
 	                        Row(
@@ -1572,11 +1568,12 @@ class ChannelsActivity : ComponentActivity() {
 	) {
 	    val isDark = isSystemInDarkTheme()
 	    
-	    val containerBgDark = 0xFFB2B4B4
-	    val containerBgLight = 0xFF9299A2
+	    val containerBgDark = 0xFFC6C8C9
+	    val containerBgLight = 0xFFA3AAB4
 	    
 	    val containerBg = if (isDark) Color(containerBgDark) else Color(containerBgLight)
 	    val borderColor = if (isDark) Color(0xFF94A3B8) else Color(0xFFCBD5E1)
+	
 	    Box(
 	        modifier = modifier
 	            .size(logoSize.dp)
@@ -1602,7 +1599,94 @@ class ChannelsActivity : ComponentActivity() {
 	    }
 	}
 
-        @Composable
+   @Composable
+	fun NeonCyberChip(
+	    onClick: () -> Unit,
+	    modifier: Modifier = Modifier,
+	    isActive: Boolean = true,
+	    activeColor: Color = Color(0xFF00E5FF), // Ciano neon di default
+	    inactiveColor: Color = Color(0xFF4A5060), // Grigio spento per elementi non selezionati
+	    cornerRadius: Dp = 16.dp,
+	    height: Dp = 38.dp,
+	    content: @Composable RowScope.() -> Unit
+	) {
+	    val interactionSource = remember { MutableInteractionSource() }
+	    val isPressed by interactionSource.collectIsPressedAsState()
+	
+	    val currentNeonColor by animateColorAsState(
+	        targetValue = if (isActive) activeColor else inactiveColor,
+	        animationSpec = tween(durationMillis = 300),
+	        label = "neonColor"
+	    )
+	
+	    val borderWidth by animateDpAsState(
+	        targetValue = if (isPressed) 2.5.dp else if (isActive) 1.5.dp else 1.dp,
+	        label = "borderWidth"
+	    )
+	
+	    val glowAlpha by animateFloatAsState(
+	        targetValue = if (isPressed) 1f else if (isActive) 0.8f else 0.4f,
+	        label = "glowAlpha"
+	    )
+	
+	    val scale by animateFloatAsState(
+	        targetValue = if (isPressed) 0.95f else 1f,
+	        label = "scale"
+	    )
+	
+	    val blurRadius by animateDpAsState(
+	        targetValue = if (isPressed) 16.dp else if (isActive) 10.dp else 0.dp,
+	        label = "blurRadius"
+	    )
+	
+	    Surface(
+	        onClick = onClick,
+	        color = Color(0xFF161922),
+	        shape = RoundedCornerShape(cornerRadius),
+	        border = BorderStroke(
+	            width = borderWidth,
+	            color = currentNeonColor.copy(alpha = glowAlpha)
+	        ),
+	        interactionSource = interactionSource,
+	        modifier = modifier
+	            .height(height)
+	            .graphicsLayer(scaleX = scale, scaleY = scale)
+	            .drawBehind {
+	                // Disegna l'alone luminoso solo se il pulsante è attivo o premuto
+	                if (isActive || isPressed) {
+	                    drawIntoCanvas { canvas ->
+	                        val paint = Paint().apply {
+	                            color = currentNeonColor.copy(alpha = if (isPressed) 0.65f else 0.35f)
+	                            asFrameworkPaint().apply {
+	                                isAntiAlias = true
+	                                maskFilter = android.graphics.BlurMaskFilter(
+	                                    blurRadius.toPx().coerceAtLeast(1f),
+	                                    android.graphics.BlurMaskFilter.Blur.NORMAL
+	                                )
+	                            }
+	                        }
+	                        canvas.drawRoundRect(
+	                            left = -2.dp.toPx(),
+	                            top = -2.dp.toPx(),
+	                            right = size.width + 2.dp.toPx(),
+	                            bottom = size.height + 2.dp.toPx(),
+	                            radiusX = cornerRadius.toPx(),
+	                            radiusY = cornerRadius.toPx(),
+	                            paint = paint
+	                        )
+	                    }
+	                }
+	            }
+	    ) {
+	        Row(
+	            verticalAlignment = Alignment.CenterVertically,
+	            horizontalArrangement = Arrangement.Center,
+	            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+	            content = content
+	        )
+	    }
+	}
+     @Composable
         private fun ChannelDetailsDialog(
         channel: Channel,
         availableEpgMappings: List<EpgChannelMapping>,
