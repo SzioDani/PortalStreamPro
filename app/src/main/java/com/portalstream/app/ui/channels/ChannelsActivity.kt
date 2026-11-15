@@ -8,11 +8,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateDpAsState
 import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.animateFloatAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
