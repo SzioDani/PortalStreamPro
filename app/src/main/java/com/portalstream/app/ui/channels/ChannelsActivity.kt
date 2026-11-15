@@ -1426,6 +1426,7 @@ class ChannelsActivity : ComponentActivity() {
 	        }
 	    }
 	}
+}
 	
     @Composable
     private fun ChannelCard(
