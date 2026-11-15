@@ -1321,7 +1321,7 @@ class ChannelsActivity : ComponentActivity() {
 	
 	                    // Dimensioni dinamiche proporzionate
 	                    val epgMainSize = (channelTextSize - 4f).coerceAtLeast(8f).sp
-	                    val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(8f).sp
+                        val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(8f).sp
 	                    
 	                    val currentProgColor = if (isDark) {
                             Color(0xFF00E5FF) // Ciano brillante per il tema scuro
@@ -1426,8 +1426,7 @@ class ChannelsActivity : ComponentActivity() {
 	        }
 	    }
 	}
-}
-	
+
     @Composable
     private fun ChannelCard(
         channel: Channel,
@@ -1568,13 +1567,14 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    
-        @Composable
+    }
+
+    @Composable
 	private fun ChannelLogo(
 	    logoUrl: String?,
 	    channelName: String,
 	    logoSize: Int,
-	        modifier: Modifier = Modifier
+	    modifier: Modifier = Modifier
     ) {
 	    val isDark = isSystemInDarkTheme()
 	    
@@ -1703,8 +1703,8 @@ class ChannelsActivity : ComponentActivity() {
         }
     }                                 
 	            
-     @Composable
-        private fun ChannelDetailsDialog(
+    @Composable
+    private fun ChannelDetailsDialog(
         channel: Channel,
         availableEpgMappings: List<EpgChannelMapping>,
         onDismiss: () -> Unit,
@@ -1892,9 +1892,9 @@ class ChannelsActivity : ComponentActivity() {
     }
     
     private fun channelSortNumber(channel: Channel): Int {
-    if (channel.number > 0) return channel.number
-    val fromName: Int? = extractChannelNumber(channel.name)
-    return fromName ?: Int.MAX_VALUE   // Senza numero finisce in fondo alla lista
+        if (channel.number > 0) return channel.number
+        val fromName: Int? = extractChannelNumber(channel.name)
+        return fromName ?: Int.MAX_VALUE   // Senza numero finisce in fondo alla lista
     }
     
     private fun extractChannelNumber(name: String): Int {
@@ -1906,6 +1906,7 @@ class ChannelsActivity : ComponentActivity() {
     private fun extractRawId(safeId: String): String {
         return if (safeId.startsWith("ch_")) safeId.substringAfterLast("_") else safeId
     }
+    
     companion object {
         const val EXTRA_PORTAL_ID = "extra_portal_id"
         const val EXTRA_TITLE = "extra_title"
@@ -1920,3 +1921,4 @@ class ChannelsActivity : ComponentActivity() {
         const val EXTRA_EXPIRE_DATE = "extra_expire_date"
     }
 }
+                                      
