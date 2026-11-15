@@ -1210,7 +1210,7 @@ class ChannelsActivity : ComponentActivity() {
 	    val innerFrameBg = if (isDark) {
 	        Color(0xFF383E4B) // Sfondo scuro del fondo 
 	    } else {
-	        Color(0xFFD3D3D3) // Sfondo chiaro pulito del fondo 
+	        Color(0xFFF2F4F7) // Sfondo chiaro pulito del fondo 
 	    }
 	
 	    val innerFrameBorder = if (isDark) {
@@ -1322,12 +1322,12 @@ class ChannelsActivity : ComponentActivity() {
                         val currentProgColor = if (isDark) {
                             Color(0xFF00E5FF) // Ciano brillante per il tema scuro
                         } else {
-                            Color(0xFF0091EA) // Ciano profondo e ben leggibile per il tema chiaro
+                            Color(0xFF00838F) // Ciano profondo e ben leggibile per il tema chiaro
                         }
                         val nextProgColor = if (isDark) {
                             Color(0xFFFF2DAA) // Rosa/Fucsia vivace per il tema scuro
                         } else {
-                            Color(0xFFFF0090) // Rosa/Magenta intenso e marcato per il tema chiaro
+                            Color(0xFFE0168E) // Rosa/Magenta intenso e marcato per il tema chiaro
                         }              	
                         // Riga inferiore: EPG a tutta larghezza
 	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
