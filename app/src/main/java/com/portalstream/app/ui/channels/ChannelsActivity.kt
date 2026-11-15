@@ -1605,16 +1605,17 @@ class ChannelsActivity : ComponentActivity() {
 	            contentScale = ContentScale.Fit
 	        )
 	    }
-	}
+    }
+
     @Composable
-    fun NeonCyberChip(
+	fun NeonCyberChip(
         onClick: () -> Unit,
         modifier: Modifier = Modifier,
         isActive: Boolean = true,
         activeColor: Color = Color(0xFF00E5FF), // Ciano neon di default
         inactiveColor: Color = Color(0xFF4A5060), // Grigio spento
         cornerRadius: Dp = 16.dp,
-        chipHeight: Dp = 38.dp, // Rinominato da height a chipHeight per evitare conflitti con Modifier.height
+        chipHeight: Dp = 38.dp,
         content: @Composable RowScope.() -> Unit
     ) {
         val interactionSource = remember { MutableInteractionSource() }
@@ -1656,29 +1657,35 @@ class ChannelsActivity : ComponentActivity() {
             ),
             interactionSource = interactionSource,
             modifier = modifier
-                .height(chipHeight) // Usiamo chipHeight
+                .height(height = chipHeight) // Risolto l'ambiguity specificando il nome del parametro
                 .graphicsLayer(scaleX = scale, scaleY = scale)
                 .drawBehind {
-                    // Disegna l'alone luminoso solo se attivo o premuto
                     if (isActive || isPressed) {
+                        // 1. Salviamo tutte le metriche qui dentro (dove DrawScope è attivo)
+                        val w = size.width
+                        val h = size.height
+                        val cornerPx = cornerRadius.toPx()
+                        val offsetPx = 2.dp.toPx()
+                        val blurPx = blurRadius.toPx().coerceAtLeast(1f)
+
                         drawIntoCanvas { canvas ->
                             val paint = Paint().apply {
                                 color = currentNeonColor.copy(alpha = if (isPressed) 0.65f else 0.35f)
                                 asFrameworkPaint().apply {
                                     isAntiAlias = true
                                     maskFilter = android.graphics.BlurMaskFilter(
-                                        blurRadius.toPx().coerceAtLeast(1f),
+                                        blurPx,
                                         android.graphics.BlurMaskFilter.Blur.NORMAL
                                     )
                                 }
                             }
                             canvas.drawRoundRect(
-                                left = -2.dp.toPx(),
-                                top = -2.dp.toPx(),
-                                right = size.width + 2.dp.toPx(), // size riferito al DrawScope corrente
-                                bottom = size.height + 2.dp.toPx(),
-                                radiusX = cornerRadius.toPx(),
-                                radiusY = cornerRadius.toPx(),
+                                left = -offsetPx,
+                                top = -offsetPx,
+                                right = w + offsetPx,
+                                bottom = h + offsetPx,
+                                radiusX = cornerPx,
+                                radiusY = cornerPx,
                                 paint = paint
                             )
                         }
@@ -1692,7 +1699,7 @@ class ChannelsActivity : ComponentActivity() {
                 content = content
             )
         }
-    }                               
+    }                                 
 	            
      @Composable
         private fun ChannelDetailsDialog(
