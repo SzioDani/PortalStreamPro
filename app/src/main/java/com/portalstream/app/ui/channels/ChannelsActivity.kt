@@ -1362,245 +1362,314 @@ class ChannelsActivity : ComponentActivity() {
     }
 
 	@Composable
-	private fun StandardChannelCard(
-	    channel: Channel,
-	    epgInfo: EpgInfo?,
-	    isFavorite: Boolean,
-	    isLoading: Boolean,
-	    channelTextSize: Float,
-	    logoSize: Int,
-	    isDark: Boolean,
+    private fun StandardChannelCard(
+        channel: Channel,
+        epgInfo: EpgInfo?,
+        isFavorite: Boolean,
+        isLoading: Boolean,
+        channelTextSize: Float,
+        logoSize: Int,
+        isDark: Boolean,
         onFavoriteToggle: () -> Unit,
-	    onPlayClick: () -> Unit,
-	    onLongClick: () -> Unit
-	) {
+        onPlayClick: () -> Unit,
+        onLongClick: () -> Unit
+    ) {
+        // Palette coordinata (niente bianco accecante nel tema chiaro)
+        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFD4DEE8)
+        val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFFE4ECF4)
 
-        // 👈 Colore del bordo esterno: più chiaro in dark mode, più scuro nel tema chiaro
-        val externalBorderColor = if (isDark) {
-            Color(0xFF475569) // Un grigio-azzurro più chiaro e visibile in dark mode (puoi alzarlo o abbassarlo a piacimento)
-        } else {
-            Color(0xFF64748B) // Un grigio più scuro e marcato per il tema chiaro
+        // Il bordo esterno reagisce se il canale sta caricando o è nei preferiti
+        val externalBorderColor = when {
+            isLoading -> Color(0xFF00E5FF)
+            isFavorite -> Color(0xFFFF2DAA).copy(alpha = 0.65f)
+            isDark -> Color(0xFF2E3F5C)
+            else -> Color(0xFF94A3B8)
         }
-	
-	    // Colore del nome canale dinamico in base al tema
-	    val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF0F172A)
-	
-	    // Calibrazione colori cornice interna per Tema Chiaro e Tema Scuro
-	    val innerFrameBg = if (isDark) {
-	        Color(0xFF383E4B) // Sfondo scuro del fondo 
-	    } else {
-	        Color(0xFFF2F4F7) // Sfondo chiaro pulito del fondo 
-	    }
-	
-	    val innerFrameBorder = if (isDark) {
-	        Color(0xFF425069) // Bordo definito e visibile in dark mode
-	    } else {
-	        Color(0xFFA3ABB5) // Bordo grigio chiaro pulito in light mode
-	    }
-	
-	    // Colori EPG calibrati per essere leggibili sia su chiaro che su scuro
-	    val currentProgColor = if (isDark) colorResource(id = R.color.text_neonciano) else Color(0xFF0284C7)
-	    val nextProgColor = if (isDark) colorResource(id = R.color.text_pinkcyber) else Color(0xFFC026D3)
-	
-	    Card(
-	        modifier = Modifier
-	            .fillMaxWidth()
-	            .padding(horizontal = 0.dp, vertical = 2.dp) // 👈 CORRETTO: rimossa la virgola di troppo che c'era prima
-	            .combinedClickable(
-	                onClick = onPlayClick,
-	                onLongClick = onLongClick
-	            ),
-	        shape = RoundedCornerShape(14.dp),
-	        colors = CardDefaults.cardColors(
-	            containerColor = MaterialTheme.colorScheme.surface,
-	            contentColor = MaterialTheme.colorScheme.onSurface
-	        ),
-            // 👈 Usiamo la variabile personalizzata per il bordo esterno
-	        border = BorderStroke(
-	            width = 1.dp,
-	            color = externalBorderColor
-	        ),
-	        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-	    ) {
-	        // CORNICE INTERNA UNICA: ingloba Logo, Nome Canale, Cuore e Testi EPG
-	        Surface(
-	            modifier = Modifier
-	                .fillMaxWidth()
-	                .padding(5.dp),
-	            shape = RoundedCornerShape(10.dp),
-	            color = innerFrameBg,
-	            border = BorderStroke(1.dp, innerFrameBorder)
-	        ) {
-	            Row(
-	                modifier = Modifier
-	                    .fillMaxWidth()
-	                    .padding(horizontal = 8.dp, vertical = 4.dp),
-	                verticalAlignment = Alignment.CenterVertically
-	            ) {
-	                // 1. LOGO A SINISTRA
-	                if (!channel.logoUrl.isNullOrBlank()) {  
+
+        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
+        val channelTitleColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+
+        // Colori EPG ad alto contrasto per entrambi i temi
+        val currentProgColor = if (isDark) Color(0xFF00E5FF) else Color(0xFF006680)
+        val nextProgColor = if (isDark) Color(0xFFFF77C6) else Color(0xFFA21268)
+
+        val epgMainSize = (channelTextSize - 4f).coerceAtLeast(10f).sp
+        val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(9f).sp
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 0.dp, vertical = 3.dp)
+                .combinedClickable(
+                    onClick = onPlayClick,
+                    onLongClick = onLongClick
+                ),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = outerCardBg,
+                contentColor = channelTitleColor
+            ),
+            border = BorderStroke(
+                width = if (isLoading || isFavorite) 1.5.dp else 1.dp,
+                color = externalBorderColor
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            // CORNICE INTERNA
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(5.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = innerFrameBg,
+                border = BorderStroke(1.dp, innerFrameBorder)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. LOGO A SINISTRA
+                    if (!channel.logoUrl.isNullOrBlank()) {
                         ChannelLogo(
                             logoUrl = channel.logoUrl,
                             channelName = channel.name,
                             logoSize = logoSize
-                        )   
-	                    Spacer(modifier = Modifier.width(10.dp))
-	                }
-	
-	                // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG sotto)
-	                Column(
-	                    modifier = Modifier.weight(1f)
-	                ) {
-	                    // Riga superiore: Nome Canale + Cuore allineati
-	                    Row(
-	                        modifier = Modifier.fillMaxWidth(),
-	                        verticalAlignment = Alignment.CenterVertically
-	                    ) {
-	                        Text(
-	                            text = channel.name,
-	                            style = MaterialTheme.typography.titleMedium.copy(
-	                                fontSize = channelTextSize.sp,
-	                                fontWeight = FontWeight.Bold
-	                            ),
-	                            color = channelTitleColor,
-	                            maxLines = 1,
-	                            overflow = TextOverflow.Ellipsis,
-	                            modifier = Modifier.weight(1f)
-	                        )
-	
-	                        Spacer(modifier = Modifier.width(8.dp))
-	
-	                        // Cuore integrato nella riga del titolo
-	                        if (isLoading) {
-	                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-	                        } else {
-	                            IconButton(
-	                                onClick = onFavoriteToggle,
-	                                modifier = Modifier.size(36.dp)
-	                            ) {
-	                                Icon(
-	                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-	                                    contentDescription = null,
-	                                    tint = if (isFavorite) {
-	                                        Color(0xFFFF4081)
-	                                    } else {
-	                                        if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-	                                    },
-	                                    modifier = Modifier.size(22.dp)
-	                                )
-	                            }
-	                        }
-	                    }
-	
-	                    Spacer(modifier = Modifier.height(4.dp))
-	
-	                    // Dimensioni dinamiche proporzionate
-	                    val epgMainSize = (channelTextSize - 4f).coerceAtLeast(8f).sp
-                        val epgTimeSize = (channelTextSize - 5f).coerceAtLeast(8f).sp
-	                    
-	                    val currentProgColor = if (isDark) {
-                            Color(0xFF00E5FF) // Ciano brillante per il tema scuro
-                        } else {
-                            Color(0xFF0088D1) // Ciano profondo e ben leggibile per il tema chiaro
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+
+                    // 2. BLOCCO DESTRO (Nome + Cuore in alto, EPG o Gruppo sotto)
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // Riga superiore: Nome Canale + Bottone Cuore Cyber
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = channel.name,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = channelTextSize.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = channelTitleColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Cuore o Spinner di caricamento dentro un mini box scuro
+                            if (isLoading) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color(0xFF00E5FF)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    onClick = onFavoriteToggle,
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isFavorite) Color(0xFFFF2DAA) else Color(0xFF334155)
+                                    ),
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            contentDescription = "Preferito",
+                                            tint = if (isFavorite) Color(0xFFFF2DAA) else Color(0xFF94A3B8),
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        val nextProgColor = if (isDark) {
-                            Color(0xFFFF2DAA) // Rosa/Fucsia vivace per il tema scuro
-                        } else {
-                            Color(0xFFE0168E) // Rosa/Magenta intenso e marcato per il tema chiaro
-                        }              	
-	
-	                    // Riga inferiore: EPG a tutta larghezza
-	                    if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
-	                        // Programma in corso
-	                        Row(
-	                            verticalAlignment = Alignment.CenterVertically,
-	                            modifier = Modifier.fillMaxWidth()
-	                        ) {
-	                            Icon(
-	                                imageVector = Icons.Default.PlayArrow,
-	                                contentDescription = null,
-	                                modifier = Modifier.size(12.dp),
-	                                tint = currentProgColor
-	                            )
-	                            Spacer(modifier = Modifier.width(4.dp))
-	                            Text(
-	                                text = epgInfo.currentProgram,
-	                                style = MaterialTheme.typography.labelSmall.copy(
-	                                    fontWeight = FontWeight.Bold,
-	                                    fontSize = epgMainSize
-	                                ),
-	                                color = currentProgColor,
-	                                maxLines = 1,
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Riga inferiore: EPG (ORA / DOPO) oppure Badge Gruppo
+                        if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
+                            // --- PROGRAMMA IN CORSO (ORA) ---
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                // Mini-Badge "ORA"
+                                Surface(
+                                    shape = RoundedCornerShape(5.dp),
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(10.dp),
+                                            tint = Color(0xFF00E5FF)
+                                        )
+                                        Text(
+                                            text = "ORA",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = Color(0xFF00E5FF)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(6.dp))
+
+                                // Titolo programma in corso
+                                Text(
+                                    text = epgInfo.currentProgram,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = epgMainSize
+                                    ),
+                                    color = currentProgColor,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-	                                modifier = Modifier.weight(1f)
-	                            )
-	                            if (epgInfo.timeRange.isNotBlank()) {
-	                                Spacer(modifier = Modifier.width(6.dp))
-	                                Text(
-	                                    text = epgInfo.timeRange,
-	                                    style = MaterialTheme.typography.labelSmall.copy(
-	                                        fontWeight = FontWeight.SemiBold,
-	                                        fontSize = epgTimeSize
-	                                    ),
-	                                    color = currentProgColor,
-	                                    maxLines = 1
-	                                )
-	                            }
-	                        }
-	
-	                        // Programma successivo
-	                        if (epgInfo.nextProgram.isNotBlank()) {
-	                            Spacer(modifier = Modifier.height(3.dp))
-	                            Row(
-	                                verticalAlignment = Alignment.CenterVertically,
-	                                modifier = Modifier.fillMaxWidth()
-	                            ) {
-	                                Icon(
-	                                    imageVector = Icons.Default.FastForward,
-	                                    contentDescription = null,
-	                                    modifier = Modifier.size(12.dp),
-	                                    tint = nextProgColor
-	                                )
-	                                Spacer(modifier = Modifier.width(4.dp))
-	                                Text(
-	                                    text = epgInfo.nextProgram,
-	                                    style = MaterialTheme.typography.labelSmall.copy(
-	                                        fontWeight = FontWeight.Bold,
-	                                        fontSize = epgMainSize
-	                                    ),
-	                                    color = nextProgColor,
-	                                    maxLines = 1,
-	                                    overflow = TextOverflow.Ellipsis,
-	                                    modifier = Modifier.weight(1f)
-	                                )
-	                                if (epgInfo.nextTimeRange.isNotBlank()) {
-	                                    Spacer(modifier = Modifier.width(6.dp))
-	                                    Text(
-	                                        text = epgInfo.nextTimeRange,
-	                                        style = MaterialTheme.typography.labelSmall.copy(
-	                                            fontWeight = FontWeight.SemiBold,
-	                                            fontSize = epgTimeSize
-	                                        ),
-	                                        color = nextProgColor,
-	                                        maxLines = 1
-	                                    )
-	                                }
-	                            }
-	                        }
-	                    } else {
-	                        Text(
-	                            text = channel.group.ifBlank { "Altro" },
-	                            style = MaterialTheme.typography.bodySmall.copy(fontSize = epgMainSize),
-	                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-	                            maxLines = 1,
-	                            overflow = TextOverflow.Ellipsis
-	                        )
-	                    }
-	                }
-	            }
-	        }
-	    }
-	}
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                // Orario in un pill-badge scuro
+                                if (epgInfo.timeRange.isNotBlank()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(5.dp),
+                                        color = Color(0xFF161922),
+                                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
+                                    ) {
+                                        Text(
+                                            text = epgInfo.timeRange,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = epgTimeSize
+                                            ),
+                                            color = Color(0xFF00E5FF),
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // --- PROGRAMMA SUCCESSIVO (DOPO) ---
+                            if (epgInfo.nextProgram.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    // Mini-Badge "DOPO"
+                                    Surface(
+                                        shape = RoundedCornerShape(5.dp),
+                                        color = Color(0xFF161922),
+                                        border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.8f))
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.FastForward,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(10.dp),
+                                                tint = Color(0xFFFF77C6)
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text(
+                                                text = "DOPO",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = Color(0xFFFF77C6)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+
+                                    // Titolo programma successivo
+                                    Text(
+                                        text = epgInfo.nextProgram,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = epgMainSize
+                                        ),
+                                        color = nextProgColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    // Orario programma successivo
+                                    if (epgInfo.nextTimeRange.isNotBlank()) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(5.dp),
+                                            color = Color(0xFF161922),
+                                            border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.4f))
+                                        ) {
+                                            Text(
+                                                text = epgInfo.nextTimeRange,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = epgTimeSize
+                                                ),
+                                                color = Color(0xFFFF77C6),
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Nessun EPG: mostra il Gruppo del canale dentro un badge pulito
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF161922).copy(alpha = if (isDark) 0.7f else 0.85f),
+                                border = BorderStroke(1.dp, Color(0xFF475569))
+                            ) {
+                                Text(
+                                    text = channel.group.ifBlank { "Canale TV" },
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = epgTimeSize),
+                                    color = Color(0xFFCBD5E1),
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }	                            
 
     @Composable
     private fun ChannelCard(
