@@ -59,6 +59,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
@@ -1566,14 +1567,14 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }
-    @Composable
+    
+        @Composable
 	private fun ChannelLogo(
 	    logoUrl: String?,
 	    channelName: String,
 	    logoSize: Int,
-	    modifier: Modifier = Modifier
-	) {
+	        modifier: Modifier = Modifier
+    ) {
 	    val isDark = isSystemInDarkTheme()
 	    
 	    val containerBgDark = 0xFFC6C8C9
@@ -1605,7 +1606,7 @@ class ChannelsActivity : ComponentActivity() {
 	            contentScale = ContentScale.Fit
 	        )
 	    }
-    }
+    }     
 
     @Composable
 	fun NeonCyberChip(
