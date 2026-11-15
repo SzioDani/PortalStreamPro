@@ -8,7 +8,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -1617,7 +1617,7 @@ class ChannelsActivity : ComponentActivity() {
         activeColor: Color = Color(0xFF00E5FF), // Ciano neon di default
         inactiveColor: Color = Color(0xFF4A5060), // Grigio spento
         cornerRadius: Dp = 16.dp,
-        chipHeight: Dp = 38.dp,
+        height: Dp = 38.dp,
         content: @Composable RowScope.() -> Unit
     ) {
         val interactionSource = remember { MutableInteractionSource() }
@@ -1659,7 +1659,7 @@ class ChannelsActivity : ComponentActivity() {
             ),
             interactionSource = interactionSource,
             modifier = modifier
-                .height(chipHeight)
+                .height(height)
                 .graphicsLayer(scaleX = scale, scaleY = scale)
                 .drawBehind {
                     if (isActive || isPressed) {
