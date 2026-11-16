@@ -627,13 +627,13 @@ class ChannelsActivity : ComponentActivity() {
                                                 .apply()
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF3B4D63),
+                                        color = if (darkTheme) Color(0xFF161922) else Color(0xFF3B4D63),
                                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
                                     ) {
                                         Text(
                                             text = "Reset",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (darkTheme) Color(0xFF161922) else Color(0xFF3B4D63), // 👈 CAMBIA AUTOMATICAMENTE COL TEMA
+                                            color = if (darkTheme) Color(0xFF00E5FF) else Color(0xFFFFFFFF),
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                         )
@@ -1536,8 +1536,7 @@ class ChannelsActivity : ComponentActivity() {
         }
 
         val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFAEC0D2)  // 👈 Prima era 0xFFD4DEE8
-        val channelTitleColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFFC4D2E1) // 👈 Prima era 0xFFE4ECF4
-
+        val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF090D16)
         // Configurazione Quadretto Cuore compatto (25.dp) con nuovo sfondo
         val heartBoxSize = 25.dp
         val heartIconSize = 14.dp
