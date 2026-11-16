@@ -2082,7 +2082,7 @@ class ChannelsActivity : ComponentActivity() {
         val isPressed by interactionSource.collectIsPressedAsState()
 
         val currentNeonColor by animateColorAsState(
-            targetValue = if (isActive) activeColor else inactiveColor,
+            targetValue = if (isActive || isPressed) activeColor else inactiveColor),
             animationSpec = tween(durationMillis = 300),
             label = "neonColor"
         )
