@@ -152,7 +152,7 @@ class ChannelsActivity : ComponentActivity() {
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
                 background = Color(0xFFBCC8D6),     // 👈 Scurito (prima era 0xFFF1F5F9 quasi bianco)
-                surface = Color(0xFFCFD9E5),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)
+                surface = Color(0xFFADADB7),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)  D9D9E5
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFB0BFD0), // 👈 Scurito (prima era 0xFFE2E8F0)
@@ -1525,8 +1525,8 @@ class ChannelsActivity : ComponentActivity() {
         onLongClick: () -> Unit
     ) {
         // Palette generale della Card
-        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFD4DEE8)
-        val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFFE4ECF4)
+        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFA9B1B9)
+        val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFFB6BCC3)
 
         val externalBorderColor = when {
             isLoading -> Color(0xFF00E5FF)
