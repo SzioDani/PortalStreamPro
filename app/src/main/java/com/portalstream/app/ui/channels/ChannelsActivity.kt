@@ -1139,54 +1139,163 @@ class ChannelsActivity : ComponentActivity() {
                                     )
                                 }
                             }
-
+                            // --- BANNER CYBER RICERCA EPG IN BACKGROUND ---
                             if (isEpgLoading) {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 8.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                        .padding(bottom = 10.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF161922),
+                                    border = BorderStroke(1.5.dp, Color(0xFFFF6D00).copy(alpha = 0.85f))
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.secondary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Ricerca Guida TV (EPG) in background...",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            fontWeight = FontWeight.Medium
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Icona TV Ciano dentro l'anello rotante Arancione Neon
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.size(34.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(34.dp),
+                                                    strokeWidth = 2.5.dp,
+                                                    color = Color(0xFFFF6D00),
+                                                    trackColor = Color(0xFF2E3F5C)
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.Tv,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF00E5FF),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            // Testo su due livelli (Titolo + Sottotitolo)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "Ricerca Guida TV (EPG) in background...",
+                                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = "Sincronizzazione palinsesti in corso",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                    color = Color(0xFF94A3B8),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(8.dp))
+
+                                            // Mini-Badge "SYNC"
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF1E293B),
+                                                border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                                            ) {
+                                                Text(
+                                                    text = "SYNC",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                    color = Color(0xFF00E5FF),
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+
+                                        // Striscia luminosa di scansione sul fondo del banner
+                                        LinearProgressIndicator(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(3.dp),
+                                            color = Color(0xFF00E5FF),
+                                            trackColor = Color(0xFF1E293B)
                                         )
                                     }
                                 }
                             }
 
+                            // --- CARD CENTRALE SE L'UTENTE APRE "GUIDA TV" MENTRE CARICA ---
                             if (showOnlyEpg && isEpgLoading && epgProgramsMap.isEmpty()) {
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "Sto cercando la Guida TV (EPG)...\nAttendi qualche istante.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            textAlign = TextAlign.Center,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.85f)
+                                            .padding(24.dp),
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = Color(0xFF161922),
+                                        border = BorderStroke(1.5.dp, Color(0xFFFF6D00))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.size(56.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(56.dp),
+                                                    strokeWidth = 3.dp,
+                                                    color = Color(0xFFFF6D00),
+                                                    trackColor = Color(0xFF2E3F5C)
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.Tv,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF00E5FF),
+                                                    modifier = Modifier.size(26.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(16.dp))
+
+                                            Text(
+                                                text = "Sincronizzazione Guida TV",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                textAlign = TextAlign.Center
+                                            )
+
+                                            Spacer(modifier = Modifier.height(6.dp))
+
+                                            Text(
+                                                text = "Sto cercando e associando i palinsesti EPG...\nAttendi qualche istante.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                textAlign = TextAlign.Center,
+                                                color = Color(0xFF94A3B8)
+                                            )
+
+                                            Spacer(modifier = Modifier.height(16.dp))
+
+                                            LinearProgressIndicator(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(0.75f)
+                                                    .height(4.dp)
+                                                    .clip(RoundedCornerShape(2.dp)),
+                                                color = Color(0xFF00E5FF),
+                                                trackColor = Color(0xFF1E293B)
+                                            )
+                                        }
                                     }
-                                }
+                                }                     
                             } else if (currentChannels.isEmpty()) {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     if (statusMessage.isNotBlank()) {
