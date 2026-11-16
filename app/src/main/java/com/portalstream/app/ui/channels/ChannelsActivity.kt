@@ -394,7 +394,7 @@ class ChannelsActivity : ComponentActivity() {
                                         // 🎨 COLORI DEDICATI SOLO A QUESTO MENÙ (niente più bianco sparato!)
                     // Nel tema chiaro usa un Grigio-Ardesia morbido (0xFFD4DEE8) che fa risaltare i bottoni Neon.
                     // (Se invece vuoi questo menù SEMPRE scuro anche col tema chiaro, metti Color(0xFF182234) al posto di 0xFFD4DEE8)
-                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFD4DEE8)
+                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFA9B1B9)
                     val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFFE4ECF4)
                     val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
                     val menuTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
@@ -620,7 +620,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 .apply()
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF161922),
+                                        color = Color(0xFF3B4D63),
                                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
                                     ) {
                                         Text(
@@ -2092,7 +2092,7 @@ class ChannelsActivity : ComponentActivity() {
                     )
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
+                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF3B4D63) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF))
                     ) {
                         Text(
@@ -2117,7 +2117,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(-1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF161922),
+                        color = Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
@@ -2143,7 +2143,7 @@ class ChannelsActivity : ComponentActivity() {
                         colors = SliderDefaults.colors(
                             thumbColor = Color(0xFF00E5FF),
                             activeTrackColor = Color(0xFF00E5FF),
-                            inactiveTrackColor = Color(0xFF161922).copy(alpha = 0.45f),
+                            inactiveTrackColor = Color(0xFF3B4D63).copy(alpha = 0.45f),
                             activeTickColor = Color.Transparent,
                             inactiveTickColor = Color.Transparent
                         )
@@ -2153,7 +2153,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF161922),
+                        color = Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
