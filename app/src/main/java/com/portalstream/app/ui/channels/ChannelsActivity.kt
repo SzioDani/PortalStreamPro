@@ -151,12 +151,12 @@ class ChannelsActivity : ComponentActivity() {
             val customLightScheme = lightColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFF1F5F9),
-                surface = Color(0xFFFFFFFF),
+                background = Color(0xFFBCC8D6),     // 👈 Scurito (prima era 0xFFF1F5F9 quasi bianco)
+                surface = Color(0xFFCFD9E5),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
-                surfaceVariant = Color(0xFFE2E8F0),
-                outline = Color(0xFFCBD5E1)
+                surfaceVariant = Color(0xFFB0BFD0), // 👈 Scurito (prima era 0xFFE2E8F0)
+                outline = Color(0xFF8FA3B8)         // 👈 Bordo più definito
             )
 
             // TEMA SCURO OTTIMIZZATO
@@ -626,7 +626,7 @@ class ChannelsActivity : ComponentActivity() {
                                         Text(
                                             text = "Reset",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFF00E5FF),
+                                            color = if (darkTheme) Color(0xFF161922) else Color(0xFF3B4D63), // 👈 CAMBIA AUTOMATICAMENTE COL TEMA
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                         )
@@ -1495,8 +1495,8 @@ class ChannelsActivity : ComponentActivity() {
             else -> Color(0xFF94A3B8)
         }
 
-        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
-        val channelTitleColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFAEC0D2)  // 👈 Prima era 0xFFD4DEE8
+        val channelTitleColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFFC4D2E1) // 👈 Prima era 0xFFE4ECF4
 
         // Configurazione Quadretto Cuore compatto (25.dp) con nuovo sfondo
         val heartBoxSize = 25.dp
@@ -1630,7 +1630,7 @@ class ChannelsActivity : ComponentActivity() {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF161922),
+                                color = Color(0xFF3B4D63),
                                 border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.8f))
                             ) {
                                 Row(
@@ -1694,7 +1694,7 @@ class ChannelsActivity : ComponentActivity() {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFF161922),
+                                    color = Color(0xFF3B4D63),
                                     border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.7f))
                                 ) {
                                     Row(
@@ -2087,7 +2087,7 @@ class ChannelsActivity : ComponentActivity() {
     ) {
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
-
+        val controlBgColor = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63)
         val currentNeonColor by animateColorAsState(
             targetValue = if (isActive || isPressed) activeColor else inactiveColor,
             animationSpec = tween(durationMillis = 300),
@@ -2208,7 +2208,7 @@ class ChannelsActivity : ComponentActivity() {
                     )
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF3B4D63) else Color(0xFF3B4D63),
+                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF))
                     ) {
                         Text(
@@ -2233,7 +2233,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(-1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF3B4D63),
+                        color = controlBgColor,
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
@@ -2269,7 +2269,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF3B4D63),
+                        color = controlBgColor,
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
