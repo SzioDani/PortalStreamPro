@@ -1085,7 +1085,7 @@ class ChannelsActivity : ComponentActivity() {
                                     onClick = { showGroupDialog = true },
                                     isActive = isGroupActive,
                                     activeColor = Color(0xFF00E676),   // 👈 Verde Neon brillante
-                                    inactiveColor = Color(0xFF00E676), // 👈 Fa uscire l'alone VERDE anche mentre lo stai premendo da spento!
+                                    //inactiveColor = Color(0xFF00E676), // 👈 Fa uscire l'alone VERDE anche mentre lo stai premendo da spento!
                                     cornerRadius = 12.dp,
                                     height = 38.dp,
                                     modifier = Modifier.weight(1f)
