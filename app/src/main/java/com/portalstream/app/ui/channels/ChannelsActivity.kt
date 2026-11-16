@@ -152,7 +152,7 @@ class ChannelsActivity : ComponentActivity() {
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
                 background = Color(0xFFBCC8D6),     // 👈 Scurito (prima era 0xFFF1F5F9 quasi bianco)
-                surface = Color(0xFFADADB7),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)  D9D9E5
+                surface = Color(0xFFD9D9E5),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)  D9D9E5
                 onBackground = Color(0xFF0F172A),
                 onSurface = Color(0xFF0F172A),
                 surfaceVariant = Color(0xFFB0BFD0), // 👈 Scurito (prima era 0xFFE2E8F0)
