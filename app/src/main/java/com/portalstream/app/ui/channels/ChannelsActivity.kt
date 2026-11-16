@@ -198,6 +198,13 @@ class ChannelsActivity : ComponentActivity() {
 
                 var isLoading by remember { mutableStateOf(true) }
                 var isEpgLoading by remember { mutableStateOf(false) }
+                var successBannerText by remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(successBannerText) {
+                    if (successBannerText != null) {
+                        kotlinx.coroutines.delay(2500) // Sparisce da solo dopo 2.5 secondi
+                        successBannerText = null
+                    }
+                }
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
                 var showGroupDialog by remember { mutableStateOf(false) }
@@ -332,7 +339,7 @@ class ChannelsActivity : ComponentActivity() {
                                 withContext(Dispatchers.Main) {
                                     isLoading = false
                                     if (isManualRefresh) {
-                                        Toast.makeText(this@ChannelsActivity, "✅ Lista aggiornata!", Toast.LENGTH_SHORT).show()
+                                        successBannerText = "Lista canali aggiornata con successo!"
                                     }
                                 }
 
@@ -1137,6 +1144,39 @@ class ChannelsActivity : ComponentActivity() {
                                         color = if (showOnlyEpg) Color.White else Color.LightGray,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                }
+                            }
+                            // --- BANNER CON ICONA VERA QUANDO LA LISTA È AGGIORNATA ---
+                            successBannerText?.let { message ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (darkTheme) Color(0xFF161922) else Color(0xFF2B3B4E),
+                                    border = BorderStroke(1.5.dp, Color(0xFF00E676)) // Bordo Verde Neon
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color(0xFF00E676), // Icona Check Verde Neon
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = message,
+                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                             // --- BANNER CYBER RICERCA EPG IN BACKGROUND ---
