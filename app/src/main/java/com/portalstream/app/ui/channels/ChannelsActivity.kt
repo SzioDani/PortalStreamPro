@@ -2273,7 +2273,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(-1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = controlBgColor,
+                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
@@ -2309,7 +2309,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = { onStepChange(1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = controlBgColor,
+                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
                         modifier = Modifier.size(30.dp)
                     ) {
