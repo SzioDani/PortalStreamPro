@@ -1935,63 +1935,70 @@ class ChannelsActivity : ComponentActivity() {
                                 border = itemBorder
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(
+                                    // --- CORNICE UNICA CONTINUA (Stato + Titolo Programma + Orario) ---
+                                    val rowColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF77C6)
+                                    val rowBorder = if (isCurrent) Color(0xFF00E5FF).copy(alpha = 0.85f) else Color(0xFFFF2DAA).copy(alpha = 0.65f)
+                                    val rowBg = if (isDark) Color(0xFF161922) else Color(0xFF2B3B4E)
+
+                                    Surface(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = rowBg,
+                                        border = BorderStroke(1.dp, rowBorder)
                                     ) {
                                         Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
+                                            // 1. Etichetta a sinistra ("● IN ONDA" se attivo)
                                             if (isCurrent) {
-                                                Surface(
-                                                    color = Color(0xFF161922),
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    border = BorderStroke(1.dp, Color(0xFF00E5FF))
-                                                ) {
-                                                    Text(
-                                                        text = "● IN ONDA",
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                                        color = Color(0xFF00E5FF),
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "● IN ONDA",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.ExtraBold
+                                                    ),
+                                                    color = rowColor
+                                                )
+                                                Text(
+                                                    text = " │ ",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                    color = rowColor.copy(alpha = 0.45f)
+                                                )
                                             }
 
+                                            // 2. Titolo del programma al centro (si adatta allo spazio)
                                             Text(
                                                 text = prog.title,
-                                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = epgTextSize.sp),
-                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                                color = if (isCurrent) currentAccent else titleTextColor,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = epgTextSize.sp,
+                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold
+                                                ),
+                                                color = rowColor,
                                                 maxLines = if (isExpanded) 2 else 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
                                             )
-                                        }
 
-                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                        // Badge Orario
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = Color(0xFF161922),
-                                            border = BorderStroke(
-                                                1.dp,
-                                                if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF2DAA).copy(alpha = 0.7f)
+                                            // 3. Divisore + Orario di inizio e fine a destra
+                                            Text(
+                                                text = " │ ",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = rowColor.copy(alpha = 0.45f)
                                             )
-                                        ) {
                                             Text(
                                                 text = timeRange,
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp),
-                                                color = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF77C6),
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = rowColor,
+                                                maxLines = 1
                                             )
                                         }
-                                    }
+                                    }                    
 
                                     // Barra di avanzamento luminosa per il programma in corso
                                     if (isCurrent) {
