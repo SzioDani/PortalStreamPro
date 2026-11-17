@@ -1538,7 +1538,7 @@ class ChannelsActivity : ComponentActivity() {
         val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF090D16)
 
         // Sfondo dinamico per le righe dei programmi (Blu morbido in Dark Mode, chiaro coordinato in Light Mode)
-        val programRowBg = if (isDark) Color(0xFF26354D) else Color(0xFFD2DFEC)
+        val programRowBg = if (isDark) Color(0xFF26354D) else Color(0xFFB1B9C8)
 
         // Colori e dimensioni per il cuore (senza quadretto)
         val heartIconSize = 22.dp
