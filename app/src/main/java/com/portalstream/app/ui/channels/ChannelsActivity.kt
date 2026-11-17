@@ -1632,8 +1632,13 @@ class ChannelsActivity : ComponentActivity() {
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(heartIconSize)
-                                        .clickable(onClick = onFavoriteToggle),
+                                        .size(heartIconSize + 8.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable(
+                                            onClick = onFavoriteToggle,
+                                            indication = rememberRipple(bounded = false, radius = 16.dp),
+                                            interactionSource = remember { MutableInteractionSource() }
+                                        ),         
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
