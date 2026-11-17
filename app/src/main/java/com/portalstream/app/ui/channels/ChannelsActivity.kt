@@ -1891,7 +1891,7 @@ class ChannelsActivity : ComponentActivity() {
                     Surface(
                         onClick = onPlayClick,
                         shape = RoundedCornerShape(10.dp),
-                        color = if (darkTheme) Color(0xFF161922) else Color(0xFF3B4D63),
+                        color = if (isDark) Color(0xFF161922) else Color(0xFF3B4D63),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF))
                     ) {
                         Row(
