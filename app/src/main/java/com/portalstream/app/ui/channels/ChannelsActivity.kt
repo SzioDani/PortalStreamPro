@@ -1979,9 +1979,9 @@ class ChannelsActivity : ComponentActivity() {
 									val rowBg = if (isDark) Color(0xFF0D1424) else Color(0xFF434E67)
 									
 									// COLORI SEPARATI PER TITOLO E ORARIO
-									val titleColor = if (isCurrent) Color(0xFFFFFFFF) else titleTextColor // Scegli il colore per il titolo
-									val timeColor = if (isCurrent) Color(0xFF00E5FF) else subTextColor    // Scegli il colore per l'orario
-									
+                                    val titleColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFFFFFF)
+                                    val timeColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFF94A3B8)
+
 									Surface(
 									    modifier = Modifier.fillMaxWidth(),
 									    shape = RoundedCornerShape(6.dp),
