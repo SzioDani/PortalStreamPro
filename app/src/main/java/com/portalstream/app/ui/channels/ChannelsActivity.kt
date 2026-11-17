@@ -2029,7 +2029,7 @@ class ChannelsActivity : ComponentActivity() {
 									            text = " │ ",
 									            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
 									            color = badgeColor.copy(alpha = 0.45f)
-									        ),
+									        )
 									        Text(
 									            text = timeRange,
 									            style = MaterialTheme.typography.labelSmall.copy(
