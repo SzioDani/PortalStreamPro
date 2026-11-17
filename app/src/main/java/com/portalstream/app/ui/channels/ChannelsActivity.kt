@@ -1510,7 +1510,7 @@ class ChannelsActivity : ComponentActivity() {
         }
     }
 
-	@Composable                                   
+	@Composable 
     private fun StandardChannelCard(
         channel: Channel,
         epgInfo: EpgInfo?,
@@ -1534,21 +1534,14 @@ class ChannelsActivity : ComponentActivity() {
             else -> Color(0xFF94A3B8)
         }
 
-        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFAEC0D2)  // 👈 Prima era 0xFFD4DEE8
+        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFAEC0D2)
         val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF090D16)
-        // Configurazione Quadretto Cuore compatto (25.dp) con nuovo sfondo
-        val heartBoxSize = 25.dp
-        val heartIconSize = 14.dp
-        val heartBoxBg = when {
-            isFavorite -> Color(0xFF3D122C) // Rubino/Magenta quando attivo
-            isDark -> Color(0xFF26354D)     // Blu-Indaco morbido in Dark Mode
-            else -> Color(0xFFCBD8E6)       // Azzurro-Ardesia leggero in Light Mode
-        }
-        val heartBoxBorder = when {
-            isFavorite -> Color(0xFFFF2DAA)
-            isDark -> Color(0xFF3B4F6B)
-            else -> Color(0xFF94A3B8)
-        }
+
+        // Sfondo dinamico per le righe dei programmi (Blu morbido in Dark Mode, chiaro coordinato in Light Mode)
+        val programRowBg = if (isDark) Color(0xFF26354D) else Color(0xFFD2DFEC)
+
+        // Colori e dimensioni per il cuore (senza quadretto)
+        val heartIconSize = 22.dp
         val heartIconTint = when {
             isFavorite -> Color(0xFFFF2DAA)
             isDark -> Color(0xFF94A3B8)
@@ -1606,7 +1599,7 @@ class ChannelsActivity : ComponentActivity() {
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Riga superiore: Nome Canale + Quadretto Cuore compatto
+                        // Riga superiore: Nome Canale + Cuore ingrandito (senza box)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -1626,36 +1619,29 @@ class ChannelsActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.width(8.dp))
 
                             if (isLoading) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = heartBoxBg,
-                                    border = BorderStroke(1.dp, Color(0xFF00E5FF)),
-                                    modifier = Modifier.size(heartBoxSize)
+                                Box(
+                                    modifier = Modifier.size(heartIconSize),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(13.dp),
-                                            strokeWidth = 2.dp,
-                                            color = Color(0xFF00E5FF)
-                                        )
-                                    }
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color(0xFF00E5FF)
+                                    )
                                 }
                             } else {
-                                Surface(
-                                    onClick = onFavoriteToggle,
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = heartBoxBg,
-                                    border = BorderStroke(1.dp, heartBoxBorder),
-                                    modifier = Modifier.size(heartBoxSize)
+                                Box(
+                                    modifier = Modifier
+                                        .size(heartIconSize)
+                                        .clickable(onClick = onFavoriteToggle),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                            contentDescription = "Preferito",
-                                            tint = heartIconTint,
-                                            modifier = Modifier.size(heartIconSize)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                        contentDescription = "Preferito",
+                                        tint = heartIconTint,
+                                        modifier = Modifier.size(heartIconSize)
+                                    )
                                 }
                             }
                         }
@@ -1664,11 +1650,11 @@ class ChannelsActivity : ComponentActivity() {
 
                         // Riga inferiore: CORNICE UNICA CONTINUA per ORA e per DOPO
                         if (epgInfo != null && epgInfo.currentProgram.isNotBlank()) {
-                            // --- CORNICE UNICA "ORA" (Da ▶ ORA fino all'orario di inizio/fine) ---
+                            // --- CORNICE UNICA "ORA" ---
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF3B4D63),
+                                color = programRowBg,
                                 border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.8f))
                             ) {
                                 Row(
@@ -1726,13 +1712,13 @@ class ChannelsActivity : ComponentActivity() {
                                 }
                             }
 
-                            // --- CORNICE UNICA "DOPO" (Da ⏭ DOPO fino all'orario successivo) ---
+                            // --- CORNICE UNICA "DOPO" ---
                             if (epgInfo.nextProgram.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFF3B4D63),
+                                    color = programRowBg,
                                     border = BorderStroke(1.dp, Color(0xFFFF2DAA).copy(alpha = 0.7f))
                                 ) {
                                     Row(
@@ -1795,13 +1781,13 @@ class ChannelsActivity : ComponentActivity() {
                             // Nessun EPG: Badge Categoria
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF161922).copy(alpha = if (isDark) 0.7f else 0.85f),
+                                color = programRowBg.copy(alpha = if (isDark) 0.7f else 0.85f),
                                 border = BorderStroke(1.dp, Color(0xFF475569))
                             ) {
                                 Text(
                                     text = channel.group.ifBlank { "Canale TV" },
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = epgTimeSize),
-                                    color = Color(0xFFCBD5E1),
+                                    color = channelTitleColor,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1813,7 +1799,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }                                                                                                                            
+    }                                                                                                                                                        
 
     @Composable
     private fun ChannelCard(
