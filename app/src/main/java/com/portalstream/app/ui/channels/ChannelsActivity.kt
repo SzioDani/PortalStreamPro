@@ -140,71 +140,67 @@ class ChannelsActivity : ComponentActivity() {
         val appPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
 
         setContent {
+            // Gestiamo la preferenza salvata: se prima era "light", la convertiamo o la impostiamo sul secondo tema scuro (es. "slate")
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
-            val darkTheme = appTheme == "dark"
+            // Adesso controlliamo se il tema attivo è il primo (Deep Blue) oppure il secondo (Slate Antracite)
+            val isDeepBlueTheme = appTheme == "dark" || appTheme == "deep_blue" // Adatta alla tua chiave
 
             var channelTextSize by remember { mutableStateOf(appPrefs.getFloat("channel_text_size", 16f)) }
             var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
             var epgTextSize by remember { mutableStateOf(appPrefs.getFloat("epg_text_size", 14f)) }
             
-            // TEMA CHIARO PROFESSIONALE
-            val customLightScheme = lightColorScheme(
+            // TEMA SCURO 1: Deep Blue Notturno (Il tuo principale)
+            val customDeepBlueScheme = darkColorScheme(
                 primary = colorResource(id = R.color.primary),
                 secondary = colorResource(id = R.color.secondary),
-                background = Color(0xFFBCC8D6),     // 👈 Scurito (prima era 0xFFF1F5F9 quasi bianco)
-                surface = Color(0xFFD9D9E5),        // 👈 Scurito (prima era 0xFFFFFFFF bianco puro)  D9D9E5
-                onBackground = Color(0xFF0F172A),
-                onSurface = Color(0xFF0F172A),
-                surfaceVariant = Color(0xFFB0BFD0), // 👈 Scurito (prima era 0xFFE2E8F0)
-                outline = Color(0xFF8FA3B8)         // 👈 Bordo più definito
+                background = Color(0xFF0B0F19),
+                surface = Color(0xFF131B2E),
+                onBackground = Color(0xFFF8FAFC),
+                onSurface = Color(0xFFF8FAFC),
+                surfaceVariant = Color(0xFF1E293B),
+                outline = Color(0xFF2E3F5C)
             )
 
-            // TEMA SCURO OTTIMIZZATO
-            val customDarkScheme = darkColorScheme(
-                primary = colorResource(id = R.color.primary),       // Colore primario (pulsanti principali, accenti)
-                secondary = colorResource(id = R.color.secondary),   // Colore secondario (es. pulsante EPG)
-                background = Color(0xFF0B0F19),                      // Sfondo generale dell'Activity
-                surface = Color(0xFF131B2E),                         // Sfondo delle card, dei dialoghi e delle superfici
-                onBackground = Color(0xFFF8FAFC),                    // Colore del testo/icone sopra il background
-                onSurface = Color(0xFFF8FAFC),                       // Colore del testo/icone sopra le superfici e i dialoghi
-                surfaceVariant = Color(0xFF1E293B),                  // Sfondo alternativo per elementi secondari (es. pulsanti non attivi)
-                outline = Color(0xFF334155)                          // Colore dei bordi e delle linee divisorie (divider)
+            // TEMA SCURO 2: Slate Antracite (Il secondo tema scuro moderno)
+            val customSlateScheme = darkColorScheme(
+                primary = colorResource(id = R.color.primary),
+                secondary = colorResource(id = R.color.secondary),
+                background = Color(0xFF0B0F17), // Sfondo ardesia scuro profondo
+                surface = Color(0xFF111827),     // Superficie ardesia
+                onBackground = Color(0xFFF9FAFB),
+                onSurface = Color(0xFFF9FAFB),
+                surfaceVariant = Color(0xFF1F2937),
+                outline = Color(0xFF374151)      // Bordo ardesia neutro
             )
 
             MaterialTheme(
-                colorScheme = if (darkTheme) customDarkScheme else customLightScheme
+                colorScheme = if (isDeepBlueTheme) customDeepBlueScheme else customSlateScheme
             ) {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
                 val localChannels = remember { ChannelCache.take() }
-
                 val allChannels = if (localChannels.isNotEmpty()) localChannels else dbChannels
                 val scope = rememberCoroutineScope()
-
                 var selectedGroup by rememberSaveable { mutableStateOf<String?>(null) }
                 var searchQuery by rememberSaveable { mutableStateOf("") }
                 var showOnlyFavorites by rememberSaveable { mutableStateOf(false) }
                 var showOnlyEpg by rememberSaveable { mutableStateOf(false) }
-
                 var showSettingsDialog by remember { mutableStateOf(false) }
                 var channelForDetails by remember { mutableStateOf<Channel?>(null) }
-
                 var favoriteIds by remember {
                     mutableStateOf(prefs.getStringSet("favorite_ids", emptySet())?.toSet() ?: emptySet())
                 }
-
                 var favoriteGroups by remember {
                     mutableStateOf(prefs.getStringSet("favorite_groups", emptySet())?.toSet() ?: emptySet())
                 }
-
                 var isLoading by remember { mutableStateOf(true) }
                 var isEpgLoading by remember { mutableStateOf(false) }
                 var successBannerText by remember { mutableStateOf<String?>(null) }
                 LaunchedEffect(successBannerText) {
                     if (successBannerText != null) {
-                        kotlinx.coroutines.delay(2500) // Sparisce da solo dopo 2.5 secondi
+                        kotlinx.coroutines.delay(2500)
                         successBannerText = null
                     }
-                }
+                }    
                 var loadingChannelId by remember { mutableStateOf<String?>(null) }
                 var statusMessage by remember { mutableStateOf("") }
                 var showGroupDialog by remember { mutableStateOf(false) }
@@ -1518,34 +1514,34 @@ class ChannelsActivity : ComponentActivity() {
         isLoading: Boolean,
         channelTextSize: Float,
         logoSize: Int,
-        isDark: Boolean,
+        isDark: Boolean, // true = Deep Blue Notturno, false = Slate Antracite Scuro
         onFavoriteToggle: () -> Unit,
         onPlayClick: () -> Unit,
         onLongClick: () -> Unit
     ) {
-        // Palette generale della Card
-        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFA9B1B9)
-        val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFFB6BCC3)
+        // Palette basata su DUE temi scuri distinti (Deep Blue vs Slate Antracite)
+        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFF111827)
+        val innerFrameBg = if (isDark) Color(0xFF1B253B) else Color(0xFF1F2937)
 
         val externalBorderColor = when {
             isLoading -> Color(0xFF00E5FF)
             isFavorite -> Color(0xFFFF2DAA).copy(alpha = 0.65f)
             isDark -> Color(0xFF2E3F5C)
-            else -> Color(0xFF94A3B8)
+            else -> Color(0xFF374151)
         }
 
-        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFFAEC0D2)
-        val channelTitleColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF090D16)
+        val innerFrameBorder = if (isDark) Color(0xFF2E3F5C) else Color(0xFF374151)
+        val channelTitleColor = Color(0xFFFFFFFF) // Sempre bianco brillante nei temi scuri
 
-        // Sfondo dinamico per le righe dei programmi (Blu morbido in Dark Mode, chiaro coordinato in Light Mode)
-        val programRowBg = if (isDark) Color(0xFF26354D) else Color(0xFFB1B9C8)
+        // Sfondo dinamico per le righe dei programmi (Sempre toni scuri coerenti)
+        val programRowBg = if (isDark) Color(0xFF26354D) else Color(0xFF253347)
 
-        // Colori e dimensioni per il cuore (senza quadretto)
+        // Colori e dimensioni per il cuore
         val heartIconSize = 22.dp
         val heartIconTint = when {
             isFavorite -> Color(0xFFFF2DAA)
             isDark -> Color(0xFF94A3B8)
-            else -> Color(0xFF475569)
+            else -> Color(0xFF9CA3AF)
         }
 
         val epgMainSize = (channelTextSize - 4f).coerceAtLeast(10f).sp
@@ -1786,7 +1782,7 @@ class ChannelsActivity : ComponentActivity() {
                             // Nessun EPG: Badge Categoria
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = programRowBg.copy(alpha = if (isDark) 0.7f else 0.85f),
+                                color = programRowBg.copy(alpha = 0.85f),
                                 border = BorderStroke(1.dp, Color(0xFF475569))
                             ) {
                                 Text(
@@ -1804,7 +1800,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }                                                                                                                                                        
+    }                                                                                                                                                                     
 
     @Composable
     private fun ChannelCard(
