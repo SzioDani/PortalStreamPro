@@ -280,8 +280,8 @@ fun PortalFormDialog(
 	                singleLine = true,
                     textStyle = TextStyle(
                         color = Color.White,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp
                     ),
 	                colors = textFieldColors
 	            )
@@ -297,8 +297,8 @@ fun PortalFormDialog(
 	                        singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
 	                        colors = textFieldColors
 	                    )
@@ -331,8 +331,8 @@ fun PortalFormDialog(
                         singleLine = true,
                         textStyle = TextStyle(
                             color = Color.White,
-                            fontSize = 15.sp,
-                            lineHeight = 20.sp
+                            fontSize = 18.sp,
+                            lineHeight = 24.sp
                         ),
                         colors = textFieldColors
                     )
@@ -364,8 +364,8 @@ fun PortalFormDialog(
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
@@ -397,8 +397,8 @@ fun PortalFormDialog(
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
@@ -411,8 +411,8 @@ fun PortalFormDialog(
                             singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
@@ -427,8 +427,8 @@ fun PortalFormDialog(
                             singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
@@ -441,8 +441,8 @@ fun PortalFormDialog(
                             singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
@@ -455,8 +455,8 @@ fun PortalFormDialog(
                             singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors,
                             visualTransformation =
@@ -517,8 +517,8 @@ fun PortalFormDialog(
                         singleLine = true,
                         textStyle = TextStyle(
                             color = Color.White,
-                            fontSize = 15.sp,
-                            lineHeight = 20.sp
+                            fontSize = 18.sp,
+                            lineHeight = 24.sp
                         ),
                         colors = textFieldColors
                     )
@@ -655,8 +655,8 @@ fun PortalFormDialog(
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(
                                 color = Color.White,
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp
+                                fontSize = 18.sp,
+                                lineHeight = 24.sp
                             ),
                             colors = textFieldColors
                         )
