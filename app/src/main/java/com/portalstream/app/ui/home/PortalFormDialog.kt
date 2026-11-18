@@ -328,7 +328,6 @@ fun PortalFormDialog(
                         onValueChange = { url = it },
                         label = { Text("InfoHash o Magnet") },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontSize = 13.sp),
                         singleLine = true,
                         textStyle = TextStyle(
                             color = Color.White,
