@@ -143,7 +143,7 @@ class ChannelsActivity : ComponentActivity() {
             // Gestiamo la preferenza salvata: se prima era "light", la convertiamo o la impostiamo sul secondo tema scuro (es. "slate")
             var appTheme by remember { mutableStateOf(appPrefs.getString("app_theme", "dark") ?: "dark") }
             // Adesso controlliamo se il tema attivo è il primo (Deep Blue) oppure il secondo (Slate Antracite)
-            val isDeepBlueTheme = appTheme == "dark" || appTheme == "deep_blue" // Adatta alla tua chiave
+            val darkTheme = appTheme == "dark" || appTheme == "deep_blue" // Adatta alla tua chiave
 
             var channelTextSize by remember { mutableStateOf(appPrefs.getFloat("channel_text_size", 16f)) }
             var logoSize by remember { mutableStateOf(appPrefs.getInt("logo_size", 48)) }
