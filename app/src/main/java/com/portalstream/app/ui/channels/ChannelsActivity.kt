@@ -2345,191 +2345,238 @@ class ChannelsActivity : ComponentActivity() {
 	            
     @Composable
     private fun ChannelDetailsDialog(
-        channel: Channel,
-        availableEpgMappings: List<EpgChannelMapping>,
-        onDismiss: () -> Unit,
-        onSaveTvgId: (String) -> Unit
-    ) {
-        val context = LocalContext.current
-        val clipboardManager = LocalClipboardManager.current
-
-        var editableTvgId by remember { mutableStateOf(channel.tvgId.ifBlank { channel.customSid }) }
-        var searchQuery by remember { mutableStateOf("") }
-        var isDropdownExpanded by remember { mutableStateOf(false) }
-
-        val scrollState = rememberScrollState()
-
-        val filteredMappings = remember(searchQuery, availableEpgMappings) {
-            if (searchQuery.isBlank()) emptyList()
-            else {
-                availableEpgMappings.filter { 
-                    it.name.contains(searchQuery, ignoreCase = true) || 
-                    it.siteId.contains(searchQuery, ignoreCase = true)
-                }.take(8)
-            }
-        }
-
-        val fullDetailsText = buildString {
-            appendLine("• ID Canale: ${channel.id}")
-            appendLine("• Numero: ${channel.number}")
-            appendLine("• Nome Grezzo: ${channel.name}")
-            appendLine("• TVG-ID Attuale: $editableTvgId")
-            appendLine("• CMD / Stream: ${channel.cmd.ifBlank { channel.url }}")
-        }
-
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .wrapContentHeight(),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(2.dp, Color(0xFF00E5FF)) // 👈 Bordo neon ciano brillante
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Intestazione con icona e titolo
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Dettagli & Assegnazione EPG",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Divider(modifier = Modifier.padding(vertical = 2.dp))
-
-                    // Info Canale
-                    Text(text = "• Canale: ${channel.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "• Stream ID: ${channel.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    OutlinedTextField(
-                        value = editableTvgId,
-                        onValueChange = { editableTvgId = it },
-                        label = { Text("ID EPG Associato") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = "Cerca ID nell'EPG ufficiale:",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { 
-                            searchQuery = it 
-                            isDropdownExpanded = it.isNotBlank()
-                        },
-                        placeholder = { Text("Es. Sky Sport, Rai 1") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
-
-                    if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 160.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            LazyColumn(modifier = Modifier.padding(4.dp)) {
-                                items(filteredMappings) { mapping: EpgChannelMapping ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                editableTvgId = mapping.siteId
-                                                searchQuery = ""
-                                                isDropdownExpanded = false
-                                            }
-                                            .padding(8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = mapping.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = mapping.siteId,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Pulsanti di azione in basso (Chiudi, Copia, Salva ID)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TextButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "Chiudi",
-                                color = Color(0xFFEF4444),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        
-                        TextButton(
-                            onClick = {
-                                clipboardManager.setText(AnnotatedString(fullDetailsText))
-                                Toast.makeText(context, "Dettagli copiati!", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "Copia",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            onSaveTvgId(editableTvgId.trim())
-                            Toast.makeText(context, "ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
-                            onDismiss()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Salva ID",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
+	    channel: Channel,
+	    availableEpgMappings: List<EpgChannelMapping>,
+	    onDismiss: () -> Unit,
+	    onSaveTvgId: (String) -> Unit
+	) {
+	    val context = LocalContext.current
+	    val clipboardManager = LocalClipboardManager.current
+	
+	    var editableTvgId by remember { mutableStateOf(channel.tvgId.ifBlank { channel.customSid }) }
+	    var searchQuery by remember { mutableStateOf("") }
+	    var isDropdownExpanded by remember { mutableStateOf(false) }
+	
+	    val scrollState = rememberScrollState()
+	
+	    // Colore Ciano Neon coordinato per bordi, cursori e accenti
+	    val neonCyan = Color(0xFF00E5FF)
+	
+	    // Stile dei colori per i campi di testo per forzare il ciano su cursori e bordi attivi
+	    val customTextFieldColors = OutlinedTextFieldDefaults.colors(
+	        focusedBorderColor = neonCyan,
+	        unfocusedBorderColor = neonCyan.copy(alpha = 0.5f),
+	        focusedLabelColor = neonCyan,
+	        cursorColor = neonCyan,
+	        focusedTextColor = Color.White,
+	        unfocusedTextColor = Color.White
+	    )
+	
+	    val filteredMappings = remember(searchQuery, availableEpgMappings) {
+	        if (searchQuery.isBlank()) emptyList()
+	        else {
+	            availableEpgMappings.filter { 
+	                it.name.contains(searchQuery, ignoreCase = true) || 
+	                it.siteId.contains(searchQuery, ignoreCase = true)
+	            }.take(8)
+	        }
+	    }
+	
+	    val fullDetailsText = buildString {
+	        appendLine("• ID Canale: ${channel.id}")
+	        appendLine("• Numero: ${channel.number}")
+	        appendLine("• Nome Grezzo: ${channel.name}")
+	        appendLine("• TVG-ID Attuale: $editableTvgId")
+	        appendLine("• CMD / Stream: ${channel.cmd.ifBlank { channel.url }}")
+	    }
+	
+	    // Usiamo DialogProperties con usePlatformDefaultWidth = false per evitare sobbalzi con la tastiera
+	    Dialog(
+	        onDismissRequest = onDismiss,
+	        properties = DialogProperties(usePlatformDefaultWidth = false)
+	    ) {
+	        Surface(
+	            modifier = Modifier
+	                .width(330.dp) // Larghezza fissa per stabilire il layout ed evitare resize improvvisi
+	                .wrapContentHeight()
+	                .border(
+	                    width = 1.5.dp,
+	                    color = neonCyan,
+	                    shape = RoundedCornerShape(24.dp)
+	                ),
+	            shape = RoundedCornerShape(24.dp),
+	            color = Color(0xFF111827), // Sfondo scuro coerente con i temi dell'app
+	            tonalElevation = 6.dp
+	        ) {
+	            Column(
+	                modifier = Modifier
+	                    .fillMaxWidth()
+	                    .padding(20.dp)
+	                    .verticalScroll(scrollState),
+	                verticalArrangement = Arrangement.spacedBy(14.dp)
+	            ) {
+	                // --- INTESTAZIONE ---
+	                Row(verticalAlignment = Alignment.CenterVertically) {
+	                    Icon(Icons.Default.Info, contentDescription = null, tint = neonCyan)
+	                    Spacer(modifier = Modifier.width(8.dp))
+	                    Text(
+	                        text = "Dettagli & Assegnazione EPG",
+	                        style = MaterialTheme.typography.titleMedium,
+	                        color = Color.White,
+	                        fontWeight = FontWeight.Bold
+	                    )
+	                }
+	
+	                Divider(color = Color(0xFF2E3F5C))
+	
+	                // --- INFO CANALE ---
+	                Text(
+	                    text = "• Canale: ${channel.name}",
+	                    style = MaterialTheme.typography.bodyMedium,
+	                    color = Color.White,
+	                    fontWeight = FontWeight.SemiBold
+	                )
+	                Text(
+	                    text = "• Stream ID: ${channel.id}",
+	                    style = MaterialTheme.typography.bodySmall,
+	                    color = Color(0xFF94A3B8)
+	                )
+	
+	                Spacer(modifier = Modifier.height(2.dp))
+	
+	                // Campo ID EPG Associato
+	                OutlinedTextField(
+	                    value = editableTvgId,
+	                    onValueChange = { editableTvgId = it },
+	                    label = { Text("ID EPG Associato") },
+	                    modifier = Modifier.fillMaxWidth(),
+	                    singleLine = true,
+	                    colors = customTextFieldColors
+	                )
+	
+	                Spacer(modifier = Modifier.height(2.dp))
+	
+	                Text(
+	                    text = "Cerca ID nell'EPG ufficiale:",
+	                    style = MaterialTheme.typography.bodySmall,
+	                    color = Color.White,
+	                    fontWeight = FontWeight.Bold
+	                )
+	
+	                // Campo di Ricerca ID EPG
+	                OutlinedTextField(
+	                    value = searchQuery,
+	                    onValueChange = { 
+	                        searchQuery = it 
+	                        isDropdownExpanded = it.isNotBlank()
+	                    },
+	                    placeholder = { Text("Es. Sky Sport, Rai 1", color = Color(0xFF64748B)) },
+	                    modifier = Modifier.fillMaxWidth(),
+	                    singleLine = true,
+	                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = neonCyan) },
+	                    colors = customTextFieldColors
+	                )
+	
+	                // Dropdown dei risultati della ricerca EPG
+	                if (isDropdownExpanded && filteredMappings.isNotEmpty()) {
+	                    Card(
+	                        modifier = Modifier
+	                            .fillMaxWidth()
+	                            .heightIn(max = 160.dp),
+	                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B253B)),
+	                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+	                        border = BorderStroke(1.dp, neonCyan.copy(alpha = 0.4f))
+	                    ) {
+	                        LazyColumn(modifier = Modifier.padding(4.dp)) {
+	                            items(filteredMappings) { mapping: EpgChannelMapping ->
+	                                Row(
+	                                    modifier = Modifier
+	                                        .fillMaxWidth()
+	                                        .clickable {
+	                                            editableTvgId = mapping.siteId
+	                                            searchQuery = ""
+	                                            isDropdownExpanded = false
+	                                        }
+	                                        .padding(8.dp),
+	                                    horizontalArrangement = Arrangement.SpaceBetween
+	                                ) {
+	                                    Text(
+	                                        text = mapping.name,
+	                                        style = MaterialTheme.typography.bodyMedium,
+	                                        color = Color.White,
+	                                        fontWeight = FontWeight.Medium
+	                                    )
+	                                    Text(
+	                                        text = mapping.siteId,
+	                                        style = MaterialTheme.typography.bodySmall,
+	                                        color = neonCyan
+	                                    )
+	                                }
+	                                Divider(color = Color(0xFF2E3F5C).copy(alpha = 0.5f))
+	                            }
+	                        }
+	                    }
+	                }
+	
+	                Spacer(modifier = Modifier.height(8.dp))
+	
+	                // --- PULSANTI DI AZIONE IN BASSO ---
+	                Row(
+	                    modifier = Modifier.fillMaxWidth(),
+	                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+	                ) {
+	                    TextButton(
+	                        onClick = onDismiss,
+	                        modifier = Modifier.weight(1f)
+	                    ) {
+	                        Text(
+	                            text = "Chiudi",
+	                            color = Color(0xFFEF4444),
+	                            fontWeight = FontWeight.Bold
+	                        )
+	                    }
+	                    
+	                    TextButton(
+	                        onClick = {
+	                            clipboardManager.setText(AnnotatedString(fullDetailsText))
+	                            Toast.makeText(context, "Dettagli copiati!", Toast.LENGTH_SHORT).show()
+	                        },
+	                        modifier = Modifier.weight(1f)
+	                    ) {
+	                        Text(
+	                            text = "Copia",
+	                            color = Color.White,
+	                            fontWeight = FontWeight.Bold
+	                        )
+	                    }
+	                }
+	
+	                Button(
+	                    onClick = {
+	                        onSaveTvgId(editableTvgId.trim())
+	                        Toast.makeText(context, "ID EPG salvato con successo!", Toast.LENGTH_SHORT).show()
+	                        onDismiss()
+	                    },
+	                    modifier = Modifier.fillMaxWidth(),
+	                    colors = ButtonDefaults.buttonColors(containerColor = neonCyan)
+	                ) {
+	                    Icon(
+	                        Icons.Default.CheckCircle, 
+	                        contentDescription = null, 
+	                        modifier = Modifier.size(16.dp),
+	                        tint = Color(0xFF111827)
+	                    )
+	                    Spacer(modifier = Modifier.width(4.dp))
+	                    Text(
+	                        text = "Salva ID",
+	                        color = Color(0xFF111827),
+	                        fontWeight = FontWeight.Bold
+	                    )
+	                }
+	            }
+	        }
+	    }
+    }                       
     
     private fun channelSortNumber(channel: Channel): Int {
         if (channel.number > 0) return channel.number
