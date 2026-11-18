@@ -294,8 +294,12 @@ fun PortalFormDialog(
 	                        onValueChange = { url = it },
 	                        label = { Text("Link della playlist") },
 	                        modifier = Modifier.fillMaxWidth(),
-	                        textStyle = TextStyle(fontSize = 13.sp),
 	                        singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
 	                        colors = textFieldColors
 	                    )
 	                    Spacer(Modifier.height(6.dp))
@@ -384,8 +388,11 @@ fun PortalFormDialog(
                             onValueChange = { url = it },
                             label = { Text("Link Portale MAG") },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
-                            maxLines = 2,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(8.dp))
@@ -395,6 +402,11 @@ fun PortalFormDialog(
                             label = { Text("MAC Address") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(4.dp))
@@ -481,6 +493,11 @@ fun PortalFormDialog(
                         label = { Text("Profilo") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp
+                        ),
                         colors = textFieldColors
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
