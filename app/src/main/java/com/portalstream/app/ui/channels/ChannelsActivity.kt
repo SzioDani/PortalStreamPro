@@ -394,16 +394,15 @@ class ChannelsActivity : ComponentActivity() {
                 }
                 
                 if (showSettingsDialog) {
-                                        // 🎨 COLORI DEDICATI SOLO A QUESTO MENÙ (niente più bianco sparato!)
-                    // Nel tema chiaro usa un Grigio-Ardesia morbido (0xFFD4DEE8) che fa risaltare i bottoni Neon.
-                    // (Se invece vuoi questo menù SEMPRE scuro anche col tema chiaro, metti Color(0xFF182234) al posto di 0xFFD4DEE8)
-                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFFA9B1B9)
-                    val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFFE4ECF4)
-                    val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFFB4C4D8)
-                    val menuTextColor = if (darkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-                    val menuSubTextColor = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF475569)
-                    val accentCyan = if (darkTheme) Color(0xFF00E5FF) else Color(0xFF0088A3)
-
+                    // 🎨 COLORI DEDICATI AL MENÙ IMPOSTAZIONI (Coordinati con i due temi scuri)
+                    // Se darkTheme è true usiamo il Deep Blue, altrimenti la variante Slate Antracite
+                    val menuBgColor = if (darkTheme) Color(0xFF111827) else Color(0xFF0F1722)
+                    val menuCardColor = if (darkTheme) Color(0xFF1B253B) else Color(0xFF1F2937)
+                    val menuCardBorder = if (darkTheme) Color(0xFF2E3F5C) else Color(0xFF374151)
+                    val menuTextColor = Color(0xFFFFFFFF) // Sempre bianco brillante per la massima leggibilità
+                    val menuSubTextColor = if (darkTheme) Color(0xFF94A3B8) else Color(0xFF9CA3AF)
+                    val accentCyan = Color(0xFF00E5FF) // Ciano neon sempre brillante per le icone e gli accenti
+                    
                     Dialog(onDismissRequest = { showSettingsDialog = false }) {
                         Surface(
                             modifier = Modifier
@@ -420,7 +419,7 @@ class ChannelsActivity : ComponentActivity() {
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                // --- INTESTAZIONE ---
+                                // --- INTESTAZIONE DEL DIALOGO ---
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         Icons.Default.Settings,
@@ -438,9 +437,9 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Divider(color = menuCardBorder)
 
-                                // --- SEZIONE TEMA ---
+                                // --- SEZIONE SCELTA DOPPIO TEMA SCURO ---
                                 Text(
-                                    text = "Tema della Lista Canali",
+                                    text = "Stile Tema Scuro",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = menuTextColor
@@ -449,33 +448,36 @@ class ChannelsActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    // Pulsante per il Tema 1: Deep Blue Notturno
                                     NeonCyberChip(
                                         onClick = {
-                                            appTheme = "dark"
+                                            appTheme = "dark" // oppure "deep_blue" in base alla tua chiave
                                             appPrefs.edit().putString("app_theme", "dark").apply()
                                         },
-                                        isActive = darkTheme,
+                                        isActive = darkTheme, // true quando è attivo il Deep Blue
                                         activeColor = Color(0xFF00E5FF),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
-                                            text = "Scuro",
+                                            text = "Deep Blue",
                                             color = if (darkTheme) Color.White else Color.LightGray,
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
+                                    
+                                    // Pulsante per il Tema 2: Slate Antracite Scuro
                                     NeonCyberChip(
                                         onClick = {
-                                            appTheme = "light"
-                                            appPrefs.edit().putString("app_theme", "light").apply()
+                                            appTheme = "slate" // chiave per il secondo tema scuro
+                                            appPrefs.edit().putString("app_theme", "slate").apply()
                                         },
-                                        isActive = !darkTheme,
+                                        isActive = !darkTheme, // true quando è attivo lo Slate
                                         activeColor = Color(0xFF00E5FF),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text(
-                                            text = "Chiaro",
+                                            text = "Slate Antracite",
                                             color = if (!darkTheme) Color.White else Color.LightGray,
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold
@@ -598,7 +600,7 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Divider(color = menuCardBorder)
 
-                                // --- SEZIONE PERSONALIZZAZIONE GRAFICA RINNOVATA ---
+                                // --- SEZIONE PERSONALIZZAZIONE GRAFICA ---
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -610,7 +612,7 @@ class ChannelsActivity : ComponentActivity() {
                                         fontWeight = FontWeight.Bold,
                                         color = menuTextColor
                                     )
-                                    // Pulsante rapido per ripristinare le dimensioni di default
+                                    // Pulsante rapido "Reset" per ripristinare i valori predefiniti
                                     Surface(
                                         onClick = {
                                             channelTextSize = 16f
@@ -623,13 +625,13 @@ class ChannelsActivity : ComponentActivity() {
                                                 .apply()
                                         },
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (darkTheme) Color(0xFF161922) else Color(0xFF3B4D63),
+                                        color = Color(0xFF161F30),
                                         border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.6f))
                                     ) {
                                         Text(
                                             text = "Reset",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (darkTheme) Color(0xFF00E5FF) else Color(0xFFFFFFFF),
+                                            color = Color(0xFF00E5FF),
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                         )
@@ -704,7 +706,7 @@ class ChannelsActivity : ComponentActivity() {
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // --- PULSANTE CHIUDI ROSSO NEON ---
+                                // --- PULSANTE CHIUDI ---
                                 NeonCyberChip(
                                     onClick = { showSettingsDialog = false },
                                     isActive = true,
