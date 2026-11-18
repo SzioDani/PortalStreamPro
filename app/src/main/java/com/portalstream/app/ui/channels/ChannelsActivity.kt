@@ -174,7 +174,7 @@ class ChannelsActivity : ComponentActivity() {
             )
 
             MaterialTheme(
-                colorScheme = if (isDeepBlueTheme) customDeepBlueScheme else customSlateScheme
+                colorScheme = if (darkTheme) customDeepBlueScheme else customSlateScheme
             ) {
                 val dbChannels by channelDao.getAllChannels().collectAsState(initial = emptyList())
                 val localChannels = remember { ChannelCache.take() }
