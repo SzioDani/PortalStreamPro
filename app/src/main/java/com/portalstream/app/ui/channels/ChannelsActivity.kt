@@ -2217,7 +2217,7 @@ class ChannelsActivity : ComponentActivity() {
             )
         }
     }           
-        @Composable
+    @Composable
     private fun GraphicControlCard(
         title: String,
         valueLabel: String,
@@ -2230,6 +2230,7 @@ class ChannelsActivity : ComponentActivity() {
         onValueChange: (Float) -> Unit,
         onStepChange: (Float) -> Unit
     ) {
+        // Superficie principale della card che racchiude il controllo (es. slider per i testi o i loghi)
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -2241,22 +2242,27 @@ class ChannelsActivity : ComponentActivity() {
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
-                // Riga superiore: Titolo a sinistra + Badge Neon del valore a destra
+                // --- RIGA SUPERIORE ---
+                // Titolo del controllo a sinistra + Badge Neon del valore corrente a destra
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Testo descrittivo del controllo (es. "Dimensione Testo EPG")
                     Text(
                         text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = textColor
                     )
+                    
+                    // Badge per mostrare il valore numerico attuale (ottimizzato per i due temi scuri)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
-                        border = BorderStroke(1.dp, Color(0xFF00E5FF))
+                        // Sfondo uniforme e coerente con la palette scura scelta
+                        color = Color(0xFF161F30),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f))
                     ) {
                         Text(
                             text = valueLabel,
@@ -2270,18 +2276,19 @@ class ChannelsActivity : ComponentActivity() {
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Riga inferiore: Pulsante [-] + Slider Neon + Pulsante [+]
+                // --- RIGA INFERIORE ---
+                // Pulsante decremento [-] + Slider interattivo centrale + Pulsante incremento [+]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Pulsante "-"
+                    // Pulsante di decremento "−"
                     Surface(
                         onClick = { onStepChange(-1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
-                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
+                        color = Color(0xFF161F30),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
                         modifier = Modifier.size(30.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -2294,7 +2301,7 @@ class ChannelsActivity : ComponentActivity() {
                         }
                     }
 
-                    // Slider con colori Ciano Neon
+                    // Slider di regolazione con dettagli in Ciano Neon
                     Slider(
                         value = value,
                         onValueChange = onValueChange,
@@ -2306,18 +2313,18 @@ class ChannelsActivity : ComponentActivity() {
                         colors = SliderDefaults.colors(
                             thumbColor = Color(0xFF00E5FF),
                             activeTrackColor = Color(0xFF00E5FF),
-                            inactiveTrackColor = Color(0xFF3B4D63).copy(alpha = 0.45f),
+                            inactiveTrackColor = Color(0xFF26354D).copy(alpha = 0.6f),
                             activeTickColor = Color.Transparent,
                             inactiveTickColor = Color.Transparent
                         )
                     )
 
-                    // Pulsante "+"
+                    // Pulsante di incremento "+"
                     Surface(
                         onClick = { onStepChange(1f) },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (MaterialTheme.colorScheme.background == Color(0xFF0B0F19)) Color(0xFF161922) else Color(0xFF3B4D63),
-                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.7f)),
+                        color = Color(0xFF161F30),
+                        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
                         modifier = Modifier.size(30.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -2332,7 +2339,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }                      
+    }                        
 	            
     @Composable
     private fun ChannelDetailsDialog(
