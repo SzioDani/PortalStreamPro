@@ -81,7 +81,7 @@ fun AddPortalTypeDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .width(300.dp)
+                .width(330.dp)
                 .border(
                     width = 1.5.dp,
                     color = NeonCyan,
@@ -245,7 +245,7 @@ fun PortalFormDialog(
 	) {
 	    Surface(
 	        modifier = Modifier
-	            .width(300.dp)
+	            .width(330.dp)
 	            .border(
 	                width = 1.5.dp,
 	                color = NeonCyan,
@@ -278,6 +278,11 @@ fun PortalFormDialog(
 	                label = { Text("Nome Playlist (opzionale)") },
 	                modifier = Modifier.fillMaxWidth(),
 	                singleLine = true,
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp
+                    ),
 	                colors = textFieldColors
 	            )
 	            Spacer(Modifier.height(8.dp))
