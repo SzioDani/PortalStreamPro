@@ -330,6 +330,11 @@ fun PortalFormDialog(
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(fontSize = 13.sp),
                         singleLine = true,
+                        textStyle = TextStyle(
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp
+                        ),
                         colors = textFieldColors
                     )
                     Spacer(Modifier.height(6.dp))
@@ -358,8 +363,11 @@ fun PortalFormDialog(
                             onValueChange = { url = it },
                             label = { Text("InfoHash o Magnet") },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 13.sp),
-                            maxLines = 2,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(6.dp))
@@ -418,6 +426,11 @@ fun PortalFormDialog(
                             label = { Text("Server:porta") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(8.dp))
@@ -427,6 +440,11 @@ fun PortalFormDialog(
                             label = { Text("Utente") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                         Spacer(Modifier.height(8.dp))
@@ -436,6 +454,11 @@ fun PortalFormDialog(
                             label = { Text("Password") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors,
                             visualTransformation =
                                 if (showPassword) VisualTransformation.None
@@ -631,8 +654,11 @@ fun PortalFormDialog(
                             onValueChange = { userAgent = it },
                             label = { Text("Stringa User-Agent effettiva") },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(fontSize = 11.sp),
-                            maxLines = 2,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                lineHeight = 20.sp
+                            ),
                             colors = textFieldColors
                         )
                     }
