@@ -1808,21 +1808,28 @@ class ChannelsActivity : ComponentActivity() {
         epgPrograms: List<EpgProgram>,
         epgTextSize: Float,
         logoSize: Int,
-        isDark: Boolean,
+        isDark: Boolean, // true = Tema Deep Blue Notturno, false = Tema Slate Antracite Scuro
         onPlayClick: () -> Unit,
         onLongClick: () -> Unit
     ) {
+        // Utility per formattare gli orari dei programmi (es. 14:00)
         val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+        // Orario corrente calcolato sul fuso orario di Roma
         val now = remember { LocalDateTime.now(ZoneId.of("Europe/Rome")) }
+        // Stato per gestire l'espansione della descrizione del programma al tocco
         var expandedProgramKey by remember { mutableStateOf<String?>(null) }
 
-        // Palette ad alto contrasto (niente bianco sparato nel tema chiaro)
-        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFFD4DEE8)
-        val outerBorderColor = if (isDark) Color(0xFF2E3F5C) else Color(0xFF94A3B8)
-        val innerContainerBg = if (isDark) Color(0xFF1B253B) else Color(0xFFE4ECF4)
-        val titleTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-        val subTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
-        val currentAccent = if (isDark) Color(0xFF00E5FF) else Color(0xFF007799)
+        // --- PALETTE COLORI BASATA SU DUE VARIANTI DI TEMA SCURO ---
+        // Sfondo principale della card esterna (Blu profondo vs Ardesia scuro)
+        val outerCardBg = if (isDark) Color(0xFF131B2E) else Color(0xFF111827)
+        // Colore del bordo esterno della card
+        val outerBorderColor = if (isDark) Color(0xFF2E3F5C) else Color(0xFF374151)
+        // Sfondo dei contenitori interni
+        val innerContainerBg = if (isDark) Color(0xFF1B253B) else Color(0xFF1F2937)
+        // Colore del testo principale (sempre bianco brillante nei temi scuri)
+        val titleTextColor = Color(0xFFFFFFFF)
+        // Colore per i testi secondari (es. nome del gruppo o dettagli)
+        val subTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF9CA3AF)
 
         Card(
             modifier = Modifier
@@ -1838,11 +1845,12 @@ class ChannelsActivity : ComponentActivity() {
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                // --- INTESTAZIONE CANALE (Logo + Nome + Bottone Avvia Neon) ---
+                // --- INTESTAZIONE CANALE (Logo + Nome + Gruppo + Bottone AVVIA) ---
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    // Visualizzazione del logo del canale se presente
                     if (!channel.logoUrl.isNullOrBlank()) {
                         ChannelLogo(
                             logoUrl = channel.logoUrl,
@@ -1852,6 +1860,7 @@ class ChannelsActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.width(10.dp))
                     }
 
+                    // Nome del canale e categoria/gruppo
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = channel.name,
@@ -1874,11 +1883,11 @@ class ChannelsActivity : ComponentActivity() {
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Badge/Bottone "AVVIA" in stile Neon
+                    // Badge / Bottone "AVVIA" in alto a destra
                     Surface(
                         onClick = onPlayClick,
                         shape = RoundedCornerShape(10.dp),
-                        color = if (isDark) Color(0xFF161922) else Color(0xFF3B4D63),
+                        color = if (isDark) Color(0xFF161922) else Color(0xFF1F2937),
                         border = BorderStroke(1.dp, Color(0xFF00E5FF))
                     ) {
                         Row(
@@ -1902,6 +1911,7 @@ class ChannelsActivity : ComponentActivity() {
                     }
                 }
 
+                // Linea divisoria tra intestazione e palinsesto
                 Divider(
                     color = outerBorderColor.copy(alpha = 0.6f),
                     modifier = Modifier.padding(vertical = 10.dp)
@@ -1909,6 +1919,7 @@ class ChannelsActivity : ComponentActivity() {
 
                 // --- LISTA PROGRAMMI EPG ---
                 if (epgPrograms.isEmpty()) {
+                    // Messaggio nel caso in cui non ci siano programmi EPG disponibili
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
@@ -1924,30 +1935,35 @@ class ChannelsActivity : ComponentActivity() {
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         epgPrograms.forEach { prog ->
+                            // Verifica se il programma è attualmente in onda
                             val isCurrent = !now.isBefore(prog.startTime) && !now.isAfter(prog.endTime)
+                            // Formattazione dell'intervallo di tempo (Inizio - Fine)
                             val timeRange = "${prog.startTime.format(timeFormatter)} - ${prog.endTime.format(timeFormatter)}"
                             val progKey = "${prog.title}_${prog.startTime}"
                             val isExpanded = expandedProgramKey == progKey
 
-                            // Calcolo percentuale avanzamento per il programma in corso
+                            // Calcolo della percentuale di avanzamento per la barra di progresso del programma in corso
                             val progress = if (isCurrent) {
                                 val totalMin = java.time.Duration.between(prog.startTime, prog.endTime).toMinutes().coerceAtLeast(1)
                                 val elapsedMin = java.time.Duration.between(prog.startTime, now).toMinutes().coerceIn(0, totalMin)
                                 (elapsedMin.toFloat() / totalMin.toFloat()).coerceIn(0f, 1f)
                             } else 0f
 
+                            // Sfondo dinamico del singolo elemento programma (evidenziato se in onda)
                             val itemBg = if (isCurrent) {
-                                if (isDark) Color(0xFF162B3D) else Color(0xFFCDE4EE)
+                                if (isDark) Color(0xFF162B3D) else Color(0xFF1F354D)
                             } else {
                                 innerContainerBg
                             }
 
+                            // Bordo dell'elemento programma (più morbido e con alpha controllato)
                             val itemBorder = if (isCurrent) {
-                                BorderStroke(1.5.dp, Color(0xFF00E5FF))
+                                BorderStroke(1.5.dp, Color(0xFF00E5FF).copy(alpha = 0.8f))
                             } else {
-                                BorderStroke(1.dp, outerBorderColor.copy(alpha = 0.5f))
+                                BorderStroke(1.dp, outerBorderColor.copy(alpha = 0.4f))
                             }
 
+                            // Superficie interattiva per ogni singolo programma della guida TV
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1960,74 +1976,77 @@ class ChannelsActivity : ComponentActivity() {
                                 border = itemBorder
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
-                                    // --- CORNICE UNICA CONTINUA (Stato + Titolo Programma + Orario) ---
-									val badgeColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF77C6)
-									val rowBorder = if (isCurrent) Color(0xFF00E5FF).copy(alpha = 0.85f) else Color(0xFFFF2DAA).copy(alpha = 0.65f)
-									val rowBg = if (isDark) Color(0xFF0D1424) else Color(0xFF434E67)
-									
-									// COLORI SEPARATI PER TITOLO E ORARIO
+                                    // --- RIGHE INTERNE PER TITOLO E ORARIO ---
+                                    val badgeColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFF77C6)
+                                    // Bordi interni delicati con alpha ridotto per eliminare l'effetto "neon accecante"
+                                    val rowBorder = if (isCurrent) Color(0xFF00E5FF).copy(alpha = 0.35f) else Color(0xFFFF2DAA).copy(alpha = 0.3f)
+                                    // Sfondo coerente e scuro per il box del programma
+                                    val rowBg = if (isDark) Color(0xFF0D1424) else Color(0xFF1A2332)
+                                    
+                                    // Colori dedicati per titolo e orario
                                     val titleColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFFFFFFFF)
                                     val timeColor = if (isCurrent) Color(0xFF00E5FF) else Color(0xFF94A3B8)
 
-									Surface(
-									    modifier = Modifier.fillMaxWidth(),
-									    shape = RoundedCornerShape(6.dp),
-									    color = rowBg,
-									    border = BorderStroke(1.dp, rowBorder)
-									) {
-									    Row(
-									        modifier = Modifier
-									            .fillMaxWidth()
-									            .padding(horizontal = 8.dp, vertical = 5.dp),
-									        verticalAlignment = Alignment.CenterVertically
-									    ) {
-									        // 1. Etichetta a sinistra ("● IN ONDA" se attivo)
-									        if (isCurrent) {
-									            Text(
-									                text = "● IN ONDA",
-									                style = MaterialTheme.typography.labelSmall.copy(
-									                    fontSize = 9.sp,
-									                    fontWeight = FontWeight.ExtraBold
-									                ),
-									                color = badgeColor
-									            )
-									            Text(
-									                text = " │ ",
-									                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-									                color = badgeColor.copy(alpha = 0.45f)
-									            )
-									        }
-									
-									        // 2. Titolo del programma al centro (usa titleColor)
-									        Text(
-									            text = prog.title,
-									            style = MaterialTheme.typography.bodyMedium.copy(
-									                fontSize = epgTextSize.sp,
-									                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold
-									            ),
-									            color = titleColor, // <-- Usiamo il colore dedicato al titolo
-									            maxLines = if (isExpanded) 2 else 1,
-									            overflow = TextOverflow.Ellipsis,
-									            modifier = Modifier.weight(1f)
-									        )
-									
-									        // 3. Divisore + Orario di inizio e fine a destra
-									        Text(
-									            text = " │ ",
-									            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-									            color = badgeColor.copy(alpha = 0.45f)
-									        )
-									        Text(
-									            text = timeRange,
-									            style = MaterialTheme.typography.labelSmall.copy(
-									                fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp,
-									                fontWeight = FontWeight.Bold
-									            ),
-									            color = timeColor, // <-- Usiamo il colore dedicato all'orario
-									            maxLines = 1
-									        )
-									    }
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = rowBg,
+                                        border = BorderStroke(1.dp, rowBorder)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // 1. Etichetta a sinistra ("● IN ONDA" se attivo)
+                                            if (isCurrent) {
+                                                Text(
+                                                    text = "● IN ONDA",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.ExtraBold
+                                                    ),
+                                                    color = badgeColor
+                                                )
+                                                Text(
+                                                    text = " │ ",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                    color = badgeColor.copy(alpha = 0.45f)
+                                                )
+                                            }
+                                    
+                                            // 2. Titolo del programma al centro
+                                            Text(
+                                                text = prog.title,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = epgTextSize.sp,
+                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold
+                                                ),
+                                                color = titleColor,
+                                                maxLines = if (isExpanded) 2 else 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                    
+                                            // 3. Divisore + Orario di inizio e fine a destra
+                                            Text(
+                                                text = " │ ",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = badgeColor.copy(alpha = 0.45f)
+                                            )
+                                            Text(
+                                                text = timeRange,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontSize = (epgTextSize - 2f).coerceAtLeast(10f).sp,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = timeColor,
+                                                maxLines = 1
+                                            )
+                                        }
                                     }                               
+                                    
                                     // Barra di avanzamento luminosa per il programma in corso
                                     if (isCurrent) {
                                         Spacer(modifier = Modifier.height(6.dp))
@@ -2042,7 +2061,7 @@ class ChannelsActivity : ComponentActivity() {
                                         )
                                     }
 
-                                    // Descrizione programma (espandibile con un tocco)
+                                    // Descrizione estesa del programma (visibile quando espanso)
                                     if (!prog.description.isNullOrBlank()) {
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
@@ -2060,7 +2079,7 @@ class ChannelsActivity : ComponentActivity() {
                 }
             }
         }
-    }
+    }           	                                
 
     @Composable
 	private fun ChannelLogo(
