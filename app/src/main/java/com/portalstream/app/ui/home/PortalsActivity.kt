@@ -7,11 +7,13 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
@@ -63,34 +65,46 @@ class PortalsActivity : ComponentActivity() {
         setContentView(ComposeView(this).apply {
             setContent {
                 val prefs = remember { getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-                var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+                // true = Deep Blue Notturno ("dark"), false = Slate Antracite ("slate")
+                var isDeepBlue by remember {
+                    mutableStateOf((prefs.getString("app_theme", "dark") ?: "dark") != "slate")
+                }
 
-                // 1. TEMA SCURO (Default)
-                val customDarkScheme = darkColorScheme(
+                // TEMA SCURO 1: Deep Blue Notturno (principale)
+                val customDeepBlueScheme = darkColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = colorResource(id = R.color.surface_dark),      // #0F172A
-                    surface = colorResource(id = R.color.surface_dark_variant), // #1E293B
-                    onBackground = colorResource(id = R.color.text_primary),    // Bianco
-                    onSurface = colorResource(id = R.color.text_primary)
+                    background = Color(0xFF0B0F19),
+                    surface = Color(0xFF131B2E),
+                    onBackground = Color(0xFFF8FAFC),
+                    onSurface = Color(0xFFF8FAFC),
+                    surfaceVariant = Color(0xFF1E293B),
+                    outline = Color(0xFF2E3F5C)
                 )
-                // TEMA CHIARO
-                val customLightScheme = lightColorScheme(
+
+                // TEMA SCURO 2: Slate Antracite (secondo tema scuro)
+                val customSlateScheme = darkColorScheme(
                     primary = colorResource(id = R.color.primary),
                     secondary = colorResource(id = R.color.secondary),
-                    background = Color(0xFF9aa1ac),
-                    surface = Color(0xFFdfe1e2),
-                    onBackground = Color(0xFF0F172A),
-                    onSurface = Color(0xFF0F172A),
-                    surfaceVariant = Color(0xFFCBD5E1)
+                    background = Color(0xFF0B0F17),
+                    surface = Color(0xFF111827),
+                    onBackground = Color(0xFFF9FAFB),
+                    onSurface = Color(0xFFF9FAFB),
+                    surfaceVariant = Color(0xFF1F2937),
+                    outline = Color(0xFF374151)
                 )
+
                 MaterialTheme(
-                    colorScheme = if (isDarkMode) customDarkScheme else customLightScheme
+                    colorScheme = if (isDeepBlue) customDeepBlueScheme else customSlateScheme
                 ) {
                     PortalsScreen(
-                        onThemeChanged = { darkMode ->
-                            isDarkMode = darkMode
-                            prefs.edit().putBoolean("dark_mode", darkMode).apply()
+                        isDeepBlue = isDeepBlue,
+                        onThemeChanged = { deepBlueSelected ->
+                            isDeepBlue = deepBlueSelected
+                            prefs.edit()
+                                .putString("app_theme", if (deepBlueSelected) "dark" else "slate")
+                                .putBoolean("dark_mode", true)
+                                .apply()
                         }
                     )
                 }
@@ -100,7 +114,10 @@ class PortalsActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun PortalsScreen(onThemeChanged: (Boolean) -> Unit) {
+    fun PortalsScreen(
+        isDeepBlue: Boolean,
+        onThemeChanged: (Boolean) -> Unit
+    ) {
         var portals by remember { mutableStateOf(store.load()) }
         var showTypeChooser by remember { mutableStateOf(false) }
         var formType by remember { mutableStateOf<PortalType?>(null) }
@@ -108,14 +125,27 @@ class PortalsActivity : ComponentActivity() {
         var showSettings by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
 
+        // Palette coordinata sui due temi scuri (isDeepBlue vs Slate Antracite)
+        val outerCardBg = if (isDeepBlue) Color(0xFF131B2E) else Color(0xFF111827)
+        val innerFrameBg = if (isDeepBlue) Color(0xFF1B253B) else Color(0xFF1F2937)
+        val cardBorderColor = if (isDeepBlue) Color(0xFF2E3F5C) else Color(0xFF374151)
+        val subTextColor = if (isDeepBlue) Color(0xFF94A3B8) else Color(0xFF9CA3AF)
+        val neonCyan = Color(0xFF00E5FF)
+
         LaunchedEffect(formType, editing) {
             activeDialogType = formType ?: editing?.type
         }
 
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("PortalStream Pro") },
+                    title = { Text("PortalStream Pro", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = Color.White,
+                        actionIconContentColor = neonCyan
+                    ),
                     actions = {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(
@@ -136,12 +166,13 @@ class PortalsActivity : ComponentActivity() {
                 Text(
                     text = "Portali salvati: ${portals.size}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = colorResource(id = R.color.text_neonciano)
+                    color = neonCyan
                 )
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = colorResource(id = R.color.text_neongreen),
                         contentColor = colorResource(id = R.color.neutral_900)
@@ -161,12 +192,12 @@ class PortalsActivity : ComponentActivity() {
                         Text(
                             text = "Nessun portale salvato.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = colorResource(id = R.color.text_neonciano)
+                            color = neonCyan
                         )
                         Text(
                             text = "Premi AGGIUNGI PLAYLIST per iniziare.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = colorResource(id = R.color.text_neonciano)
+                            color = neonCyan
                         )
                     }
                 } else {
@@ -181,118 +212,129 @@ class PortalsActivity : ComponentActivity() {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(
-                                        width = 3.dp,
-                                        color = colorResource(id = R.color.text_neonciano),
-                                        shape = MaterialTheme.shapes.medium
-                                    )
+                                    .padding(vertical = 3.dp)
                                     .clickable { openChannels(portal) },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
+                                    containerColor = outerCardBg,
+                                    contentColor = Color.White
                                 ),
-                                shape = MaterialTheme.shapes.medium
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.5.dp, cardBorderColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                             ) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = "${portal.id}" +
-                                            if (portal.name.isBlank()) "" else " ${portal.name}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = colorResource(id = R.color.text_pinkcyber)
-                                    )
-                                    Text(
-                                        text = portal.type.label + " - " +
-                                            if (portal.url.isBlank()) portal.server else portal.url,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = colorResource(id = R.color.text_pinkcyber)
-                                    )
-                                    if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            if (portal.activationDate.isNotBlank()) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(top = 2.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier.width(16.dp),
-                                                        contentAlignment = Alignment.CenterStart
+                                // Cornice interna in stile ChannelCard / StandardChannelCard
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(5.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = innerFrameBg,
+                                    border = BorderStroke(1.dp, cardBorderColor)
+                                ) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "${portal.id}" +
+                                                if (portal.name.isBlank()) "" else " ${portal.name}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = portal.type.label + " - " +
+                                                if (portal.url.isBlank()) portal.server else portal.url,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = subTextColor
+                                        )
+                                        if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                if (portal.activationDate.isNotBlank()) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(top = 2.dp)
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.CheckCircle,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(14.dp),
-                                                            tint = colorResource(id = R.color.text_neongreen)
+                                                        Box(
+                                                            modifier = Modifier.width(16.dp),
+                                                            contentAlignment = Alignment.CenterStart
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.CheckCircle,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(14.dp),
+                                                                tint = colorResource(id = R.color.text_neongreen)
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Medium
                                                         )
                                                     }
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurface,
-                                                        fontWeight = FontWeight.Medium
-                                                    )
                                                 }
-                                            }
-                                            if (portal.expireDate.isNotBlank()) {
-                                                val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(top = 2.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier.width(16.dp),
-                                                        contentAlignment = Alignment.CenterStart
+                                                if (portal.expireDate.isNotBlank()) {
+                                                    val formattedExpire = formatDateToItalian(portal.expireDate)
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(top = 2.dp)
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Schedule,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(14.dp),
-                                                            tint = colorResource(id = R.color.text_neonred)
+                                                        Box(
+                                                            modifier = Modifier.width(16.dp),
+                                                            contentAlignment = Alignment.CenterStart
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Schedule,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(14.dp),
+                                                                tint = colorResource(id = R.color.text_neonred)
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "Scadenza: $formattedExpire",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Medium
                                                         )
                                                     }
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "Scadenza: $formattedExpire",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurface,
-                                                        fontWeight = FontWeight.Medium
-                                                    )
                                                 }
                                             }
                                         }
-                                    }
-                                    Row {
-                                        TextButton(
-                                            onClick = { editing = portal },
-                                            colors = ButtonDefaults.textButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        ) {
-                                            Text("Modifica")
-                                        }
-                                        Spacer(Modifier.width(4.dp))
-                                        TextButton(onClick = {
-                                            val idToDelete = portal.id
-                                            store.delete(idToDelete)
-                                            portals = store.load()
-                                            scope.launch(Dispatchers.IO) {
-                                                epgMappingStore.deletePortalMappings(idToDelete)
-                                                val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
-                                                dao.deleteChannelsByPlaylist(idToDelete)
-                                                dao.deleteChannelsByPrefix("ch_${idToDelete}_")
+                                        Row(modifier = Modifier.padding(top = 4.dp)) {
+                                            TextButton(
+                                                onClick = { editing = portal },
+                                                colors = ButtonDefaults.textButtonColors(
+                                                    contentColor = neonCyan
+                                                )
+                                            ) {
+                                                Text("Modifica", fontWeight = FontWeight.SemiBold)
                                             }
-                                        }) {
-                                            Text(
-                                                text = "Elimina",
-                                                color = colorResource(id = R.color.text_neonred)
-                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            TextButton(onClick = {
+                                                val idToDelete = portal.id
+                                                store.delete(idToDelete)
+                                                portals = store.load()
+                                                scope.launch(Dispatchers.IO) {
+                                                    epgMappingStore.deletePortalMappings(idToDelete)
+                                                    val dao = AppDatabase.getDatabase(this@PortalsActivity).channelDao()
+                                                    dao.deleteChannelsByPlaylist(idToDelete)
+                                                    dao.deleteChannelsByPrefix("ch_${idToDelete}_")
+                                                }
+                                            }) {
+                                                Text(
+                                                    text = "Elimina",
+                                                    color = Color(0xFFEF4444),
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -418,6 +460,7 @@ class PortalsActivity : ComponentActivity() {
         if (showSettings) {
             SettingsBottomSheet(
                 context = this,
+                isDeepBlue = isDeepBlue,
                 onDismiss = { showSettings = false },
                 onThemeChanged = onThemeChanged
             )
@@ -550,17 +593,30 @@ class PortalsActivity : ComponentActivity() {
 @Composable
 fun SettingsBottomSheet(
     context: Context,
+    isDeepBlue: Boolean,
     onDismiss: () -> Unit,
     onThemeChanged: (Boolean) -> Unit
 ) {
     val prefs = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
-    var isDarkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", true)) }
+    var selectedDeepBlue by remember(isDeepBlue) { mutableStateOf(isDeepBlue) }
     var playerMode by remember { mutableStateOf(prefs.getString("player_mode", "miniplayer") ?: "miniplayer") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+
+    val neonCyan = Color(0xFF00E5FF)
+    val sheetBg = if (selectedDeepBlue) Color(0xFF111827) else Color(0xFF0F1722)
+    val cardBg = if (selectedDeepBlue) Color(0xFF1B253B) else Color(0xFF1F2937)
+    val cardBorder = if (selectedDeepBlue) Color(0xFF2E3F5C) else Color(0xFF374151)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = sheetBg,
+        contentColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -570,39 +626,79 @@ fun SettingsBottomSheet(
                     imageVector = Icons.Default.Settings,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = neonCyan
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Impostazioni Generali",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
-            Spacer(modifier = Modifier.height(20.dp))
+
+            HorizontalDivider(color = cardBorder)
+
+            // Scelta tra i due temi scuri (Deep Blue Notturno vs Slate Antracite)
+            Text(
+                text = "Stile Tema Scuro",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = if (isDarkMode) "Tema Scuro" else "Tema Chiaro",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Switch(
-                    checked = isDarkMode,
-                    onCheckedChange = { checked ->
-                        isDarkMode = checked
-                        prefs.edit().putBoolean("dark_mode", checked).apply()
-                        onThemeChanged(checked)
-                    }
-                )
+                Surface(
+                    onClick = {
+                        selectedDeepBlue = true
+                        onThemeChanged(true)
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (selectedDeepBlue) neonCyan.copy(alpha = 0.2f) else cardBg,
+                    border = BorderStroke(1.5.dp, if (selectedDeepBlue) neonCyan else cardBorder)
+                ) {
+                    Text(
+                        text = "Deep Blue",
+                        color = if (selectedDeepBlue) Color.White else Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(vertical = 10.dp)
+                            .wrapContentWidth(Alignment.CenterHorizontally)
+                    )
+                }
+
+                Surface(
+                    onClick = {
+                        selectedDeepBlue = false
+                        onThemeChanged(false)
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (!selectedDeepBlue) neonCyan.copy(alpha = 0.2f) else cardBg,
+                    border = BorderStroke(1.5.dp, if (!selectedDeepBlue) neonCyan else cardBorder)
+                ) {
+                    Text(
+                        text = "Slate Antracite",
+                        color = if (!selectedDeepBlue) Color.White else Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(vertical = 10.dp)
+                            .wrapContentWidth(Alignment.CenterHorizontally)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Modalità Video Ridotto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
+
+            HorizontalDivider(color = cardBorder)
+
+            Text(
+                text = "Modalità Video Ridotto",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -617,12 +713,17 @@ fun SettingsBottomSheet(
                             prefs.edit().putString("player_mode", "miniplayer").apply()
                         },
                         modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            if (playerMode == "miniplayer") neonCyan else cardBorder
+                        ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (playerMode == "miniplayer") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = if (playerMode == "miniplayer") neonCyan.copy(alpha = 0.22f) else cardBg,
+                            contentColor = Color.White
                         )
                     ) {
-                        Text("Set Miniplayer")
+                        Text("Set Miniplayer", fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = {
@@ -630,12 +731,17 @@ fun SettingsBottomSheet(
                             prefs.edit().putString("player_mode", "pip").apply()
                         },
                         modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            if (playerMode == "pip") neonCyan else cardBorder
+                        ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (playerMode == "pip") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (playerMode == "pip") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            containerColor = if (playerMode == "pip") neonCyan.copy(alpha = 0.22f) else cardBg,
+                            contentColor = Color.White
                         )
                     ) {
-                        Text("Set PiP")
+                        Text("Set PiP", fontWeight = FontWeight.Bold)
                     }
                 }
                 Button(
@@ -644,15 +750,20 @@ fun SettingsBottomSheet(
                         prefs.edit().putString("player_mode", "both").apply()
                     },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        if (playerMode == "both") neonCyan else cardBorder
+                    ),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (playerMode == "both") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (playerMode == "both") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        containerColor = if (playerMode == "both") neonCyan.copy(alpha = 0.22f) else cardBg,
+                        contentColor = Color.White
                     )
                 ) {
-                    Text("Set Miniplayer + PiP")
+                    Text("Set Miniplayer + PiP", fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -696,3 +807,4 @@ private fun formatDateToItalian(dateStr: String): String {
         dateStr
     }
 }
+                                
