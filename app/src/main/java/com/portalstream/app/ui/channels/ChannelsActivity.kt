@@ -744,7 +744,7 @@ class ChannelsActivity : ComponentActivity() {
 				            ) {
 				                // Intestazione del Dialog
 				                Row(verticalAlignment = Alignment.CenterVertically) {
-				                    Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+				                    Icon(Icons.Default.List, contentDescription = null, tint = colorResource(id = R.color.text_neongreen)
 				                    Spacer(modifier = Modifier.width(8.dp))
 				                    Text(
 				                        text = "Seleziona Gruppo",
@@ -794,7 +794,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 singleLine = true,
 				                                textStyle = MaterialTheme.typography.bodySmall.copy(
 				                                    fontSize = 13.sp,
-				                                    color = MaterialTheme.colorScheme.onSurface
+				                                    color = colorResource(id = R.color.text_neonciano)
 				                                ),
 				                                modifier = Modifier.fillMaxWidth()
 				                            )
