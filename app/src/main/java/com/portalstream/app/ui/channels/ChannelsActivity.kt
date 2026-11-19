@@ -798,7 +798,7 @@ class ChannelsActivity : ComponentActivity() {
                                                 singleLine = true,
 				                                textStyle = MaterialTheme.typography.bodySmall.copy(
 				                                    fontSize = 13.sp,
-				                                    color = colorResource(id = R.color.text_neonciano)
+				                                    color = MaterialTheme.colorScheme.onSurfaceVariant
 				                                ),
 				                                modifier = Modifier.fillMaxWidth()
 				                            )
