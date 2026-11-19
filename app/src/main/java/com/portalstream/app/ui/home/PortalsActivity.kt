@@ -274,7 +274,7 @@ class PortalsActivity : ComponentActivity() {
                                                         )
                                                     }
                                                 }
-                                                if (portal.expireDate.isNotText(Blank()) {
+                                                if (portal.expireDate.isNotBlank()) {
                                                     val formattedExpire = formatDateToItalian(portal.expireDate)
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Icon(
