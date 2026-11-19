@@ -231,7 +231,9 @@ class PortalsActivity : ComponentActivity() {
                                     color = innerFrameBg,
                                     border = BorderStroke(1.dp, cardBorderColor)
                                 ) {
-                                    Column(Modifier.padding(12.dp)) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
                                         Text(
                                             text = "${portal.id}" +
                                                 if (portal.name.isBlank()) "" else " ${portal.name}",
@@ -250,28 +252,20 @@ class PortalsActivity : ComponentActivity() {
                                             color = subTextColor
                                         )
                                         if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                verticalArrangement = Arrangement.spacedBy(1.dp)
                                             ) {
                                                 if (portal.activationDate.isNotBlank()) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier.width(16.dp),
-                                                            contentAlignment = Alignment.CenterStart
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.CheckCircle,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(14.dp),
-                                                                tint = colorResource(id = R.color.text_neongreen)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CheckCircle,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(13.dp),
+                                                            tint = colorResource(id = R.color.text_neongreen)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
                                                         Text(
                                                             text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                             style = MaterialTheme.typography.bodySmall,
@@ -280,24 +274,16 @@ class PortalsActivity : ComponentActivity() {
                                                         )
                                                     }
                                                 }
-                                                if (portal.expireDate.isNotBlank()) {
+                                                if (portal.expireDate.isNotText(Blank()) {
                                                     val formattedExpire = formatDateToItalian(portal.expireDate)
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier.width(16.dp),
-                                                            contentAlignment = Alignment.CenterStart
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Schedule,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(14.dp),
-                                                                tint = colorResource(id = R.color.text_neonred)
-                                                            )
-                                                        }
-                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(13.dp),
+                                                            tint = colorResource(id = R.color.text_neonred)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(6.dp))
                                                         Text(
                                                             text = "Scadenza: $formattedExpire",
                                                             style = MaterialTheme.typography.bodySmall,
@@ -308,9 +294,11 @@ class PortalsActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-                                        Row(modifier = Modifier.padding(top = 4.dp)) {
+                                        Row(modifier = Modifier.padding(top = 2.dp)) {
                                             TextButton(
                                                 onClick = { editing = portal },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(32.dp),
                                                 colors = ButtonDefaults.textButtonColors(
                                                     contentColor = neonCyan
                                                 )
@@ -328,7 +316,10 @@ class PortalsActivity : ComponentActivity() {
                                                     dao.deleteChannelsByPlaylist(idToDelete)
                                                     dao.deleteChannelsByPrefix("ch_${idToDelete}_")
                                                 }
-                                            }) {
+                                            },
+                                              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                              modifier = Modifier.height(32.dp)
+                                            ) {   
                                                 Text(
                                                     text = "Elimina",
                                                     color = Color(0xFFEF4444),
