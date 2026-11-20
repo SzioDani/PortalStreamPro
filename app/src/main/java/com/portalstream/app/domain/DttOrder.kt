@@ -69,8 +69,8 @@ object DttOrder {
         Regex("""^\s*[\[(|]?\s*(it|ita|italia|italy)\s*[\])|:\-]+\s*""", RegexOption.IGNORE_CASE)
 
     // Regex per intercettare tag di paesi esteri (es. (CH), [ES], (SE), (TR), ecc.)
-    private val foreignCountryRegex = Regex("""[\[(]\s*(ch|es|se|tr|fr|de|uk|us|al|ro)\s*[\])]""", RegexOption.IGNORE_CASE)
-    private val italianTagRegex = Regex("""[\[(]\s*(it|ita|italia|italy)\s*[\])]""", RegexOption.IGNORE_CASE)
+    private val foreignCountryRegex = Regex("""[\[(]\s*(ch|CH|es|ES|se|SE|tr|TR|fr|FR|de|DE|uk|UK|us|US|al|AL|ro|RO)\s*[\])]""", RegexOption.IGNORE_CASE)
+    private val italianTagRegex = Regex("""[\[(]\s*(it|IT|ita|italia|italy)\s*[\])]""", RegexOption.IGNORE_CASE)
 
     private val bracketContent = Regex("""[\[(].*?[\])]""")
     private val nonAlnum = Regex("""[^a-z0-9]+""")
