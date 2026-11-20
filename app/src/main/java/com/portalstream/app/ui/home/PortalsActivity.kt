@@ -238,8 +238,7 @@ class PortalsActivity : ComponentActivity() {
                                         Text(
                                             text = "${portal.id}" +
                                                 if (portal.name.isBlank()) "" else " ${portal.name}",
-                                            fontSize = 15.sp,
-                                            lineHeight = 18.sp,
+                                            style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -249,13 +248,12 @@ class PortalsActivity : ComponentActivity() {
                                             text = portal.type.label + " - " +
                                                 if (portal.url.isBlank()) portal.server else portal.url,
                                             style = MaterialTheme.typography.bodySmall,
-                                            lineHeight = 14.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             color = subTextColor
                                         )
                                         if (portal.expireDate.isNotBlank() || portal.activationDate.isNotBlank()) {
-                                            Spacer(modifier = Modifier.height(1.dp))
+                                            Spacer(modifier = Modifier.height(3.dp))
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalArrangement = Arrangement.spacedBy(0.dp)
