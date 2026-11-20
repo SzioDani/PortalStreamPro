@@ -797,7 +797,7 @@ class ChannelsActivity : ComponentActivity() {
 								                    Text(
 								                        text = "Cerca categoria...",
 								                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-								                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+								                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
 								                    )
 								                }
 								                BasicTextField(
