@@ -227,13 +227,13 @@ class PortalsActivity : ComponentActivity() {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                                    shape = RoundedCornerShape(10.dp),
+                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     color = innerFrameBg,
                                     border = BorderStroke(1.dp, cardBorderColor)
                                 ) {
                                     Column(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                     ) {
                                         Text(
                                             text = "${portal.id}" +
