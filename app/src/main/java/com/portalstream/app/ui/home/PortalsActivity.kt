@@ -173,7 +173,7 @@ class PortalsActivity : ComponentActivity() {
                 Button(
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = colorResource(id = R.color.text_neongreen),
                         contentColor = colorResource(id = R.color.neutral_900)
