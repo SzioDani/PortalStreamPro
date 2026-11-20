@@ -256,21 +256,20 @@ class PortalsActivity : ComponentActivity() {
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                verticalArrangement = Arrangement.spacedBy(0.dp)
+                                                verticalArrangement = Arrangement.spacedBy(1.dp)
                                             ) {
                                                 if (portal.activationDate.isNotBlank()) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Icon(
                                                             imageVector = Icons.Default.CheckCircle,
                                                             contentDescription = null,
-                                                            modifier = Modifier.size(12.dp),
+                                                            modifier = Modifier.size(13.dp),
                                                             tint = colorResource(id = R.color.text_neongreen)
                                                         )
-                                                        Spacer(modifier = Modifier.width(5.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
                                                         Text(
                                                             text = "Attivato: ${formatDateToItalian(portal.activationDate)}",
                                                             style = MaterialTheme.typography.bodySmall,
-                                                            lineHeight = 14.sp,
                                                             color = Color.White,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -282,14 +281,13 @@ class PortalsActivity : ComponentActivity() {
                                                         Icon(
                                                             imageVector = Icons.Default.Schedule,
                                                             contentDescription = null,
-                                                            modifier = Modifier.size(12.dp),
+                                                            modifier = Modifier.size(13.dp),
                                                             tint = colorResource(id = R.color.text_neonred)
                                                         )
-                                                        Spacer(modifier = Modifier.width(5.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
                                                         Text(
                                                             text = "Scadenza: $formattedExpire",
                                                             style = MaterialTheme.typography.bodySmall,
-                                                            lineHeight = 14.sp,
                                                             color = Color.White,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -297,16 +295,16 @@ class PortalsActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-                                        Row(modifier = Modifier.padding(top = 0.dp)) {
+                                        Row(modifier = Modifier.padding(top = 2.dp)) {
                                             TextButton(
                                                 onClick = { editing = portal },
-                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                                modifier = Modifier.height(22.dp),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(26.dp),
                                                 colors = ButtonDefaults.textButtonColors(
                                                     contentColor = neonCyan
                                                 )
                                             ) {
-                                                Text("Modifica", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                                Text("Modifica", fontWeight = FontWeight.SemiBold)
                                             }
                                             Spacer(Modifier.width(6.dp))
                                             TextButton(onClick = {
@@ -320,12 +318,11 @@ class PortalsActivity : ComponentActivity() {
                                                     dao.deleteChannelsByPrefix("ch_${idToDelete}_")
                                                 }
                                             },
-                                              contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                              modifier = Modifier.height(22.dp)
+                                              contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                              modifier = Modifier.height(26.dp)
                                             ) {   
                                                 Text(
                                                     text = "Elimina",
-                                                    fontSize = 13.sp,
                                                     color = Color(0xFFEF4444),
                                                     fontWeight = FontWeight.SemiBold
                                                 )
