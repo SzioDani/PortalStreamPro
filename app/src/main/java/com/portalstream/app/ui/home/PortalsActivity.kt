@@ -213,7 +213,7 @@ class PortalsActivity : ComponentActivity() {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
+                                    .padding(vertical = 2.dp)
                                     .clickable { openChannels(portal) },
                                 colors = CardDefaults.cardColors(
                                     containerColor = outerCardBg,
@@ -227,7 +227,7 @@ class PortalsActivity : ComponentActivity() {
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     color = innerFrameBg,
                                     border = BorderStroke(1.dp, cardBorderColor)
