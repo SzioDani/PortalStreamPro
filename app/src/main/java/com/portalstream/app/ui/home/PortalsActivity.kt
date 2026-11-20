@@ -170,7 +170,7 @@ class PortalsActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodyMedium,
                     color = neonCyan
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(4.dp))
                 Button(
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -186,7 +186,7 @@ class PortalsActivity : ComponentActivity() {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(0.dp))
 
                 if (portals.isEmpty()) {
                     Spacer(Modifier.height(8.dp))
