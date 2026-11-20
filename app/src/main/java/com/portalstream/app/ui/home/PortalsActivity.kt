@@ -151,7 +151,6 @@ class PortalsActivity : ComponentActivity() {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
-                                tint = colorResource(id = R.color.surface_light),
                                 contentDescription = "Impostazioni"
                             )
                         }
@@ -170,7 +169,7 @@ class PortalsActivity : ComponentActivity() {
                     style = MaterialTheme.typography.bodyMedium,
                     color = neonCyan
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = { showTypeChooser = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -186,10 +185,10 @@ class PortalsActivity : ComponentActivity() {
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(Modifier.height(0.dp))
+                Spacer(Modifier.height(4.dp))
 
                 if (portals.isEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Nessun portale salvato.",
@@ -203,7 +202,7 @@ class PortalsActivity : ComponentActivity() {
                         )
                     }
                 } else {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(0.dp))
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -620,7 +619,7 @@ fun SettingsBottomSheet(
                     imageVector = Icons.Default.Settings,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = colorResource(id = R.color.surface_light)
+                    tint = neonCyan
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
