@@ -774,7 +774,7 @@ class ChannelsActivity : ComponentActivity() {
 								    Box(
 								        modifier = Modifier
 								            .fillMaxSize()
-								            .background(neonCyan.copy(alpha = 0.08f))
+								            .background(neonCyan.copy(alpha = 0.025f))
 								    ) {
 								        Row(
 								            modifier = Modifier
