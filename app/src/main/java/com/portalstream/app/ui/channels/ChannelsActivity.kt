@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -760,64 +761,73 @@ class ChannelsActivity : ComponentActivity() {
 				                Divider(modifier = Modifier.padding(vertical = 2.dp))
 				
 				                // Barra di ricerca della categoria
-				                Surface(
-				                    modifier = Modifier
-				                        .fillMaxWidth()
-				                        .height(44.dp),
-				                    shape = RoundedCornerShape(12.dp),
-				                    color = MaterialTheme.colorScheme.surfaceVariant,
-				                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-				                ) {
-				                    Row(
-				                        modifier = Modifier
-				                            .fillMaxSize()
-				                            .padding(horizontal = 12.dp),
-				                        verticalAlignment = Alignment.CenterVertically
-				                    ) {
-				                        Icon(
-				                            imageVector = Icons.Default.Search,
-				                            contentDescription = null,
-				                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-				                        )
-				                        Spacer(modifier = Modifier.width(8.dp))
-				                        Box(
-				                            modifier = Modifier.weight(1f),
-				                            contentAlignment = Alignment.CenterStart
-				                        ) {
-				                            if (groupSearchQuery.isEmpty()) {
-				                                Text(
-				                                    text = "Cerca categoria...",
-				                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-				                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-				                                )
-				                            }
-				                            BasicTextField(
-				                                value = groupSearchQuery,
-				                                onValueChange = { groupSearchQuery = it },
-                                                singleLine = true,
-				                                textStyle = MaterialTheme.typography.bodySmall.copy(
-				                                    fontSize = 13.sp,
-				                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-				                                ),
-				                                modifier = Modifier.fillMaxWidth()
-				                            )
-				                        }
-				                        if (groupSearchQuery.isNotEmpty()) {
-				                            IconButton(
-				                                onClick = { groupSearchQuery = "" },
-				                                modifier = Modifier.size(24.dp)
-				                            ) {
-				                                Icon(
-				                                    imageVector = Icons.Default.Clear,
-				                                    contentDescription = "Cancella",
-				                                    modifier = Modifier.size(16.dp),
-				                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-				                                )
-				                            }
-				                        }
-				                    }
-				                }
+				                val neonCyan = Color(0xFF0FF0FC)
+
+								Surface(
+								    modifier = Modifier
+								        .fillMaxWidth()
+								        .height(44.dp),
+								    shape = RoundedCornerShape(12.dp),
+								    color = MaterialTheme.colorScheme.surfaceVariant,
+								    border = BorderStroke(1.5.dp, neonCyan)
+								) {
+								    Box(
+								        modifier = Modifier
+								            .fillMaxSize()
+								            .background(neonCyan.copy(alpha = 0.08f))
+								    ) {
+								        Row(
+								            modifier = Modifier
+								                .fillMaxSize()
+								                .padding(horizontal = 12.dp),
+								            verticalAlignment = Alignment.CenterVertically
+								        ) {
+								            Icon(
+								                imageVector = Icons.Default.Search,
+								                contentDescription = null,
+								                modifier = Modifier.size(18.dp),
+								                tint = neonCyan
+								            )
+								            Spacer(modifier = Modifier.width(8.dp))
+								            Box(
+								                modifier = Modifier.weight(1f),
+								                contentAlignment = Alignment.CenterStart
+								            ) {
+								                if (groupSearchQuery.isEmpty()) {
+								                    Text(
+								                        text = "Cerca categoria...",
+								                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+								                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+								                    )
+								                }
+								                BasicTextField(
+								                    value = groupSearchQuery,
+								                    onValueChange = { groupSearchQuery = it },
+								                    singleLine = true,
+								                    cursorBrush = SolidColor(neonCyan),
+								                    textStyle = MaterialTheme.typography.bodySmall.copy(
+								                        fontSize = 13.sp,
+								                        color = neonCyan
+								                    ),
+								                    modifier = Modifier.fillMaxWidth()
+								                )
+								            }
+								            if (groupSearchQuery.isNotEmpty()) {
+								                IconButton(
+								                    onClick = { groupSearchQuery = "" },
+								                    modifier = Modifier.size(24.dp)
+								                ) {
+								                    Icon(
+								                        imageVector = Icons.Default.Clear,
+								                        contentDescription = "Cancella",
+								                        modifier = Modifier.size(16.dp),
+								                        tint = neonCyan
+								                    )
+								                }
+								            }
+								        }
+								    }
+                                }
 				
 				                val filteredGroups = remember(allGroups, groupSearchQuery, favoriteGroups) {
 				                    val baseList = if (groupSearchQuery.isBlank()) allGroups
