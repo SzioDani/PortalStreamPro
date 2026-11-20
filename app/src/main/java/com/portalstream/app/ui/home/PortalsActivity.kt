@@ -151,6 +151,7 @@ class PortalsActivity : ComponentActivity() {
                         IconButton(onClick = { showSettings = true }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
+                                tint = colorResource(id = R.color.surface_light),
                                 contentDescription = "Impostazioni"
                             )
                         }
