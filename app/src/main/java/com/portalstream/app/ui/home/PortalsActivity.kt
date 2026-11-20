@@ -207,13 +207,14 @@ class PortalsActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 600.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        contentPadding = PaddingValues(top = 0.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         items(portals, key = { it.id }) { portal ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
+                                    .padding(vertical = 1.dp)
                                     .clickable { openChannels(portal) },
                                 colors = CardDefaults.cardColors(
                                     containerColor = outerCardBg,
@@ -618,7 +619,7 @@ fun SettingsBottomSheet(
                     imageVector = Icons.Default.Settings,
                     contentDescription = null,
                     modifier = Modifier.size(24.dp),
-                    tint = neonCyan
+                    tint = colorResource(id = R.color.surface_light)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
