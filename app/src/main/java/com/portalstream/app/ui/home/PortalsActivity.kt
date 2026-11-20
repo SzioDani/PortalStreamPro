@@ -208,13 +208,13 @@ class PortalsActivity : ComponentActivity() {
                             .fillMaxWidth()
                             .heightIn(max = 600.dp),
                         contentPadding = PaddingValues(top = 0.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(portals, key = { it.id }) { portal ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
+                                    .padding(vertical = 4.dp)
                                     .clickable { openChannels(portal) },
                                 colors = CardDefaults.cardColors(
                                     containerColor = outerCardBg,
