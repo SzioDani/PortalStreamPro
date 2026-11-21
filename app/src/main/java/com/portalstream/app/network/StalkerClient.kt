@@ -106,7 +106,21 @@ object StalkerClient {
         }
     }
 
+    private fun isPlaceholderDate(raw: String): Boolean {
+        val t = raw.trim().lowercase(Locale.ROOT)
+        return t.isEmpty() ||
+            t == "-" ||
+            t == "0" ||
+            t == "null" ||
+            t.startsWith("0000-00-00") ||
+            t.startsWith("0000/00/00") ||
+            t.startsWith("00.00.0000")
+    }
+
     private fun extractDateFromCustomString(text: String): Date? {
+        val cleaned = text.trim()
+        if (isPlaceholderDate(cleaned)) return null
+
         val formats = listOf(
             SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH),
             SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
@@ -119,8 +133,8 @@ object StalkerClient {
         )
         for (fmt in formats) {
             try {
-                fmt.isLenient = true
-                val parsed = fmt.parse(text.trim())
+                fmt.isLenient = false
+                val parsed = fmt.parse(cleaned)
                 if (parsed != null) return parsed
             } catch (_: Exception) {
             }
