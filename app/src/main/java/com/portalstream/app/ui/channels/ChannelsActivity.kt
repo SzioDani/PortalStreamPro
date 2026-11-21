@@ -219,34 +219,39 @@ class ChannelsActivity : ComponentActivity() {
                 val allGroups = remember(portalChannelsOnly) {
                     portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
                 }
-
+                
                 // ORDINAMENTO CANALI STILE DTT
-                val currentChannels = remember(
-                    portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
-                ) {
-                    portalChannelsOnly
-                        .filter { channel ->
-                            val matchesGroup = selectedGroup == null || channel.group == selectedGroup
-                            val matchesSearch = searchQuery.isBlank() ||
-                                    channel.name.contains(searchQuery, ignoreCase = true)
-                            val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
-                            val matchesEpg = !showOnlyEpg ||
-                                    channel.tvgId.isNotBlank() ||
-                                    channel.customSid.isNotBlank()
-
-                            matchesGroup && matchesSearch && matchesFavorites && matchesEpg
-                        }
-                        // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
-                        .map { channel -> channel to (DttOrder.rankOf(channel.name) ?: Int.MAX_VALUE) }
-                        .sortedWith(
-                            compareBy<Pair<Channel, Int>>(
-                                { it.second },                                                    // 1) posizione DTT
-                                { if (it.first.number > 0) it.first.number else Int.MAX_VALUE }, // 2) numero del portale
-                                { it.first.name.lowercase() }                                     // 3) ordine alfabetico
-                            )
-                        )
-                        .map { it.first }
+				val currentChannels = remember(
+				    portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
+				) {
+				    portalChannelsOnly
+				        .filter { channel ->
+				            val matchesGroup = selectedGroup == null || channel.group == selectedGroup
+				            val matchesSearch = searchQuery.isBlank() ||
+				                    channel.name.contains(searchQuery, ignoreCase = true)
+				            val matchesFavorites = !showOnlyFavorites || favoriteIds.contains(channel.id)
+				            val matchesEpg = !showOnlyEpg ||
+				                    channel.tvgId.isNotBlank() ||
+				                    channel.customSid.isNotBlank()
+				
+				            // Esclude i canali esteri quando si guarda la lista generale (senza gruppo selezionato)
+				            val isAllowedCountry = selectedGroup != null ||
+				                    !DttOrder.isForeignChannel(channel.name, channel.group)
+				
+				            matchesGroup && matchesSearch && matchesFavorites && matchesEpg && isAllowedCountry
+				        }
+				        // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
+				        .map { channel -> channel to (DttOrder.rankOf(channel.name, channel.group) ?: Int.MAX_VALUE) }
+				        .sortedWith(
+				            compareBy<Pair<Channel, Int>>(
+				                { it.second },                                                    // 1) posizione DTT
+				                { if (it.first.number > 0) it.first.number else Int.MAX_VALUE }, // 2) numero del portale
+				                { it.first.name.lowercase() }                                     // 3) ordine alfabetico
+				            )
+				        )
+				        .map { it.first }
                 }
+                
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
                     scope.launch(Dispatchers.IO) {
                         try {
