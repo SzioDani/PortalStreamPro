@@ -239,7 +239,7 @@ object StalkerClient {
             val expireKeys = listOf("exp_date", "end_date", "expire_billing_date", "account_expire", "expire")
             val rawExpire = expireKeys
                 .map { estraiCampoTestuale(jsonResponseStr, it) }
-                .firstOrNull { it != "-" && it != "0" }
+                .firstOrNull { !isPlaceholderDate(it) }
                 ?: "-"
 
             val scadPhone = estraiCampoTestuale(jsonResponseStr, "phone")
@@ -255,15 +255,20 @@ object StalkerClient {
                     isExpired = d.before(Date())
                     formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(d)
                 }
-            } else if (rawExpire != "-") {
-                val parsedExpire = extractDateFromCustomString(rawExpire)
-                if (parsedExpire != null) {
-                    isExpired = parsedExpire.before(Date())
-                    formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(parsedExpire)
+            } else if (!isPlaceholderDate(rawExpire)) {
+                if (rawExpire.equals("unlimited", ignoreCase = true) || rawExpire.contains("illimitat", ignoreCase = true)) {
+                    isExpired = false
+                    formattedExpireDate = "Illimitato"
                 } else {
-                    formattedExpireDate = rawExpire
+                    val parsedExpire = extractDateFromCustomString(rawExpire)
+                    if (parsedExpire != null) {
+                        isExpired = parsedExpire.before(Date())
+                        formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(parsedExpire)
+                    } else {
+                        formattedExpireDate = rawExpire
+                    }
                 }
-            } else if (scadPhone != "-" && scadPhone.matches(Regex(".*\\d{4}.*"))) {
+            } else if (!isPlaceholderDate(scadPhone) && scadPhone.matches(Regex(".*\\d{4}.*"))) {
                 val parsedPhoneDate = extractDateFromCustomString(scadPhone)
                 if (parsedPhoneDate != null) {
                     isExpired = parsedPhoneDate.before(Date())
