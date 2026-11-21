@@ -59,7 +59,6 @@ object DttOrder {
         listOf("R101", "r101"),
         listOf("Radio 105", "radio 105", "Radio 105 Tv", "Radio 105 TV")
     )
-    
 
     private val noiseWords = setOf(
         "hd", "fhd", "uhd", "4k", "sd", "hevc", "h265", "h264", "fullhd", "raw"
@@ -68,12 +67,30 @@ object DttOrder {
     private val countryPrefix =
         Regex("""^\s*[\[(|]?\s*(it|IT|ita|italia|italy)\s*[\])|:\-]+\s*""", RegexOption.IGNORE_CASE)
 
-    // Regex per intercettare tag di paesi esteri (es. (CH), [ES], (SE), (TR), ecc.)
-    private val foreignCountryRegex = Regex("""[\[(]\s*(ch|CH|es|ES|se|SE|tr|TR|fr|FR|de|DE|uk|UK|us|US|al|AL|ro|RO)\s*[\])]""", RegexOption.IGNORE_CASE)
-    private val italianTagRegex = Regex("""[\[(]\s*(it|IT|ita|italia|italy)\s*[\])]""", RegexOption.IGNORE_CASE)
+    // Tag/prefissi esteri comuni (es. (CH) Rai 1 [IT] HD, [ES], (SE), (TR), ecc.)
+    private val foreignCountryRegex = Regex(
+        """(?:^\s*[\[(|]?\s*(ch|es|se|tr|fr|de|uk|us|al|ro|at|be|nl|pt|pl|gr|ru)\s*[\])|:\-]+\s*)|(?:[\[(]\s*(ch|es|se|tr|fr|de|uk|us|al|ro|at|be|nl|pt|pl|gr|ru)\s*[\])])""",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val foreignGroupRegex = Regex(
+        """\b(zwitserland|swiss|svizzera|spain|spagna|sweden|svezia|turkey|turchia|france|francia|germany|germania|uk|united kingdom|usa|albania|romania)\b""",
+        RegexOption.IGNORE_CASE
+    )
 
     private val bracketContent = Regex("""[\[(].*?[\])]""")
     private val nonAlnum = Regex("""[^a-z0-9]+""")
+
+    fun isForeignChannel(raw: String, groupName: String? = null): Boolean {
+        val name = raw.trim()
+        val group = groupName?.trim().orEmpty()
+        return foreignCountryRegex.containsMatchIn(name) ||
+            (group.isNotEmpty() && foreignGroupRegex.containsMatchIn(group))
+    }
+
+    fun isItalianChannel(raw: String, groupName: String? = null): Boolean {
+        return !isForeignChannel(raw, groupName)
+    }
 
     /** "|IT| Rai 1 HD [FHD]" -> "rai 1" */
     fun normalize(raw: String): String {
@@ -94,11 +111,8 @@ object DttOrder {
     }
 
     /** Posizione DTT del canale, oppure null se non è nella tabella o se è un canale straniero. */
-    fun rankOf(channelName: String): Int? {
-        // Se il canale contiene un tag straniero e non specifica [IT], viene escluso dal ranking DTT
-        if (foreignCountryRegex.containsMatchIn(channelName) && !italianTagRegex.containsMatchIn(channelName)) {
-            return null
-        }
+    fun rankOf(channelName: String, groupName: String? = null): Int? {
+        if (isForeignChannel(channelName, groupName)) return null
         return rankByName[normalize(channelName)]
     }
 }
