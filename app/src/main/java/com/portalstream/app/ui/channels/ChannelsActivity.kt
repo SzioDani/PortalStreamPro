@@ -226,6 +226,8 @@ class ChannelsActivity : ComponentActivity() {
 				) {
 				    portalChannelsOnly
 				        .filter { channel ->
+                            val isAllowedCountry = selectedGroup != null ||
+                                    !DttOrder.isForeignChannel("${channel.name} ${channel.tvgName}", channel.group)
 				            val matchesGroup = selectedGroup == null || channel.group == selectedGroup
 				            val matchesSearch = searchQuery.isBlank() ||
 				                    channel.name.contains(searchQuery, ignoreCase = true)
