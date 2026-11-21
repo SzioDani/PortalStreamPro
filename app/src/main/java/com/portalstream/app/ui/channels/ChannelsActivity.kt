@@ -220,14 +220,12 @@ class ChannelsActivity : ComponentActivity() {
                     portalChannelsOnly.map { it.group }.distinct().filter { it.isNotBlank() }.sorted()
                 }
                 
-                // ORDINAMENTO CANALI STILE DTT
+                // ORDINAMENTO CANALI STILE DTT + FILTRO ESTERI + DEDUP PER NOME
 				val currentChannels = remember(
 				    portalChannelsOnly, selectedGroup, searchQuery, showOnlyFavorites, showOnlyEpg, favoriteIds
 				) {
-				    portalChannelsOnly
+				    val orderedList = portalChannelsOnly
 				        .filter { channel ->
-                            val isAllowedCountry = selectedGroup != null ||
-                                    !DttOrder.isForeignChannel("${channel.name} ${channel.tvgName}", channel.group)
 				            val matchesGroup = selectedGroup == null || channel.group == selectedGroup
 				            val matchesSearch = searchQuery.isBlank() ||
 				                    channel.name.contains(searchQuery, ignoreCase = true)
@@ -236,13 +234,15 @@ class ChannelsActivity : ComponentActivity() {
 				                    channel.tvgId.isNotBlank() ||
 				                    channel.customSid.isNotBlank()
 				
-				            // Esclude i canali esteri quando si guarda la lista generale (senza gruppo selezionato)
-				            val isAllowedCountry = selectedGroup != null ||
-				                    !DttOrder.isForeignChannel(channel.name, channel.group)
+				            // Logica 1: esclude i canali esteri quando si guarda la lista generale (senza gruppo selezionato)
+				            val isAllowedCountry = selectedGroup != null || (
+				                !DttOrder.isForeignChannel("${channel.name} ${channel.tvgName}", channel.group) &&
+				                !DttOrder.isForeignChannel(channel.name, channel.group)
+				            )
 				
 				            matchesGroup && matchesSearch && matchesFavorites && matchesEpg && isAllowedCountry
 				        }
-				        // Calcolo la posizione DTT una sola volta per canale (più veloce con migliaia di canali)
+				        // Logica 2: calcolo posizione DTT una sola volta e ordino
 				        .map { channel -> channel to (DttOrder.rankOf(channel.name, channel.group) ?: Int.MAX_VALUE) }
 				        .sortedWith(
 				            compareBy<Pair<Channel, Int>>(
@@ -252,6 +252,9 @@ class ChannelsActivity : ComponentActivity() {
 				            )
 				        )
 				        .map { it.first }
+				
+				    // Scarta i canali con lo stesso nome mantenendo il primo nell'ordine DTT/portale
+				    orderedList.distinctBy { it.name.trim().lowercase() }
                 }
                 
                 val fetchChannelsAction = { isManualRefresh: Boolean ->
