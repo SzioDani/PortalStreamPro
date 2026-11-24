@@ -4,6 +4,7 @@ import android.util.Log
 import com.portalstream.app.data.Portal
 import com.portalstream.app.domain.model.Channel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,6 +33,13 @@ object StalkerClient {
         .retryOnConnectionFailure(true)
         .build()
 
+    private val tokenCache = mutableMapOf<String, String>()
+
+    private fun portalCacheKey(portal: Portal): String {
+        val base = getPortalBaseUrl(portal).orEmpty()
+        return "$base|${portal.macAddress.trim().lowercase(Locale.ROOT)}"
+    }
+
     private val FALLBACK_USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
@@ -47,21 +55,21 @@ object StalkerClient {
 
     private val FALLBACK_X_USER_AGENT = "Model: MAG250; Link: WiFi"
 
-	private fun resolveXUserAgent(portal: Portal): String {
-	    if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
-	        val modelMatch = Regex("(MAG\\d+[A-Za-z0-9]*)", RegexOption.IGNORE_CASE)
-	            .find(portal.userAgent)
-	            ?.value
-	            ?.uppercase(Locale.ROOT)
-	        if (!modelMatch.isNullOrBlank()) {
-	            val xUa = "Model: $modelMatch; Link: WiFi"
-	            Log.d(TAG, "🖥️ [X-User-Agent Allineato] -> $xUa")
-	            return xUa
-	        }
-	    }
-	    Log.d(TAG, "🖥️ [X-User-Agent Fallback] -> $FALLBACK_X_USER_AGENT")
-	    return FALLBACK_X_USER_AGENT
-	}
+    private fun resolveXUserAgent(portal: Portal): String {
+        if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
+            val modelMatch = Regex("(MAG\\d+[A-Za-z0-9]*)", RegexOption.IGNORE_CASE)
+                .find(portal.userAgent)
+                ?.value
+                ?.uppercase(Locale.ROOT)
+            if (!modelMatch.isNullOrBlank()) {
+                val xUa = "Model: $modelMatch; Link: WiFi"
+                Log.d(TAG, "🖥️ [X-User-Agent Allineato] -> $xUa")
+                return xUa
+            }
+        }
+        Log.d(TAG, "🖥️ [X-User-Agent Fallback] -> $FALLBACK_X_USER_AGENT")
+        return FALLBACK_X_USER_AGENT
+    }
 
     private fun getPortalBaseUrl(portal: Portal): String? {
         var rawServer = portal.server.trim()
@@ -140,6 +148,73 @@ object StalkerClient {
             }
         }
         return null
+    }
+
+    private fun checkHttpResponseCode(code: Int) {
+        when (code) {
+            401, 403 -> throw PortalException.UserAgentBlocked()
+            424, 456 -> throw PortalException.VpnOrSessionBlocked()
+            429, 458, 459, 462 -> throw PortalException.MaxConnectionsReached()
+        }
+    }
+
+    private fun checkPayloadForErrors(body: String) {
+        val lower = body.lowercase(Locale.ROOT)
+        if (
+            lower.contains("limit_reached") ||
+            lower.contains("max_connections") ||
+            lower.contains("connection_limit") ||
+            lower.contains("stream_limit") ||
+            lower.contains("already_playing")
+        ) {
+            throw PortalException.MaxConnectionsReached()
+        }
+        if (lower.contains("424") || lower.contains("failed dependency")) {
+            throw PortalException.VpnOrSessionBlocked()
+        }
+        if (
+            lower.contains("access_denied") ||
+            lower.contains("auth_error") ||
+            lower.contains("account_expired")
+        ) {
+            throw PortalException.InvalidCredentials()
+        }
+    }
+
+    private fun performHandshake(
+        baseUrl: String,
+        userAgent: String,
+        xUserAgent: String,
+        sessionCookie: String,
+        outCookieHolder: Array<String>
+    ): String {
+        val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
+        val handshakeRequest = Request.Builder()
+            .url(handshakeUrl)
+            .addHeader("User-Agent", userAgent)
+            .addHeader("X-User-Agent", xUserAgent)
+            .addHeader("Accept-Encoding", "gzip, deflate")
+            .addHeader("Cookie", sessionCookie)
+            .build()
+
+        val handshakeBody = client.newCall(handshakeRequest).execute().use { handshakeResponse ->
+            checkHttpResponseCode(handshakeResponse.code)
+
+            var updatedCookie = sessionCookie
+            val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
+            if (setCookieHeaders.isNotEmpty()) {
+                val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
+                if (phpSessId != null) {
+                    val cookieValue = phpSessId.split(";").firstOrNull() ?: ""
+                    if (cookieValue.isNotBlank()) {
+                        updatedCookie += "; $cookieValue"
+                    }
+                }
+            }
+            outCookieHolder[0] = updatedCookie
+            handshakeResponse.body?.string() ?: ""
+        }
+        return parseToken(handshakeBody)
     }
 
     suspend fun fetchAccountInfo(portal: Portal): StalkerProfile = withContext(Dispatchers.IO) {
@@ -391,90 +466,86 @@ object StalkerClient {
 
         val userAgent = resolveUserAgent(portal)
         val xUserAgent = resolveXUserAgent(portal)
-        var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
+        val cookieHolder = arrayOf("mac=$mac; stb_lang=en; timezone=Europe/Rome")
+        val cacheKey = portalCacheKey(portal)
+        val cleanCmd = cmd.trim()
+        val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
 
-        try {
-            val handshakeUrl = "$baseUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
-            val handshakeRequest = Request.Builder()
-                .url(handshakeUrl)
-                .addHeader("User-Agent", userAgent)
-                .addHeader("X-User-Agent", xUserAgent)
-                .addHeader("Accept-Encoding", "gzip, deflate")
-                .addHeader("Cookie", sessionCookie)
-                .build()
-
-            val handshakeBody = client.newCall(handshakeRequest).execute().use { handshakeResponse ->
-                checkHttpResponseCode(handshakeResponse.code)
-
-                val setCookieHeaders = handshakeResponse.headers("Set-Cookie")
-                if (setCookieHeaders.isNotEmpty()) {
-                    val phpSessId = setCookieHeaders.firstOrNull { it.contains("PHPSESSID") }
-                    if (phpSessId != null) {
-                        val cookieValue = phpSessId.split(";").firstOrNull() ?: ""
-                        if (cookieValue.isNotBlank()) {
-                            sessionCookie += "; $cookieValue"
-                        }
-                    }
-                }
-
-                handshakeResponse.body?.string() ?: ""
-            }
-            val token = parseToken(handshakeBody)
-
-            val cleanCmd = cmd.trim()
-            val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
+        fun executeCreateLink(activeToken: String): Pair<Int, String> {
             val createLinkUrl = "$baseUrl?type=itv&action=create_link&cmd=$encodedCmd&series_id=0&JsHttpRequest=1-xml" +
-                if (token.isNotBlank()) "&token=$token" else ""
+                if (activeToken.isNotBlank()) "&token=$activeToken" else ""
 
-            val request = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(createLinkUrl)
                 .addHeader("User-Agent", userAgent)
                 .addHeader("X-User-Agent", xUserAgent)
                 .addHeader("Accept-Encoding", "gzip, deflate")
-                .addHeader("Cookie", sessionCookie)
-                .build()
+                .addHeader("Cookie", cookieHolder[0])
 
-            client.newCall(request).execute().use { response ->
-                checkHttpResponseCode(response.code)
-
-                val bodyStr = response.body?.string() ?: return@withContext null
-                checkPayloadForErrors(bodyStr)
-
-                val json = JSONObject(bodyStr)
-                val js = json.optJSONObject("js") ?: return@withContext null
-                var streamCmd = js.optString("cmd", "")
-
-                if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
-                if (streamCmd.startsWith("ffmpeg ")) streamCmd = streamCmd.removePrefix("ffmpeg ")
-
-                if (streamCmd.contains("http")) {
-                    val index = streamCmd.indexOf("http")
-                    streamCmd = streamCmd.substring(index)
-                }
-
-                val finalUrl = streamCmd.trim()
-                return@withContext if (finalUrl.isNotBlank()) finalUrl else null
+            if (activeToken.isNotBlank()) {
+                reqBuilder.addHeader("Authorization", "Bearer $activeToken")
             }
+
+            return client.newCall(reqBuilder.build()).execute().use { response ->
+                val code = response.code
+                val body = response.body?.string().orEmpty()
+                Log.d(TAG, "📥 [create_link HTTP $code] -> ${body.take(250)}")
+                code to body
+            }
+        }
+
+        try {
+            var token = tokenCache[cacheKey].orEmpty()
+            if (token.isBlank()) {
+                token = performHandshake(baseUrl, userAgent, xUserAgent, cookieHolder[0], cookieHolder)
+                if (token.isNotBlank()) {
+                    tokenCache[cacheKey] = token
+                }
+            }
+
+            var (code, bodyStr) = executeCreateLink(token)
+
+            // Se token non valido o 424/429 al primo colpo, rinnova handshake e riprova una sola volta
+            if (code == 401 || code == 424 || code == 429 ||
+                (bodyStr.contains("token", ignoreCase = true) && bodyStr.contains("invalid", ignoreCase = true))
+            ) {
+                tokenCache.remove(cacheKey)
+                if (code == 424 || code == 429) {
+                    delay(600L)
+                }
+                val freshToken = performHandshake(baseUrl, userAgent, xUserAgent, cookieHolder[0], cookieHolder)
+                if (freshToken.isNotBlank()) {
+                    tokenCache[cacheKey] = freshToken
+                }
+                val retryResult = executeCreateLink(freshToken)
+                code = retryResult.first
+                bodyStr = retryResult.second
+            }
+
+            checkHttpResponseCode(code)
+            if (bodyStr.isBlank()) return@withContext null
+            checkPayloadForErrors(bodyStr)
+
+            val json = JSONObject(bodyStr)
+            val js = json.optJSONObject("js") ?: return@withContext null
+            var streamCmd = js.optString("cmd", "")
+
+            if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
+            if (streamCmd.startsWith("ffmpeg ")) streamCmd = streamCmd.removePrefix("ffmpeg ")
+
+            if (streamCmd.contains("http")) {
+                val index = streamCmd.indexOf("http")
+                streamCmd = streamCmd.substring(index)
+            }
+
+            val finalUrl = streamCmd.trim()
+            return@withContext if (finalUrl.isNotBlank()) finalUrl else null
+        } catch (e: PortalException) {
+            Log.e(TAG, "❌ PortalException durante getStreamUrl: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
-        }
-    }
-
-    private fun checkHttpResponseCode(code: Int) {
-        when (code) {
-            401, 403 -> throw PortalException.UserAgentBlocked()
-            429 -> throw PortalException.MaxConnectionsReached()
-        }
-    }
-
-    private fun checkPayloadForErrors(body: String) {
-        val lower = body.lowercase()
-        if (lower.contains("limit_reached") || lower.contains("max_connections") || lower.contains("connection_limit")) {
-            throw PortalException.MaxConnectionsReached()
-        }
-        if (lower.contains("access_denied") || lower.contains("auth_error") || lower.contains("account_expired")) {
-            throw PortalException.InvalidCredentials()
         }
     }
 
