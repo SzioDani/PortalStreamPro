@@ -22,7 +22,7 @@ enum class StreamErrorType {
     UNAUTHORIZED,      // 401, 403 (Es. MAC errato, abbonamento scaduto)
     NOT_FOUND,         // 404 (Canale inesistente)
     GEO_BLOCKED,       // 456 (Blocco geolocalizzazione / VPN)
-    CONNECTION_LIMIT,  // 429, 458, 459, 462 (Troppi utenti o limite richieste)
+    CONNECTION_LIMIT,  // 424, 429, 458, 459, 462 (Limite connessione / dipendenza / VPN)
     SERVER_ERROR,      // 500-504 (Problemi sul server)
     NETWORK_FAILURE,   // Errore di connessione / assenza internet
     UNKNOWN
@@ -120,6 +120,7 @@ object StreamNetworkHelper {
                 200 -> Pair("Impossibile decodificare il flusso video.", StreamErrorType.DECODE_ERROR)
                 401, 403 -> Pair("Accesso rifiutato (HTTP $responseCode). Verifica User-Agent, indirizzo MAC o VPN", StreamErrorType.UNAUTHORIZED)
                 404 -> Pair("Canale non trovato (HTTP 404).", StreamErrorType.NOT_FOUND)
+                424 -> Pair("Errore di dipendenza o connessione (HTTP 424). Possibile limite di connessione o blocco/conflitto VPN.", StreamErrorType.CONNECTION_LIMIT)
                 456 -> Pair("IP rifiutato (HTTP 456). Possibile errore di geolocalizzazione o VPN attiva.", StreamErrorType.GEO_BLOCKED)
                 459 -> Pair("Limite connessioni raggiunto: troppi utenti collegati (HTTP $responseCode).", StreamErrorType.CONNECTION_LIMIT)
                 429, 458, 462 -> Pair("Limite di richieste raggiunto (HTTP $responseCode).", StreamErrorType.CONNECTION_LIMIT)
