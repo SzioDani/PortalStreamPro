@@ -9,6 +9,10 @@ sealed class PortalException(message: String, cause: Throwable? = null) : Except
         message: String = "Troppi utenti connessi. La playlist è attualmente in uso su un altro dispositivo."
     ) : PortalException(message)
 
+    class VpnOrSessionBlocked(
+        message: String = "Connessione rifiutata dal server (HTTP 424/456). Prova a cambiare server VPN o riprova tra qualche secondo."
+    ) : PortalException(message)
+
     class ServerUnreachable(
         message: String = "Impossibile raggiungere il server. Verifica l'URL, il DNS o la connessione di rete."
     ) : PortalException(message)
