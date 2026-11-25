@@ -36,14 +36,21 @@ data class StreamErrorResult(
 
 object StreamNetworkHelper {
 
+    private const val FALLBACK_MAG_USER_AGENT =
+        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+
     /**
      * Rileva automaticamente se lo stream è HLS/Mediaset/DASH (ExoPlayer)
      * oppure un Portale MAC / MPEG-TS / RTSP (LibVLC).
      */
     suspend fun shouldUseExoPlayer(urlStr: String, userAgentStr: String?): Boolean = withContext(Dispatchers.IO) {
         val lower = urlStr.lowercase()
+        // Riconosce subito tutti i flussi MAC/Stalker senza aprire connessioni sonda che bruciano il play_token!
         if (lower.contains("live.php") ||
             lower.contains("extension=ts") ||
+            lower.contains("play_token=") ||
+            lower.contains("/play/") ||
+            lower.contains("/ch/") ||
             lower.endsWith(".ts") ||
             lower.startsWith("rtsp://") ||
             lower.startsWith("udp://") ||
@@ -62,12 +69,18 @@ object StreamNetworkHelper {
         }
 
         try {
+            val effectiveUa = if (!userAgentStr.isNullOrBlank()) {
+                userAgentStr.trim()
+            } else {
+                FALLBACK_MAG_USER_AGENT
+            }
+
             val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 instanceFollowRedirects = true
                 connectTimeout = 2500
                 readTimeout = 2500
-                userAgentStr?.let { setRequestProperty("User-Agent", it) }
+                setRequestProperty("User-Agent", effectiveUa)
             }
 
             val code = conn.responseCode
@@ -108,12 +121,18 @@ object StreamNetworkHelper {
      */
     suspend fun checkHttpError(urlStr: String, userAgentStr: String?): StreamErrorResult = withContext(Dispatchers.IO) {
         try {
+            val effectiveUa = if (!userAgentStr.isNullOrBlank()) {
+                userAgentStr.trim()
+            } else {
+                FALLBACK_MAG_USER_AGENT
+            }
+
             val url = URL(urlStr)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 5000
             conn.readTimeout = 5000
-            userAgentStr?.let { conn.setRequestProperty("User-Agent", it) }
+            conn.setRequestProperty("User-Agent", effectiveUa)
 
             val responseCode = conn.responseCode
             val (message, type) = when (responseCode) {
