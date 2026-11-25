@@ -673,6 +673,51 @@ object StalkerClient {
             return@withContext emptyList()
         }
     }
+    /**
+     * Converte il cmd del canale nel formato nativo MAG ("ffrt http://localhost/ch/<id>")
+     * richiesto da create_link sui pannelli XUI/Stalker, evitando il bug dei 20 caratteri (URL duplicato -> 404).
+     */
+    private fun buildCreateLinkCandidates(rawCmd: String): List<String> {
+        val stripped = rawCmd.replace("ffrt ", "").replace("ffmpeg ", "").trim()
+        val candidates = mutableListOf<String>()
+
+        // Caso 1: è già un comando tipo http://localhost/ch/1891
+        if (stripped.contains("/ch/")) {
+            candidates.add("ffrt $stripped")
+            candidates.add(stripped)
+            return candidates.distinct()
+        }
+
+        // Caso 2: è un URL Xtream/XUI completo (es. http://xc.tvset.top:80/user/pass/1891 o .../1891.ts)
+        val streamIdMatch = Regex("/(\\d+)(?:\\.[a-zA-Z0-9]+)?$").find(stripped)
+        val streamId = streamIdMatch?.groupValues?.get(1)
+
+        if (!streamId.isNullOrBlank()) {
+            // Formato nativo MAG250: "http://localhost/ch/" (20 char) + streamId
+            candidates.add("ffrt http://localhost/ch/$streamId")
+            candidates.add("ffrt http://localhost/ch/${streamId}_")
+        }
+
+        // Fallback con il comando originale
+        if (rawCmd.startsWith("ffrt ") || rawCmd.startsWith("ffmpeg ")) {
+            candidates.add(rawCmd)
+        } else {
+            candidates.add("ffmpeg $stripped")
+            candidates.add(stripped)
+        }
+
+        return candidates.distinct()
+    }
+
+    /**
+     * Ripara eventuali URL malformati in cui il server duplica "/<port>/<user>/<pass>/" nel percorso.
+     */
+    private fun sanitizeMalformedStreamUrl(url: String): String {
+        return url.replace(
+            Regex("(https?://[^/]+/([^/]+/[^/]+)/)\\d+/\\2/"),
+            "$1"
+        )
+    }
 
     suspend fun getStreamUrl(portal: Portal, cmd: String): String? = withContext(Dispatchers.IO) {
         val cleanCmd = cmd.trim()
@@ -680,9 +725,10 @@ object StalkerClient {
 
         val userAgent = resolveUserAgent(portal)
         val xUserAgent = resolveXUserAgent(portal)
-        val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
+        val cmdCandidates = buildCreateLinkCandidates(cleanCmd)
 
-        fun executeCreateLink(activeSession: SessionData): Pair<Int, String> {
+        fun executeCreateLink(activeSession: SessionData, candidateCmd: String): Pair<Int, String> {
+            val encodedCmd = URLEncoder.encode(candidateCmd, "UTF-8")
             val createLinkUrl =
                 "${activeSession.baseUrl}?type=itv&action=create_link&cmd=$encodedCmd&series=&forced_storage=0&disable_ad=0&download=0&force_ch_link_check=0&JsHttpRequest=1-xml&token=${activeSession.token}"
 
@@ -695,37 +741,15 @@ object StalkerClient {
                 token = activeSession.token,
                 useBearerHeader = activeSession.useBearerHeader
             ).also { (code, body) ->
-                Log.d(TAG, "📥 [create_link HTTP $code] -> ${body.take(250)}")
+                Log.d(TAG, "📥 [create_link cmd='$candidateCmd' -> HTTP $code] -> ${body.take(250)}")
             }
         }
 
-        try {
-            var session = getOrEstablishSession(portal, forceRefresh = false)
-                ?: return@withContext null
-
-            var (code, bodyStr) = executeCreateLink(session)
-
-            if (code == 401 || code == 424 || code == 429 ||
-                bodyStr.isBlank() ||
-                bodyStr.contains("Authorization failed", ignoreCase = true) ||
-                (bodyStr.contains("token", ignoreCase = true) && bodyStr.contains("invalid", ignoreCase = true))
-            ) {
-                if (code == 424 || code == 429) {
-                    delay(600L)
-                }
-                session = getOrEstablishSession(portal, forceRefresh = true)
-                    ?: return@withContext null
-                val retryResult = executeCreateLink(session)
-                code = retryResult.first
-                bodyStr = retryResult.second
-            }
-
-            checkHttpResponseCode(code)
-            if (bodyStr.isBlank()) return@withContext null
-            checkPayloadForErrors(bodyStr)
-
+        fun extractValidStreamUrl(bodyStr: String): String? {
+            if (bodyStr.isBlank() || !bodyStr.contains("{")) return null
             val json = JSONObject(bodyStr)
-            val js = json.optJSONObject("js") ?: return@withContext null
+            val js = json.optJSONObject("js") ?: return null
+            val returnedId = js.optString("id", "")
             var streamCmd = js.optString("cmd", "")
 
             if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
@@ -736,8 +760,63 @@ object StalkerClient {
                 streamCmd = streamCmd.substring(index)
             }
 
-            val finalUrl = streamCmd.trim()
-            return@withContext if (finalUrl.isNotBlank()) finalUrl else null
+            streamCmd = sanitizeMalformedStreamUrl(streamCmd.trim())
+
+            // Se l'ID restituito dal server contiene "/" (es. "80/user/pass/1891"), il server ha sbagliato il substr!
+            if (returnedId.contains("/")) {
+                Log.w(TAG, "⚠️ Server ha restituito id malformato ('$returnedId'), URL sanitizzato: $streamCmd")
+            }
+            return streamCmd.takeIf { it.isNotBlank() }
+        }
+
+        try {
+            var session = getOrEstablishSession(portal, forceRefresh = false)
+                ?: return@withContext null
+
+            var lastCode = 200
+            var lastBody = ""
+
+            for (candidateCmd in cmdCandidates) {
+                var (code, bodyStr) = executeCreateLink(session, candidateCmd)
+
+                if (code == 401 || code == 424 || code == 429 ||
+                    bodyStr.isBlank() ||
+                    bodyStr.contains("Authorization failed", ignoreCase = true) ||
+                    (bodyStr.contains("token", ignoreCase = true) && bodyStr.contains("invalid", ignoreCase = true))
+                ) {
+                    if (code == 424 || code == 429) {
+                        delay(600L)
+                    }
+                    session = getOrEstablishSession(portal, forceRefresh = true)
+                        ?: return@withContext null
+                    val retryResult = executeCreateLink(session, candidateCmd)
+                    code = retryResult.first
+                    bodyStr = retryResult.second
+                }
+
+                lastCode = code
+                lastBody = bodyStr
+
+                if (bodyStr.isNotBlank() && bodyStr.contains("{")) {
+                    val js = JSONObject(bodyStr).optJSONObject("js")
+                    val returnedId = js?.optString("id", "").orEmpty()
+                    val parsedUrl = extractValidStreamUrl(bodyStr)
+
+                    // Se il server ha estratto un ID pulito (senza "/") e ci ha dato l'URL, usiamolo subito!
+                    if (!returnedId.contains("/") && !parsedUrl.isNullOrBlank()) {
+                        Log.d(TAG, "🎬 [Stream URL Finale] -> $parsedUrl")
+                        return@withContext parsedUrl
+                    }
+                }
+            }
+
+            checkHttpResponseCode(lastCode)
+            if (lastBody.isBlank()) return@withContext null
+            checkPayloadForErrors(lastBody)
+
+            val fallbackUrl = extractValidStreamUrl(lastBody)
+            Log.d(TAG, "🎬 [Stream URL Fallback] -> $fallbackUrl")
+            return@withContext fallbackUrl
         } catch (e: PortalException) {
             Log.e(TAG, "❌ PortalException durante getStreamUrl: ${e.message}")
             throw e
@@ -745,7 +824,7 @@ object StalkerClient {
             Log.e(TAG, "❌ Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
         }
-    }
+    }   
 
     private fun fetchGenres(
         baseUrl: String,
