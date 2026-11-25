@@ -258,9 +258,7 @@ class VlcPlayerManager(private val context: Context) {
                 } else {
                     "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
                 }
-                    addOption(":http-user-agent=$effectiveUserAgent")
-                
-                }
+                addOption(":http-user-agent=$effectiveUserAgent")    
             }
         }
     }
