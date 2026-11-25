@@ -98,7 +98,7 @@ class VlcPlayerManager(private val context: Context) {
         mp.attachViews(layout, null, false, true)
 
         val isRawMacStream = !isTorrentFile && (
-            lowerUrl.contains("live.php") ||
+                lowerUrl.contains("live.php") ||
                 lowerUrl.contains("extension=ts") ||
                 lowerUrl.endsWith(".ts")
             )
