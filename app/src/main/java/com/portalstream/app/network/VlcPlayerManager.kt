@@ -244,15 +244,22 @@ class VlcPlayerManager(private val context: Context) {
 
                 val isRawMacStream = lowerUrl.contains("live.php") ||
                     lowerUrl.contains("extension=ts") ||
+                    lowerUrl.contains("play_token=") ||
+                    lowerUrl.contains("/play/") ||
                     lowerUrl.endsWith(".ts")
 
                 if (isRawMacStream) {
                     addOption(":http-continuous")
                     addOption(":clock-jitter=0")
                 }
-
-                if (!userAgent.isNullOrBlank()) {
-                    addOption(":http-user-agent=$userAgent")
+                // Se userAgent è vuoto, usiamo lo stesso identico User-Agent MAG250 usato da StalkerClient!
+                val effectiveUserAgent = if (!userAgent.isNullOrBlank()) {
+                    userAgent.trim()
+                } else {
+                    "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+                }
+                    addOption(":http-user-agent=$effectiveUserAgent")
+                
                 }
             }
         }
