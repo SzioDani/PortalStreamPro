@@ -13,6 +13,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -29,7 +30,6 @@ object StalkerClient {
 
     private const val TAG = "StalkerClient"
 
-    // Timeout aumentato a 60s in lettura per gestire liste enormi (es. 18.000+ canali)
     private val client = OkHttpClient.Builder()
         .connectTimeout(25, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -42,6 +42,7 @@ object StalkerClient {
         val token: String,
         val cookie: String,
         val profileJson: String = "",
+        val useBearerHeader: Boolean = true,
         val timestamp: Long = System.currentTimeMillis()
     )
 
@@ -54,7 +55,6 @@ object StalkerClient {
         return "$raw|$mac"
     }
 
-    // User-Agent nativo MAG250 usato da IPTV Extreme Pro e STB Emulator
     private const val FALLBACK_USER_AGENT =
         "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
 
@@ -77,17 +77,48 @@ object StalkerClient {
                 ?.value
                 ?.uppercase(Locale.ROOT)
             if (!modelMatch.isNullOrBlank()) {
-                val xUa = "Model: $modelMatch; Link: WiFi"
-                Log.d(TAG, "🖥️ [X-User-Agent Allineato] -> $xUa")
-                return xUa
+                return "Model: $modelMatch; Link: WiFi"
             }
         }
         return FALLBACK_X_USER_AGENT
     }
 
     /**
-     * Risolve correttamente l'URL rimuovendo "/c" finali errati e generando i candidati standard
+     * Genera Serial Number (sn), device_id, device_id2 e signature deterministci dal MAC
+     * esattamente come fanno IPTV Extreme Pro e STB Emulator.
      */
+    private fun md5Hex(input: String): String {
+        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02X".format(it) }
+    }
+
+    private fun sha256Hex(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02X".format(it) }
+    }
+
+    private fun generateMagSerial(mac: String): String = md5Hex(mac).take(13)
+    private fun generateMagDeviceId(mac: String): String = sha256Hex(mac)
+    private fun generateMagDeviceId2(mac: String): String = sha256Hex(mac + "_dev2")
+    private fun generateMagSignature(mac: String, sn: String): String = sha256Hex(sn + mac)
+
+    /**
+     * Verifica se il JSON restituito da get_profile rappresenta un profilo REALE autenticato
+     * (es. "id":"8380") e NON un profilo ospite rifiutato ("id":null).
+     */
+    private fun isProfileAuthenticated(profileJson: String): Boolean {
+        if (profileJson.isBlank() || !profileJson.contains("{")) return false
+        return try {
+            val root = JSONObject(profileJson)
+            val js = root.optJSONObject("js") ?: return false
+            if (js.isNull("id")) return false
+            val idStr = js.optString("id", "").trim()
+            idStr.isNotBlank() && !idStr.equals("null", ignoreCase = true)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun getCandidateBaseUrls(portal: Portal): List<String> {
         var rawServer = portal.server.trim()
         if (rawServer.isBlank()) {
@@ -101,12 +132,10 @@ object StalkerClient {
 
         val cleaned = rawServer.trimEnd('/')
 
-        // Se l'utente ha inserito direttamente un file .php, usiamo quello come primario
         if (cleaned.endsWith(".php", ignoreCase = true)) {
             return listOf(cleaned)
         }
 
-        // Rimuoviamo eventuale suffisso /c o /c/
         val rootUrl = when {
             cleaned.endsWith("/stalker_portal/c", ignoreCase = true) ->
                 cleaned.removeSuffix("/c").removeSuffix("/C")
@@ -117,8 +146,8 @@ object StalkerClient {
 
         return listOf(
             "$rootUrl/portal.php",
-            "$rootUrl/stalker_portal/server/load.php",
             "$rootUrl/c/portal.php",
+            "$rootUrl/stalker_portal/server/load.php",
             "$rootUrl/server/load.php"
         ).distinct()
     }
@@ -134,13 +163,11 @@ object StalkerClient {
     private fun estraiCampoTestuale(json: String, campo: String): String {
         if (json.isBlank()) return "-"
         return try {
-            // Cerca prima stringhe non vuote: "campo": "valore"
             var m = Regex("\"" + Regex.escape(campo) + "\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE).find(json)
             if (m != null) {
                 val found = m.groupValues[1].trim()
                 if (found.isNotBlank() && !found.equals("null", ignoreCase = true)) return found
             }
-            // Cerca numeri o booleani: "campo": 12345
             m = Regex("\"" + Regex.escape(campo) + "\"\\s*:\\s*([^\",}\\]]+)", RegexOption.IGNORE_CASE).find(json)
             val found2 = m?.groupValues?.get(1)?.trim()?.trim('"') ?: "-"
             if (found2.isBlank() || found2.equals("null", ignoreCase = true)) "-" else found2
@@ -173,7 +200,6 @@ object StalkerClient {
         var cleaned = text.trim()
         if (isPlaceholderDate(cleaned)) return null
 
-        // Normalizza AM/PM (es. "December 13, 2026, 8:22 pm" -> "December 13, 2026, 8:22 PM")
         cleaned = cleaned
             .replace(Regex("\\b(am)\\b", RegexOption.IGNORE_CASE), "AM")
             .replace(Regex("\\b(pm)\\b", RegexOption.IGNORE_CASE), "PM")
@@ -239,17 +265,14 @@ object StalkerClient {
         }
     }
 
-    /**
-     * Esegue una richiesta GET standard con tutti gli header MAG/Stalker corretti.
-     * NOTA: Non aggiungiamo manualmente "Accept-Encoding" così OkHttp gestisce il GZIP in automatico!
-     */
     private fun executeStalkerGet(
         url: String,
         userAgent: String,
         xUserAgent: String,
         referer: String,
         cookie: String,
-        token: String
+        token: String,
+        useBearerHeader: Boolean = true
     ): Pair<Int, String> {
         val reqBuilder = Request.Builder()
             .url(url)
@@ -258,7 +281,7 @@ object StalkerClient {
             .addHeader("Referer", referer)
             .addHeader("Cookie", cookie)
 
-        if (token.isNotBlank()) {
+        if (useBearerHeader && token.isNotBlank()) {
             reqBuilder.addHeader("Authorization", "Bearer $token")
         }
 
@@ -268,9 +291,43 @@ object StalkerClient {
         }
     }
 
+    private fun doHandshakeRequest(
+        candidateUrl: String,
+        userAgent: String,
+        xUserAgent: String,
+        referer: String,
+        initialCookie: String
+    ): Triple<Int, String, String> {
+        val handshakeUrl = "$candidateUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
+        val handshakeReq = Request.Builder()
+            .url(handshakeUrl)
+            .addHeader("User-Agent", userAgent)
+            .addHeader("X-User-Agent", xUserAgent)
+            .addHeader("Referer", referer)
+            .addHeader("Cookie", initialCookie)
+            .build()
+
+        var updatedCookie = initialCookie
+        var httpCode = 200
+        val body = client.newCall(handshakeReq).execute().use { resp ->
+            httpCode = resp.code
+            val setCookieHeaders = resp.headers("Set-Cookie")
+            if (setCookieHeaders.isNotEmpty()) {
+                val extraCookies = setCookieHeaders.mapNotNull { it.split(";").firstOrNull()?.trim() }
+                    .filter { it.isNotBlank() && !it.startsWith("mac=", ignoreCase = true) }
+                if (extraCookies.isNotEmpty()) {
+                    updatedCookie += "; " + extraCookies.joinToString("; ")
+                }
+            }
+            resp.body?.string().orEmpty()
+        }
+        val token = parseToken(body)
+        Log.d(TAG, "📥 [Handshake HTTP $httpCode] token='$token' | cookie='$updatedCookie' | body=${body.take(200)}")
+        return Triple(httpCode, token, updatedCookie)
+    }
+
     /**
-     * Esegue Handshake + get_profile (OBBLIGATORIO per attivare il token sul server!)
-     * e salva la sessione in cache per evitare che fetchAccountInfo e fetchChannels si annullino il token a vicenda.
+     * Testa automaticamente più profili di get_profile finché il server non restituisce un "id" valido (non null).
      */
     private suspend fun getOrEstablishSession(
         portal: Portal,
@@ -280,84 +337,151 @@ object StalkerClient {
         val cached = sessionCache[cacheKey]
         val now = System.currentTimeMillis()
 
-        // Riusa la sessione se ha meno di 2 minuti e non è richiesto forceRefresh
         if (!forceRefresh && cached != null && cached.token.isNotBlank() && (now - cached.timestamp) < 120_000L) {
             return@withLock cached
         }
 
         val candidates = getCandidateBaseUrls(portal)
         val mac = portal.macAddress.trim().uppercase(Locale.ROOT)
+        Log.d(
+            TAG,
+            "📋 [Portal Config] server='${portal.server}', url='${portal.url}', mac='$mac', customUA=${portal.useCustomUserAgent}, ua='${portal.userAgent}'"
+        )
+
         if (candidates.isEmpty() || mac.isBlank()) return@withLock null
 
         val userAgent = resolveUserAgent(portal)
         val xUserAgent = resolveXUserAgent(portal)
 
+        val sn = generateMagSerial(mac)
+        val devId = generateMagDeviceId(mac)
+        val devId2 = generateMagDeviceId2(mac)
+        val sig = generateMagSignature(mac, sn)
+
         var lastHttpCode = 200
+        var fallbackUnauthenticatedSession: SessionData? = null
 
         for (candidateUrl in candidates) {
             val referer = buildReferer(candidateUrl)
-            var sessionCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
+            val baseCookie = "mac=$mac; stb_lang=en; timezone=Europe/Rome"
 
             try {
-                val handshakeUrl = "$candidateUrl?type=stb&action=handshake&token=&JsHttpRequest=1-xml"
-                Log.d(TAG, "🚀 [Handshake] Provo endpoint: $handshakeUrl")
+                Log.d(TAG, "🚀 [Handshake] Provo endpoint: $candidateUrl")
+                var (hsCode, token, sessionCookie) = doHandshakeRequest(
+                    candidateUrl = candidateUrl,
+                    userAgent = userAgent,
+                    xUserAgent = xUserAgent,
+                    referer = referer,
+                    initialCookie = baseCookie
+                )
+                lastHttpCode = hsCode
 
-                val handshakeReq = Request.Builder()
-                    .url(handshakeUrl)
-                    .addHeader("User-Agent", userAgent)
-                    .addHeader("X-User-Agent", xUserAgent)
-                    .addHeader("Referer", referer)
-                    .addHeader("Cookie", sessionCookie)
-                    .build()
+                if (token.isBlank()) continue
 
-                var token = ""
-                client.newCall(handshakeReq).execute().use { resp ->
-                    lastHttpCode = resp.code
-                    val setCookieHeaders = resp.headers("Set-Cookie")
-                    if (setCookieHeaders.isNotEmpty()) {
-                        val extraCookies = setCookieHeaders.mapNotNull { it.split(";").firstOrNull()?.trim() }
-                            .filter { it.isNotBlank() && !it.startsWith("mac=", ignoreCase = true) }
-                        if (extraCookies.isNotEmpty()) {
-                            sessionCookie += "; " + extraCookies.joinToString("; ")
+                // Definiamo i 4 profili di get_profile da testare in sequenza:
+                // Profilo 0: Minimal (nessun parametro extra che possa far fallire il controllo sn/device_id)
+                // Profilo 1: Con SN, device_id, device_id2 e signature calcolati dal MAC (stile IPTV Extreme Pro / STB Emu)
+                // Profilo 2: Base MAG250 senza sn/device_id
+                // Profilo 3: Minimal con token dentro il Cookie e senza header Authorization Bearer
+                val profileConfigs = listOf(
+                    Triple(
+                        "Profilo 0 (Minimal)",
+                        "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token",
+                        true
+                    ),
+                    Triple(
+                        "Profilo 1 (Full MAG250 + SN/DeviceID generati)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=218&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        true
+                    ),
+                    Triple(
+                        "Profilo 2 (MAG250 Base senza SN)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=218&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        true
+                    ),
+                    Triple(
+                        "Profilo 3 (Cookie Token senza Bearer)",
+                        "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token",
+                        false
+                    )
+                )
+
+                for ((index, config) in profileConfigs.withIndex()) {
+                    val (profileName, _, useBearer) = config
+
+                    // Se non siamo al primo tentativo, rinegoziamo un token fresco per sicurezza
+                    if (index > 0) {
+                        val hsRetry = doHandshakeRequest(
+                            candidateUrl = candidateUrl,
+                            userAgent = userAgent,
+                            xUserAgent = xUserAgent,
+                            referer = referer,
+                            initialCookie = baseCookie
+                        )
+                        if (hsRetry.second.isNotBlank()) {
+                            token = hsRetry.second
+                            sessionCookie = hsRetry.third
                         }
                     }
-                    val body = resp.body?.string().orEmpty()
-                    Log.d(TAG, "📥 [Handshake HTTP ${resp.code}] -> ${body.take(250)}")
-                    token = parseToken(body)
-                }
 
-                if (token.isNotBlank()) {
-                    // PASSO FONDAMENTALE: Attiviamo il token sul server chiamando get_profile!
-                    val profileUrl =
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250;" +
-                            "&num_banks=2&sn=&stb_type=MAG250&image_version=218&device_id=&device_id2=" +
-                            "&signature=&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0" +
-                            "&JsHttpRequest=1-xml&token=$token"
+                    val activeCookie = if (!useBearer) "$sessionCookie; token=$token" else sessionCookie
+                    val profileUrl = when (index) {
+                        0 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
+                        1 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=218&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=218&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        else -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
+                    }
 
                     val (profCode, profileBody) = executeStalkerGet(
                         url = profileUrl,
                         userAgent = userAgent,
                         xUserAgent = xUserAgent,
                         referer = referer,
-                        cookie = sessionCookie,
-                        token = token
+                        cookie = activeCookie,
+                        token = token,
+                        useBearerHeader = useBearer
                     )
-                    Log.d(TAG, "📥 [get_profile HTTP $profCode] -> ${profileBody.take(300)}")
 
-                    val session = SessionData(
+                    val isAuth = isProfileAuthenticated(profileBody)
+                    val extractedId = estraiCampoTestuale(profileBody, "id")
+                    val extractedIp = estraiCampoTestuale(profileBody, "ip")
+                    val extractedMac = estraiCampoTestuale(profileBody, "mac")
+
+                    Log.d(
+                        TAG,
+                        "🔍 [$profileName] HTTP $profCode | Autenticato=$isAuth | id='$extractedId' | mac='$extractedMac' | ip='$extractedIp' | body=${profileBody.take(300)}"
+                    )
+
+                    val currentSession = SessionData(
                         baseUrl = candidateUrl,
                         refererUrl = referer,
                         token = token,
-                        cookie = sessionCookie,
+                        cookie = activeCookie,
                         profileJson = profileBody,
+                        useBearerHeader = useBearer,
                         timestamp = System.currentTimeMillis()
                     )
-                    sessionCache[cacheKey] = session
-                    return@withLock session
+
+                    if (isAuth) {
+                        Log.d(TAG, "✅ [Sessione Autenticata con successo!] Usando $profileName (id=$extractedId)")
+                        sessionCache[cacheKey] = currentSession
+                        return@withLock currentSession
+                    } else if (fallbackUnauthenticatedSession == null && profileBody.isNotBlank()) {
+                        fallbackUnauthenticatedSession = currentSession
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "⚠️ Tentativo fallito su $candidateUrl: ${e.message}")
             }
+        }
+
+        if (fallbackUnauthenticatedSession != null) {
+            Log.w(
+                TAG,
+                "⚠️ Nessun profilo ha restituito un ID != null. Uso la sessione di fallback per tentare comunque le chiamate."
+            )
+            sessionCache[cacheKey] = fallbackUnauthenticatedSession
+            return@withLock fallbackUnauthenticatedSession
         }
 
         checkHttpResponseCode(lastHttpCode)
@@ -371,11 +495,8 @@ object StalkerClient {
 
             val userAgent = resolveUserAgent(portal)
             val xUserAgent = resolveXUserAgent(portal)
-
-            // 1. Abbiamo già get_profile autenticato dentro session.profileJson!
             val profileBody = session.profileJson
 
-            // 2. Ora che get_profile è stato chiamato, interroghiamo get_main_info e get_info
             var mainInfoBody = ""
             for (azione in listOf("get_main_info", "get_info")) {
                 val url = "${session.baseUrl}?type=account_info&action=$azione&JsHttpRequest=1-xml&token=${session.token}"
@@ -385,7 +506,8 @@ object StalkerClient {
                     xUserAgent = xUserAgent,
                     referer = session.refererUrl,
                     cookie = session.cookie,
-                    token = session.token
+                    token = session.token,
+                    useBearerHeader = session.useBearerHeader
                 )
                 Log.d(TAG, "📥 [AccountInfo $azione HTTP $code] -> $body")
                 if (body.isNotBlank() && body.contains("{")) {
@@ -393,13 +515,11 @@ object StalkerClient {
                 }
             }
 
-            // Cerchiamo il piano tariffario
             var tariffPlan = estraiCampoTestuale(mainInfoBody, "tariff_plan")
             if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(profileBody, "tariff_plan")
             if (tariffPlan == "-") tariffPlan = estraiCampoTestuale(profileBody, "package_name")
             if (tariffPlan == "-" || tariffPlan == "0") tariffPlan = "Standard"
 
-            // Cerchiamo la data di scadenza prima nei campi dedicati (sia in mainInfo che in profile)
             val expireKeys = listOf("exp_date", "end_date", "expire_billing_date", "account_expire", "expire")
             val rawExpire = expireKeys.firstNotNullOfOrNull { key ->
                 val v1 = estraiCampoTestuale(mainInfoBody, key)
@@ -409,7 +529,6 @@ object StalkerClient {
                 null
             } ?: "-"
 
-            // Cerchiamo nel campo "phone" dando priorità assoluta a get_main_info (dove XUI mette la scadenza!)
             var scadPhone = estraiCampoTestuale(mainInfoBody, "phone")
             if (isPlaceholderDate(scadPhone)) {
                 scadPhone = estraiCampoTestuale(profileBody, "phone")
@@ -446,7 +565,6 @@ object StalkerClient {
                     isExpired = parsedPhoneDate.before(Date())
                     formattedExpireDate = SimpleDateFormat("dd/MM/yyyy", Locale.ITALIAN).format(parsedPhoneDate)
                 } else if (scadPhone.matches(Regex(".*\\d{4}.*"))) {
-                    // Se contiene un anno (es. 2026) ma in un formato testuale non standard, mostriamola comunque!
                     formattedExpireDate = scadPhone
                 }
             }
@@ -482,7 +600,6 @@ object StalkerClient {
 
     suspend fun fetchChannels(portal: Portal): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            // Otteniamo la sessione (che esegue handshake + get_profile per autorizzare il token!)
             var session = getOrEstablishSession(portal, forceRefresh = false)
                 ?: return@withContext emptyList()
 
@@ -495,10 +612,10 @@ object StalkerClient {
                 xUserAgent = xUserAgent,
                 referer = session.refererUrl,
                 cookie = session.cookie,
-                token = session.token
+                token = session.token,
+                useBearerHeader = session.useBearerHeader
             )
 
-            // Se i generi sono vuoti, il token in cache potrebbe essere scaduto: forziamo un refresh
             if (categoriesMap.isEmpty()) {
                 Log.w(TAG, "🔄 Generi vuoti al primo tentativo, rinnovo sessione (handshake + get_profile)...")
                 session = getOrEstablishSession(portal, forceRefresh = true) ?: return@withContext emptyList()
@@ -508,7 +625,8 @@ object StalkerClient {
                     xUserAgent = xUserAgent,
                     referer = session.refererUrl,
                     cookie = session.cookie,
-                    token = session.token
+                    token = session.token,
+                    useBearerHeader = session.useBearerHeader
                 )
             }
 
@@ -521,7 +639,8 @@ object StalkerClient {
                 xUserAgent = xUserAgent,
                 referer = session.refererUrl,
                 cookie = session.cookie,
-                token = session.token
+                token = session.token,
+                useBearerHeader = session.useBearerHeader
             )
             checkHttpResponseCode(code)
 
@@ -539,6 +658,7 @@ object StalkerClient {
                     referer = session.refererUrl,
                     cookie = session.cookie,
                     token = session.token,
+                    useBearerHeader = session.useBearerHeader,
                     categoriesMap = categoriesMap
                 )
                 Log.d(TAG, "📊 Canali parsati con fallback: ${channels.size}")
@@ -558,8 +678,6 @@ object StalkerClient {
         val cleanCmd = cmd.trim()
         if (cleanCmd.isBlank()) return@withContext null
 
-        // Alcuni portali (come molti pannelli XUI) mettono già l'URL http diretto dentro cmd
-        // ma se contiene "/ch/" o "localhost" va comunque chiamato create_link.
         val userAgent = resolveUserAgent(portal)
         val xUserAgent = resolveXUserAgent(portal)
         val encodedCmd = URLEncoder.encode(cleanCmd, "UTF-8")
@@ -574,7 +692,8 @@ object StalkerClient {
                 xUserAgent = xUserAgent,
                 referer = activeSession.refererUrl,
                 cookie = activeSession.cookie,
-                token = activeSession.token
+                token = activeSession.token,
+                useBearerHeader = activeSession.useBearerHeader
             ).also { (code, body) ->
                 Log.d(TAG, "📥 [create_link HTTP $code] -> ${body.take(250)}")
             }
@@ -634,20 +753,23 @@ object StalkerClient {
         xUserAgent: String,
         referer: String,
         cookie: String,
-        token: String
+        token: String,
+        useBearerHeader: Boolean
     ): Map<String, String> {
         val map = mutableMapOf<String, String>()
         val genresUrl = "$baseUrl?type=itv&action=get_genres&JsHttpRequest=1-xml&token=$token"
 
         try {
-            val (_, body) = executeStalkerGet(
+            val (code, body) = executeStalkerGet(
                 url = genresUrl,
                 userAgent = userAgent,
                 xUserAgent = xUserAgent,
                 referer = referer,
                 cookie = cookie,
-                token = token
+                token = token,
+                useBearerHeader = useBearerHeader
             )
+            Log.d(TAG, "📥 [get_genres HTTP $code] -> ${body.take(250)}")
             if (body.isBlank()) return map
 
             val dataArray = extractDataArraySicuro(body) ?: return map
@@ -674,6 +796,7 @@ object StalkerClient {
         referer: String,
         cookie: String,
         token: String,
+        useBearerHeader: Boolean,
         categoriesMap: Map<String, String>
     ): List<Channel> {
         val url = "$baseUrl?type=itv&action=get_ordered_channels&genre=0&JsHttpRequest=1-xml&token=$token"
@@ -685,7 +808,8 @@ object StalkerClient {
                 xUserAgent = xUserAgent,
                 referer = referer,
                 cookie = cookie,
-                token = token
+                token = token,
+                useBearerHeader = useBearerHeader
             )
             if (body.isBlank()) return emptyList()
 
