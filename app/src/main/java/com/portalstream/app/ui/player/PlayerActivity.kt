@@ -139,12 +139,16 @@ class PlayerActivity : ComponentActivity() {
         }
 
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
+            ?.takeIf { it.isNotBlank() }
+            ?: if (!isTorrentInput) {
+                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+            }
 
         if (streamUrl.isBlank()) {
             Toast.makeText(this, "URL dello stream non valido", Toast.LENGTH_SHORT).show()
             finish()
             return
-        }
+        } else null
 
         if (isTorrentInput) {
             torrentEngine = TorrentStreamEngine(applicationContext).also {
@@ -628,9 +632,11 @@ class PlayerActivity : ComponentActivity() {
 							        isBuffering = true
                                     errorResult = null
 							        if (useExoPlayer == true) {
-							            exoManager.release()
+                                        exoManager.release()
+							            exoPlayerView = null
 							        } else {
 							            vlcManager.release()
+                                        vlcVideoLayout = null
 							        }
 							        useExoPlayer = !(useExoPlayer ?: false)
 							    },
