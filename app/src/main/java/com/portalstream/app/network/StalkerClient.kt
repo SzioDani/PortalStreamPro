@@ -36,6 +36,14 @@ object StalkerClient {
         .retryOnConnectionFailure(true)
         .build()
 
+    // Client senza redirect automatici per ispezionare il primo contatto (302 Location vs 200 vs 401)
+    private val noRedirectClient = client.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
     private data class SessionData(
         val baseUrl: String,
         val refererUrl: String,
@@ -84,7 +92,7 @@ object StalkerClient {
     }
 
     /**
-     * Genera Serial Number (sn), device_id, device_id2 e signature deterministci dal MAC
+     * Genera Serial Number (sn), device_id, device_id2 e signature deterministici dal MAC
      * esattamente come fanno IPTV Extreme Pro e STB Emulator.
      */
     private fun md5Hex(input: String): String {
@@ -337,7 +345,8 @@ object StalkerClient {
         val cached = sessionCache[cacheKey]
         val now = System.currentTimeMillis()
 
-        if (!forceRefresh && cached != null && cached.token.isNotBlank() && (now - cached.timestamp) < 120_000L) {
+        // Mantiene valida la sessione per 10 minuti per zapping rapido
+        if (!forceRefresh && cached != null && cached.token.isNotBlank() && (now - cached.timestamp) < 600_000L) {
             return@withLock cached
         }
 
@@ -378,11 +387,6 @@ object StalkerClient {
 
                 if (token.isBlank()) continue
 
-                // Definiamo i 4 profili di get_profile da testare in sequenza:
-                // Profilo 0: Minimal (nessun parametro extra che possa far fallire il controllo sn/device_id)
-                // Profilo 1: Con SN, device_id, device_id2 e signature calcolati dal MAC (stile IPTV Extreme Pro / STB Emu)
-                // Profilo 2: Base MAG250 senza sn/device_id
-                // Profilo 3: Minimal con token dentro il Cookie e senza header Authorization Bearer
                 val profileConfigs = listOf(
                     Triple(
                         "Profilo 0 (Minimal)",
@@ -409,7 +413,6 @@ object StalkerClient {
                 for ((index, config) in profileConfigs.withIndex()) {
                     val (profileName, _, useBearer) = config
 
-                    // Se non siamo al primo tentativo, rinegoziamo un token fresco per sicurezza
                     if (index > 0) {
                         val hsRetry = doHandshakeRequest(
                             candidateUrl = candidateUrl,
@@ -673,6 +676,7 @@ object StalkerClient {
             return@withContext emptyList()
         }
     }
+
     /**
      * Converte il cmd del canale nel formato nativo MAG ("ffrt http://localhost/ch/<id>")
      * richiesto da create_link sui pannelli XUI/Stalker, evitando il bug dei 20 caratteri (URL duplicato -> 404).
@@ -681,37 +685,27 @@ object StalkerClient {
         val stripped = rawCmd.replace("ffrt ", "").replace("ffmpeg ", "").trim()
         val candidates = mutableListOf<String>()
 
-        // Caso 1: è già un comando tipo http://localhost/ch/1891
         if (stripped.contains("/ch/")) {
             candidates.add("ffrt $stripped")
             candidates.add(stripped)
             return candidates.distinct()
         }
 
-        // Caso 2: è un URL Xtream/XUI completo (es. http://xc.tvset.top:80/user/pass/1891 o .../1891.ts)
         val streamIdMatch = Regex("/(\\d+)(?:\\.[a-zA-Z0-9]+)?$").find(stripped)
         val streamId = streamIdMatch?.groupValues?.get(1)
 
         if (!streamId.isNullOrBlank()) {
-            // Formato nativo MAG250: "http://localhost/ch/" (20 char) + streamId
             candidates.add("ffrt http://localhost/ch/$streamId")
-            candidates.add("ffrt http://localhost/ch/${streamId}_")
+            candidates.add("ffmpeg http://localhost/ch/$streamId")
+            candidates.add(streamId)
         }
 
-        // Fallback con il comando originale
-        if (rawCmd.startsWith("ffrt ") || rawCmd.startsWith("ffmpeg ")) {
-            candidates.add(rawCmd)
-        } else {
-            candidates.add("ffmpeg $stripped")
-            candidates.add(stripped)
-        }
+        candidates.add("ffmpeg $stripped")
+        candidates.add(stripped)
 
         return candidates.distinct()
     }
 
-    /**
-     * Ripara eventuali URL malformati in cui il server duplica "/<port>/<user>/<pass>/" nel percorso.
-     */
     private fun sanitizeMalformedStreamUrl(url: String): String {
         return url.replace(
             Regex("(https?://[^/]+/([^/]+/[^/]+)/)\\d+/\\2/"),
@@ -749,7 +743,6 @@ object StalkerClient {
             if (bodyStr.isBlank() || !bodyStr.contains("{")) return null
             val json = JSONObject(bodyStr)
             val js = json.optJSONObject("js") ?: return null
-            val returnedId = js.optString("id", "")
             var streamCmd = js.optString("cmd", "")
 
             if (streamCmd.startsWith("ffrt ")) streamCmd = streamCmd.removePrefix("ffrt ")
@@ -761,12 +754,43 @@ object StalkerClient {
             }
 
             streamCmd = sanitizeMalformedStreamUrl(streamCmd.trim())
-
-            // Se l'ID restituito dal server contiene "/" (es. "80/user/pass/1891"), il server ha sbagliato il substr!
-            if (returnedId.contains("/")) {
-                Log.w(TAG, "⚠️ Server ha restituito id malformato ('$returnedId'), URL sanitizzato: $streamCmd")
-            }
             return streamCmd.takeIf { it.isNotBlank() }
+        }
+
+        /**
+         * Sonda il primo contatto dello stream URL:
+         * - Se è un 301/302/307, restituisce l'URL Location del Load Balancer (evitando che VLC bruci il play_token!).
+         * - Se è 200 OK, chiude subito e richiede un nuovo play_token vergine per VLC.
+         * - Se è 401/403/404, lo segnala nel Logcat per passare al tentativo successivo.
+         */
+        fun probeStreamUrl(
+            testUrl: String,
+            activeSession: SessionData,
+            includeCookies: Boolean = false
+        ): Pair<Int, String?> {
+            return try {
+                val reqBuilder = Request.Builder()
+                    .url(testUrl)
+                    .addHeader("User-Agent", userAgent)
+                if (includeCookies) {
+                    reqBuilder.addHeader("X-User-Agent", xUserAgent)
+                    reqBuilder.addHeader("Referer", activeSession.refererUrl)
+                    reqBuilder.addHeader("Cookie", activeSession.cookie)
+                }
+                noRedirectClient.newCall(reqBuilder.build()).execute().use { resp ->
+                    val code = resp.code
+                    val location = resp.header("Location")
+                    val contentType = resp.header("Content-Type")
+                    Log.d(
+                        TAG,
+                        "🔎 [Probe Stream] URL=$testUrl (cookies=$includeCookies) -> HTTP $code | Content-Type=$contentType | Location=$location"
+                    )
+                    code to location
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "⚠️ [Probe Stream Fallito] URL=$testUrl -> ${e.message}")
+                -1 to null
+            }
         }
 
         try {
@@ -798,15 +822,48 @@ object StalkerClient {
                 lastBody = bodyStr
 
                 if (bodyStr.isNotBlank() && bodyStr.contains("{")) {
-                    val js = JSONObject(bodyStr).optJSONObject("js")
-                    val returnedId = js?.optString("id", "").orEmpty()
                     val parsedUrl = extractValidStreamUrl(bodyStr)
+                    if (!parsedUrl.isNullOrBlank()) {
+                        // 1. Sondiamo l'URL generato da create_link
+                        val (probeCode, redirectLocation) = probeStreamUrl(parsedUrl, session, includeCookies = false)
 
-                    // Se il server ha estratto un ID pulito (senza "/") e ci ha dato l'URL, usiamolo subito!
-                    if (!returnedId.contains("/") && !parsedUrl.isNullOrBlank()) {
-                        Log.d(TAG, "🎬 [Stream URL Finale] -> $parsedUrl")
-                        return@withContext parsedUrl
+                        when (probeCode) {
+                            in 300..308 -> {
+                                if (!redirectLocation.isNullOrBlank()) {
+                                    Log.d(TAG, "✅ [Redirect 302 Risolto!] Passo a VLC l'URL diretto del nodo: $redirectLocation")
+                                    return@withContext redirectLocation
+                                }
+                            }
+                            200 -> {
+                                // La sonda ha consumato il play_token monouso: ne generiamo subito uno nuovo vergine per VLC!
+                                val (_, freshBody) = executeCreateLink(session, candidateCmd)
+                                val freshUrl = extractValidStreamUrl(freshBody) ?: parsedUrl
+                                Log.d(TAG, "✅ [Stream 200 OK Confermato!] Passo a VLC nuovo play_token vergine: $freshUrl")
+                                return@withContext freshUrl
+                            }
+                            else -> {
+                                // Proviamo con Cookie/Referer
+                                val (probeCookieCode, cookieLoc) = probeStreamUrl(parsedUrl, session, includeCookies = true)
+                                if (probeCookieCode in 300..308 && !cookieLoc.isNullOrBlank()) {
+                                    Log.d(TAG, "✅ [Redirect 302 con Cookie Risolto!] -> $cookieLoc")
+                                    return@withContext cookieLoc
+                                }
+                            }
+                        }
                     }
+                }
+            }
+
+            // Ultimo test: proviamo l'URL originale del canale SENZA play_token (per i portali con use_http_tmp_link=0)
+            val directChannelUrl = cleanCmd.replace("ffrt ", "").replace("ffmpeg ", "").trim()
+            if (directChannelUrl.startsWith("http")) {
+                val (directCode, directLoc) = probeStreamUrl(directChannelUrl, session, includeCookies = false)
+                if (directCode in 300..308 && !directLoc.isNullOrBlank()) {
+                    Log.d(TAG, "✅ [Stream Diretto senza token -> 302 Risolto!] -> $directLoc")
+                    return@withContext directLoc
+                } else if (directCode == 200) {
+                    Log.d(TAG, "✅ [Stream Diretto senza token -> 200 OK!] -> $directChannelUrl")
+                    return@withContext directChannelUrl
                 }
             }
 
@@ -824,7 +881,7 @@ object StalkerClient {
             Log.e(TAG, "❌ Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
         }
-    }   
+    }
 
     private fun fetchGenres(
         baseUrl: String,
