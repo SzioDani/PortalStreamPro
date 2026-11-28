@@ -506,14 +506,14 @@ object StalkerClient {
                 if (token.isBlank()) continue
 
                 // Ordine ottimizzato:
-                // 1) Profilo XUI Hardware (hw_version_2=62 SENZA sn/device_id/not_valid_token per non attivare il blocco id=1)
-                // 2) Profilo 0 (Minimal)
-                // 3) Profilo 1 (Full MAG250 + SN/DeviceID + hw_version_2=62)
+                // 1) Profilo 0 (Minimal) -> Ottiene subito l'ID 8380 sui pannelli XUI senza farsi bloccare da SN/DeviceID
+                // 2) Profilo 2 (MAG250 Base image_version=220)
+                // 3) Profilo 1 (Full MAG250 + SN/DeviceID)
                 // 4) Profilo 3 (Cookie Token senza Bearer)
                 val profileConfigs = listOf(
                     Triple(
-                        "Profilo XUI (MAG250 + hw_version_2=62 senza SN)",
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&hw_version=1.7-BD-00&hw_version_2=62&auth_second_step=0&JsHttpRequest=1-xml&token=$token",
+                        "Profilo 4 (XUI Hardware hw_version_2=62)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=2.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
@@ -522,8 +522,13 @@ object StalkerClient {
                         true
                     ),
                     Triple(
+                        "Profilo 2 (MAG250 Base image_version=220)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        true
+                    ),
+                    Triple(
                         "Profilo 1 (Full MAG250 + SN/DeviceID)",
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
@@ -550,12 +555,12 @@ object StalkerClient {
                         }
                     }
 
-                    // Includiamo SEMPRE token=$token nel Cookie (molti pannelli XUI leggono $_COOKIE['token'] in create_link!)
-                    val activeCookie = if (sessionCookie.contains("token=")) sessionCookie else "$sessionCookie; token=$token"
+                    val activeCookie = if (!useBearer) "$sessionCookie; token=$token" else sessionCookie
                     val profileUrl = when (index) {
-                        0 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&hw_version=1.7-BD-00&hw_version_2=62&auth_second_step=0&JsHttpRequest=1-xml&token=$token"
+                        0 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=2.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
                         1 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
-                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        3 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
                         else -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
                     }
 
@@ -965,39 +970,11 @@ object StalkerClient {
                 -1 to null
             }
         }
-            /**
-         * Se lo stream contiene credenziali Xtream (http://host:port/user/pass/id) e restituisce 401,
-         * interroga player_api.php per rivelare nel Logcat se la linea ha max_connections pieno (es. active_cons=1),
-         * se è scaduta/bloccata o se richiede un formato specifico.
-         */
-        fun diagnoseXtreamLineOn401(streamUrl: String) {
-            try {
-                val m = Regex("^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/\\d+").find(streamUrl) ?: return
-                val origin = m.groupValues[1]
-                val username = m.groupValues[2]
-                val password = m.groupValues[3]
-                val apiUrl = "$origin/player_api.php?username=$username&password=$password"
-                val req = Request.Builder()
-                    .url(apiUrl)
-                    .addHeader("User-Agent", userAgent)
-                    .build()
-                client.newCall(req).execute().use { resp ->
-                    val body = resp.body?.string()?.take(500)?.replace("\n", " ") ?: ""
-                    Log.w(
-                        TAG,
-                        "🔬 [Diagnostica Linea Xtream ($username)] HTTP ${resp.code} -> $body"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ [Diagnostica Linea Xtream Fallita] -> ${e.message}")
-            }
-        }
 
         try {
             var session = getOrEstablishSession(portal, forceRefresh = false)
                 ?: return@withContext null
-
-            // Informa il portale che stiamo aprendo uno stream TV Live (cur_play_type=1)
+            // Informa il pannello XUI/Stalker che stiamo per aprire un canale Live (sblocca l'IP per Nginx)
             sendWatchdogHeartbeat(
                 baseUrl = session.baseUrl,
                 userAgent = userAgent,
@@ -1099,10 +1076,8 @@ object StalkerClient {
                                     Log.d(TAG, "✅ [Stream 200 OK con Cookie Confermato!] -> $freshUrl")
                                     return@withContext freshUrl
                                 } else if (probeCode == 401 || probeCode == 403) {
-                                    // Esegue la radiografia della linea Xtream sottostante per capire il motivo del 401!
-                                    diagnoseXtreamLineOn401(parsedUrl)
-
-                                    // Richiede UN ULTIMO play_token 100% VERGINE (senza fare Probe) e lo passa diretto a LibVLC!
+                                    // Evita di ciclare sugli altri cmdCandidates per non fare flood sul server:
+                                    // richiede UN ULTIMO play_token 100% VERGINE (senza fare Probe) e lo passa diretto a LibVLC!
                                     val (_, virginBody) = executeCreateLink(session, candidateCmd)
                                     val virginUrl = extractValidStreamUrl(virginBody, session) ?: parsedUrl
                                     Log.w(
