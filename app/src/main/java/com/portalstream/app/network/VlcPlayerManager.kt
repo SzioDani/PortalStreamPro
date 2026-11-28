@@ -50,7 +50,6 @@ class VlcPlayerManager(private val context: Context) {
                 add("--no-drop-late-frames")
                 add("--no-skip-frames")
                 add("--rtsp-tcp")
-                add("--http-reconnect")
                 add("--network-caching=8000")
                 add("--live-caching=8000")
                 add("--disc-caching=8000")
@@ -201,11 +200,6 @@ class VlcPlayerManager(private val context: Context) {
                     if (mp.isPlaying) {
                         refreshAudio(allowAutoSelect = false)
                     }
-                }
-                MediaPlayer.Event.EncounteredError -> {
-                    onBuffering(false)
-                    onPlayingState(false)
-                    onError()
                 }
             }
         }
