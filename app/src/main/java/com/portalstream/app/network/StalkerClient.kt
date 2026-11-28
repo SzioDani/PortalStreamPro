@@ -432,11 +432,12 @@ object StalkerClient {
         cookie: String,
         token: String,
         useBearer: Boolean,
-        curPlayType: Int = 0
+        curPlayType: Int = 0,
+        eventId: Int = 0
     ) {
         try {
             val watchdogUrl =
-                "$baseUrl?type=watchdog&action=get_events&cur_play_type=$curPlayType&event_active_id=0&init=0&JsHttpRequest=1-xml&token=$token"
+                "$baseUrl?type=watchdog&action=get_events&cur_play_type=$curPlayType&event_active_id=$eventId&init=0&JsHttpRequest=1-xml&token=$token"
             val (code, body) = executeStalkerGet(
                 url = watchdogUrl,
                 userAgent = userAgent,
@@ -446,7 +447,7 @@ object StalkerClient {
                 token = token,
                 useBearerHeader = useBearer
             )
-            Log.d(TAG, "💓 [Watchdog Heartbeat HTTP $code] -> ${body.take(150)}")
+            Log.d(TAG, "💓 [Watchdog Heartbeat HTTP $code] type=$curPlayType, event=$eventId -> ${body.take(150)}")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ Watchdog ignorato: ${e.message}")
         }
@@ -505,24 +506,24 @@ object StalkerClient {
                 if (token.isBlank()) continue
 
                 // Ordine ottimizzato:
-                // 1) Profilo 0 (Minimal) -> Ottiene subito l'ID 8380 sui pannelli XUI senza farsi bloccare da SN/DeviceID
-                // 2) Profilo 2 (MAG250 Base image_version=220)
-                // 3) Profilo 1 (Full MAG250 + SN/DeviceID)
+                // 1) Profilo XUI Hardware (hw_version_2=62 SENZA sn/device_id/not_valid_token per non attivare il blocco id=1)
+                // 2) Profilo 0 (Minimal)
+                // 3) Profilo 1 (Full MAG250 + SN/DeviceID + hw_version_2=62)
                 // 4) Profilo 3 (Cookie Token senza Bearer)
                 val profileConfigs = listOf(
+                    Triple(
+                        "Profilo XUI (MAG250 + hw_version_2=62 senza SN)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&hw_version=1.7-BD-00&hw_version_2=62&auth_second_step=0&JsHttpRequest=1-xml&token=$token",
+                        true
+                    ),
                     Triple(
                         "Profilo 0 (Minimal)",
                         "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
-                        "Profilo 2 (MAG250 Base image_version=220)",
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
-                        true
-                    ),
-                    Triple(
                         "Profilo 1 (Full MAG250 + SN/DeviceID)",
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
@@ -549,11 +550,12 @@ object StalkerClient {
                         }
                     }
 
-                    val activeCookie = if (!useBearer) "$sessionCookie; token=$token" else sessionCookie
+                    // Includiamo SEMPRE token=$token nel Cookie (molti pannelli XUI leggono $_COOKIE['token'] in create_link!)
+                    val activeCookie = if (sessionCookie.contains("token=")) sessionCookie else "$sessionCookie; token=$token"
                     val profileUrl = when (index) {
-                        0 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
-                        1 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
-                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        0 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&hw_version=1.7-BD-00&hw_version_2=62&auth_second_step=0&JsHttpRequest=1-xml&token=$token"
+                        1 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
+                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&hw_version_2=62&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
                         else -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
                     }
 
