@@ -68,6 +68,7 @@ import com.portalstream.app.streaming.TorrentStreamState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.util.VLCVideoLayout
+import com.portalstream.app.network.StalkerClient
 
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
@@ -141,7 +142,7 @@ class PlayerActivity : ComponentActivity() {
         userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
             ?.takeIf { it.isNotBlank() }
             ?: if (!isTorrentInput) {
-                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
             } else {
                 null
             }
@@ -640,7 +641,12 @@ class PlayerActivity : ComponentActivity() {
 							            vlcManager.release()
                                         vlcVideoLayout = null
 							        }
-							        useExoPlayer = !(useExoPlayer ?: false)
+							        coroutineScope.launch {
+							            if (!isTorrent) {
+							                playbackUrl = StalkerClient.refreshStreamForRetry(playbackUrl)
+							            }
+							            useExoPlayer = !(useExoPlayer ?: false)
+							        }
 							    },
 							    // [COLORE SFONDO CHIP] Sfondo scuro interno
 							    color = Color(0xFF161922),
@@ -954,10 +960,23 @@ class PlayerActivity : ComponentActivity() {
 								        
 								        if (isTorrent && playbackUrl.isBlank()) {
 								            torrentEngine?.startStream(streamUrl)
-								        } else if (useExoPlayer == true) {
-								            exoManager.retry(playbackUrl)
 								        } else {
-								            vlcManager.retry(playbackUrl, userAgent)
+								            coroutineScope.launch {
+								                // Richiede a StalkerClient un nuovo Handshake (utile se hai cambiato VPN)
+								                // e un nuovo play_token vergine!
+								                val freshUrl = if (!isTorrent) {
+								                    StalkerClient.refreshStreamForRetry(playbackUrl)
+								                } else {
+								                    playbackUrl
+								                }
+								                if (freshUrl != playbackUrl) {
+								                    playbackUrl = freshUrl
+								                } else if (useExoPlayer == true) {
+								                    exoManager.retry(freshUrl)
+								                } else {
+								                    vlcManager.retry(freshUrl, userAgent)
+								                }
+								            }
 								        }
 								    },
 								    modifier = Modifier
@@ -1106,4 +1125,3 @@ class PlayerActivity : ComponentActivity() {
         const val EXTRA_USER_AGENT = "extra_user_agent"
     }
 }
-                
