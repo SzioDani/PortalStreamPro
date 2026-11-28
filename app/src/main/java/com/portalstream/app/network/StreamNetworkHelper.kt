@@ -52,6 +52,9 @@ object StreamNetworkHelper {
                 pathOnly.endsWith(".mpd") ||
                 lower.contains(".isml") ||
                 lower.contains("mediaset") ||
+                lower.contains("rai.it") ||
+                lower.contains("rainews") ||
+                lower.contains("akamaized") ||
                 lower.contains("manifest")) &&
             !lower.contains("play_token=")
         ) {
