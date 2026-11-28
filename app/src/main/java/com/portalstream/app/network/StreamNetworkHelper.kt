@@ -37,35 +37,42 @@ data class StreamErrorResult(
 object StreamNetworkHelper {
 
     private const val FALLBACK_MAG_USER_AGENT =
-        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+        "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
 
     /**
      * Rileva automaticamente se lo stream è HLS/Mediaset/DASH (ExoPlayer)
      * oppure un Portale MAC / MPEG-TS / RTSP (LibVLC).
      */
     suspend fun shouldUseExoPlayer(urlStr: String, userAgentStr: String?): Boolean = withContext(Dispatchers.IO) {
-        val lower = urlStr.lowercase()
-        // Riconosce subito tutti i flussi MAC/Stalker senza aprire connessioni sonda che bruciano il play_token!
+        val lower = urlStr.trim().lowercase()
+        val pathOnly = lower.substringBefore("?")
+
+        // 1. Se è esplicitamente un manifesto HLS o DASH senza token monouso Stalker, usa ExoPlayer
+        if ((pathOnly.endsWith(".m3u8") ||
+                pathOnly.endsWith(".mpd") ||
+                lower.contains(".isml") ||
+                lower.contains("mediaset") ||
+                lower.contains("manifest")) &&
+            !lower.contains("play_token=")
+        ) {
+            return@withContext true
+        }
+
+        // 2. Riconosce tutti i flussi MAC/Stalker/Xtream (inclusi URL con token=, .ts?... o ID numerico finale)
+        // restituendo subito false (LibVLC) SENZA aprire connessioni sonda che bruciano il token!
         if (lower.contains("live.php") ||
             lower.contains("extension=ts") ||
             lower.contains("play_token=") ||
+            lower.contains("token=") ||
             lower.contains("/play/") ||
             lower.contains("/ch/") ||
-            lower.endsWith(".ts") ||
+            pathOnly.endsWith(".ts") ||
+            Regex("/\\d+$").containsMatchIn(pathOnly) ||
             lower.startsWith("rtsp://") ||
             lower.startsWith("udp://") ||
             lower.startsWith("rtp://")
         ) {
             return@withContext false
-        }
-
-        if (lower.contains(".m3u8") ||
-            lower.contains(".mpd") ||
-            lower.contains(".isml") ||
-            lower.contains("mediaset") ||
-            lower.contains("manifest")
-        ) {
-            return@withContext true
         }
 
         try {
