@@ -965,8 +965,6 @@ object StalkerClient {
                 -1 to null
             }
         }
-
-        try {
             /**
          * Se lo stream contiene credenziali Xtream (http://host:port/user/pass/id) e restituisce 401,
          * interroga player_api.php per rivelare nel Logcat se la linea ha max_connections pieno (es. active_cons=1),
