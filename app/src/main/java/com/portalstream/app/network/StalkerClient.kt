@@ -165,6 +165,14 @@ object StalkerClient {
             val js = root.optJSONObject("js") ?: return false
             if (js.isNull("id")) return false
             val idStr = js.optString("id", "").trim()
+            val statusStr = js.optString("status", "").trim()
+
+            // Scarta il profilo di sistema fasullo di XUI (id=1, status=1)
+            if (idStr == "1" && statusStr == "1") {
+                Log.w(TAG, "🚫 [Profilo Rifiutato] Il server ha risposto col profilo fasullo XUI (id=1, status=1)")
+                return false
+            }
+
             idStr.isNotBlank() && !idStr.equals("null", ignoreCase = true)
         } catch (e: Exception) {
             false
@@ -172,7 +180,7 @@ object StalkerClient {
     }
 
     /**
-     * Logga una radiografia completa del profilo restituito dal server per capire blocchi account/STB
+     * Logga una radiografia completa del profilo restituito dal server (inclusi SN e DeviceID salvati nel DB)
      */
     private fun logProfileDiagnostics(profileName: String, httpCode: Int, profileBody: String) {
         val id = estraiCampoTestuale(profileBody, "id")
@@ -183,13 +191,16 @@ object StalkerClient {
         val verified = estraiCampoTestuale(profileBody, "verified")
         val justStarted = estraiCampoTestuale(profileBody, "just_started")
         val stbType = estraiCampoTestuale(profileBody, "stb_type")
+        val dbSn = estraiCampoTestuale(profileBody, "sn")
+        val dbDevId = estraiCampoTestuale(profileBody, "device_id")
+        val dbHwVer2 = estraiCampoTestuale(profileBody, "hw_version_2")
         val msg = estraiCampoTestuale(profileBody, "msg")
 
         Log.d(
             TAG,
             "🔬 [Diagnostica Profilo: $profileName] HTTP=$httpCode | id='$id' | user='$name' | ip='$ip' | " +
                 "status='$status' | blocked='$blocked' | verified='$verified' | just_started='$justStarted' | " +
-                "stb_type='$stbType' | msg='$msg'"
+                "stb_type='$stbType' | db_sn='$dbSn' | db_devId='${dbDevId.take(16)}' | hw2='$dbHwVer2' | msg='$msg'"
         )
     }
 
@@ -494,14 +505,14 @@ object StalkerClient {
                 if (token.isBlank()) continue
 
                 // Ordine ottimizzato:
-                // 1) Profilo Completo MAG250 (sblocca verified/not_valid_token=0)
-                // 2) Profilo MAG250 Base (senza vincolo SN per portali con SN lock diverso)
-                // 3) Profilo Minimal (come nel tuo script)
-                // 4) Profilo Cookie Token
+                // 1) Profilo 0 (Minimal) -> Ottiene subito l'ID 8380 sui pannelli XUI senza farsi bloccare da SN/DeviceID
+                // 2) Profilo 2 (MAG250 Base image_version=220)
+                // 3) Profilo 1 (Full MAG250 + SN/DeviceID)
+                // 4) Profilo 3 (Cookie Token senza Bearer)
                 val profileConfigs = listOf(
                     Triple(
-                        "Profilo 1 (Full MAG250 + SN/DeviceID)",
-                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
+                        "Profilo 0 (Minimal)",
+                        "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
@@ -510,8 +521,8 @@ object StalkerClient {
                         true
                     ),
                     Triple(
-                        "Profilo 0 (Minimal)",
-                        "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token",
+                        "Profilo 1 (Full MAG250 + SN/DeviceID)",
+                        "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token",
                         true
                     ),
                     Triple(
@@ -540,9 +551,9 @@ object StalkerClient {
 
                     val activeCookie = if (!useBearer) "$sessionCookie; token=$token" else sessionCookie
                     val profileUrl = when (index) {
-                        0 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
+                        0 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
                         1 -> "$candidateUrl?type=stb&action=get_profile&hd=1&stb_type=MAG250&image_version=220&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
-                        2 -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
+                        2 -> "$candidateUrl?type=stb&action=get_profile&hd=1&ver=ImageDescription:%200.2.18-r14-pub-250&num_banks=2&sn=$sn&stb_type=MAG250&image_version=220&device_id=$devId&device_id2=$devId2&signature=$sig&auth_second_step=0&hw_version=1.7-BD-00&not_valid_token=0&JsHttpRequest=1-xml&token=$token"
                         else -> "$candidateUrl?type=stb&action=get_profile&JsHttpRequest=1-xml&token=$token"
                     }
 
@@ -1045,6 +1056,16 @@ object StalkerClient {
                                     val freshUrl = extractValidStreamUrl(freshBody, session) ?: parsedUrl
                                     Log.d(TAG, "✅ [Stream 200 OK con Cookie Confermato!] -> $freshUrl")
                                     return@withContext freshUrl
+                                } else if (probeCode == 401 || probeCode == 403) {
+                                    // Evita di ciclare sugli altri cmdCandidates per non fare flood sul server:
+                                    // richiede UN ULTIMO play_token 100% VERGINE (senza fare Probe) e lo passa diretto a LibVLC!
+                                    val (_, virginBody) = executeCreateLink(session, candidateCmd)
+                                    val virginUrl = extractValidStreamUrl(virginBody, session) ?: parsedUrl
+                                    Log.w(
+                                        TAG,
+                                        "🎬 [Bypass Sonda 401] Generato play_token VERGINE (non sondato da OkHttp) per test diretto su LibVLC: $virginUrl"
+                                    )
+                                    return@withContext virginUrl
                                 }
                             }
                         }
@@ -1052,19 +1073,13 @@ object StalkerClient {
                 }
             }
 
-            // Fallback per portali con use_http_tmp_link=0 (dove l'URL in get_all_channels è già diretto senza bisogno di play_token)
-            val directChannelUrl = stripMagPrefix(cleanCmd)
-            if (directChannelUrl.startsWith("http") && !directChannelUrl.contains("://localhost")) {
-                val (directCode, directLoc) = probeStreamUrl(directChannelUrl, session, includeCookies = false)
-                if (directCode in 300..308 && !directLoc.isNullOrBlank()) {
-                    Log.d(TAG, "✅ [Stream Diretto senza token -> 302 Risolto!] -> $directLoc")
-                    return@withContext directLoc
-                } else if (directCode == 200) {
-                    Log.d(TAG, "✅ [Stream Diretto senza token -> 200 OK!] -> $directChannelUrl")
-                    return@withContext directChannelUrl
-                }
-            }
+            checkHttpResponseCode(lastCode)
+            if (lastBody.isBlank()) return@withContext null
+            checkPayloadForErrors(lastBody)
 
+            val fallbackUrl = extractValidStreamUrl(lastBody, session)
+            Log.d(TAG, "🎬 [Stream URL Fallback (Passaggio diretto a VLC)] -> $fallbackUrl")
+            return@withContext fallbackUrl
             checkHttpResponseCode(lastCode)
             if (lastBody.isBlank()) return@withContext null
             checkPayloadForErrors(lastBody)
