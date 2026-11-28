@@ -967,8 +967,50 @@ object StalkerClient {
         }
 
         try {
+            /**
+         * Se lo stream contiene credenziali Xtream (http://host:port/user/pass/id) e restituisce 401,
+         * interroga player_api.php per rivelare nel Logcat se la linea ha max_connections pieno (es. active_cons=1),
+         * se è scaduta/bloccata o se richiede un formato specifico.
+         */
+        fun diagnoseXtreamLineOn401(streamUrl: String) {
+            try {
+                val m = Regex("^(https?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/\\d+").find(streamUrl) ?: return
+                val origin = m.groupValues[1]
+                val username = m.groupValues[2]
+                val password = m.groupValues[3]
+                val apiUrl = "$origin/player_api.php?username=$username&password=$password"
+                val req = Request.Builder()
+                    .url(apiUrl)
+                    .addHeader("User-Agent", userAgent)
+                    .build()
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string()?.take(500)?.replace("\n", " ") ?: ""
+                    Log.w(
+                        TAG,
+                        "🔬 [Diagnostica Linea Xtream ($username)] HTTP ${resp.code} -> $body"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ [Diagnostica Linea Xtream Fallita] -> ${e.message}")
+            }
+        }
+
+        try {
             var session = getOrEstablishSession(portal, forceRefresh = false)
                 ?: return@withContext null
+
+            // Informa il portale che stiamo aprendo uno stream TV Live (cur_play_type=1)
+            sendWatchdogHeartbeat(
+                baseUrl = session.baseUrl,
+                userAgent = userAgent,
+                xUserAgent = xUserAgent,
+                referer = session.refererUrl,
+                cookie = session.cookie,
+                token = session.token,
+                useBearer = session.useBearerHeader,
+                curPlayType = 1,
+                eventId = 1
+            )
 
             var hasRefreshedSessionOnStream401 = false
             var lastCode = 200
@@ -1059,8 +1101,10 @@ object StalkerClient {
                                     Log.d(TAG, "✅ [Stream 200 OK con Cookie Confermato!] -> $freshUrl")
                                     return@withContext freshUrl
                                 } else if (probeCode == 401 || probeCode == 403) {
-                                    // Evita di ciclare sugli altri cmdCandidates per non fare flood sul server:
-                                    // richiede UN ULTIMO play_token 100% VERGINE (senza fare Probe) e lo passa diretto a LibVLC!
+                                    // Esegue la radiografia della linea Xtream sottostante per capire il motivo del 401!
+                                    diagnoseXtreamLineOn401(parsedUrl)
+
+                                    // Richiede UN ULTIMO play_token 100% VERGINE (senza fare Probe) e lo passa diretto a LibVLC!
                                     val (_, virginBody) = executeCreateLink(session, candidateCmd)
                                     val virginUrl = extractValidStreamUrl(virginBody, session) ?: parsedUrl
                                     Log.w(
