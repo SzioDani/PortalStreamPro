@@ -64,8 +64,8 @@ class VlcPlayerManager(private val context: Context) {
 
         libVLC = LibVLC(context, options).apply {
             setUserAgent(
-                "MAG200",
-                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+                "MAG250",
+                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
             )
         }
         mediaPlayer = MediaPlayer(libVLC)
@@ -160,6 +160,15 @@ class VlcPlayerManager(private val context: Context) {
 
         mp.setEventListener { event ->
             when (event.type) {
+                MediaPlayer.Event.Opening -> {
+                    Log.d("PlayerDebug", "🎬 [LibVLC Opening] Apertura stream in corso: $trimmedUrl")
+                }
+                MediaPlayer.Event.EncounteredError -> {
+                    Log.e("PlayerDebug", "❌ [LibVLC EncounteredError] Impossibile aprire o decodificare: $trimmedUrl")
+                    onBuffering(false)
+                    onPlayingState(false)
+                    onError()
+                }
                 MediaPlayer.Event.Buffering -> {
                     if (isTorrentFile) {
                         onBuffering(!mp.isPlaying && event.buffering < 50f)
@@ -242,14 +251,17 @@ class VlcPlayerManager(private val context: Context) {
                 addOption(":audio-language=it,ita,italiano,en,eng,und")
             } else {
                 setHWDecoderEnabled(true, true)
-                addOption(":http-reconnect")
-                addOption(":network-caching=8000")
-                addOption(":live-caching=8000")
+                val hasOneTimeToken = lowerUrl.contains("play_token=") || lowerUrl.contains("token=")
+                if (!hasOneTimeToken) {
+                    addOption(":http-reconnect")
+                }
+                addOption(":network-caching=3000")
+                addOption(":live-caching=3000")
                 addOption(":audio-language=it,ita,italiano")
 
                 val isRawMacStream = (lowerUrl.contains("live.php") ||
                     lowerUrl.contains("extension=ts") ||
-                    lowerUrl.endsWith(".ts")) && !lowerUrl.contains("play_token=")
+                    lowerUrl.endsWith(".ts")) && !hasOneTimeToken
 
                 if (isRawMacStream) {
                     addOption(":http-continuous")
@@ -259,7 +271,7 @@ class VlcPlayerManager(private val context: Context) {
                 val effectiveUserAgent = if (!userAgent.isNullOrBlank()) {
                     userAgent.trim()
                 } else {
-                    "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+                    "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG250 stbapp ver: 2 rev: 250 Safari/533.3"
                 }
                 addOption(":http-user-agent=$effectiveUserAgent")
             }
