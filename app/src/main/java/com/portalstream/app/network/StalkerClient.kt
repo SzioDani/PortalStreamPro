@@ -69,6 +69,46 @@ object StalkerClient {
     // Memorizza i portali che rispondono 200 OK diretto (senza 302) per evitare doppie connessioni durante lo zapping
     private val directStreamPortals = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
+    // Memorizza l'ultimo portale, comando e URL generato da StalkerClient per il tasto "Riprova"
+    @Volatile
+    private var lastRequestedPortal: Portal? = null
+    @Volatile
+    private var lastRequestedCmd: String? = null
+    @Volatile
+    private var lastResolvedStreamUrl: String? = null
+
+    /**
+     * Rigenera la sessione (es. dopo cambio VPN) e il play_token SOLO se lo stream attuale appartiene al portale MAC.
+     * Se l'utente sta guardando un canale M3U (Rai/Mediaset) o Xtream, restituisce subito l'URL intatto!
+     */
+    suspend fun refreshStreamForRetry(currentPlaybackUrl: String): String = withContext(Dispatchers.IO) {
+        val portal = lastRequestedPortal
+        val cmd = lastRequestedCmd
+        val lastMacUrl = lastResolvedStreamUrl
+
+        // Verifica che lo stream attualmente aperto nel player provenga davvero da StalkerClient
+        val isCurrentStreamFromStalker = !lastMacUrl.isNullOrBlank() &&
+            (currentPlaybackUrl == lastMacUrl || currentPlaybackUrl.contains("play_token="))
+
+        if (portal == null || cmd.isNullOrBlank() || !isCurrentStreamFromStalker) {
+            return@withContext currentPlaybackUrl
+        }
+
+        val cacheKey = portalCacheKey(portal)
+        Log.d(TAG, "🔄 [Riprova MAC Richiesto] Resetto sessione per '$cacheKey' (cambio VPN / nuovo token)...")
+        sessionMutex.withLock {
+            sessionCache.remove(cacheKey)
+        }
+        directStreamPortals.remove(cacheKey)
+
+        return@withContext try {
+            getStreamUrl(portal, cmd) ?: currentPlaybackUrl
+        } catch (e: Exception) {
+            Log.e(TAG, "⚠️ Errore durante refreshStreamForRetry: ${e.message}")
+            currentPlaybackUrl
+        }
+    }
+
     private fun resolveUserAgent(portal: Portal): String {
         val ua = if (portal.useCustomUserAgent && portal.userAgent.isNotBlank()) {
             portal.userAgent.trim()
@@ -790,6 +830,10 @@ object StalkerClient {
         val cleanCmd = cmd.trim()
         if (cleanCmd.isBlank()) return@withContext null
 
+        // Memorizza portale e cmd per permettere il "Riprova" con nuova sessione/VPN
+        lastRequestedPortal = portal
+        lastRequestedCmd = cleanCmd
+
         val cacheKey = portalCacheKey(portal)
         val userAgent = resolveUserAgent(portal)
         val xUserAgent = resolveXUserAgent(portal)
@@ -1034,6 +1078,10 @@ object StalkerClient {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Errore risoluzione create_link Stalker: ${e.localizedMessage}", e)
             null
+        }
+    }.also { resolvedUrl ->
+        if (!resolvedUrl.isNullOrBlank()) {
+            lastResolvedStreamUrl = resolvedUrl
         }
     }
 
