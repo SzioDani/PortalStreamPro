@@ -1080,13 +1080,6 @@ object StalkerClient {
             val fallbackUrl = extractValidStreamUrl(lastBody, session)
             Log.d(TAG, "🎬 [Stream URL Fallback (Passaggio diretto a VLC)] -> $fallbackUrl")
             return@withContext fallbackUrl
-            checkHttpResponseCode(lastCode)
-            if (lastBody.isBlank()) return@withContext null
-            checkPayloadForErrors(lastBody)
-
-            val fallbackUrl = extractValidStreamUrl(lastBody, session)
-            Log.d(TAG, "🎬 [Stream URL Fallback (Passaggio diretto a VLC)] -> $fallbackUrl")
-            return@withContext fallbackUrl
         } catch (e: PortalException) {
             Log.e(TAG, "❌ PortalException durante getStreamUrl: ${e.message}")
             throw e
